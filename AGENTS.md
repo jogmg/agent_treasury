@@ -97,11 +97,19 @@ whole withdrawal. Fix: no return values; `CCTP_MIN_FINALITY_THRESHOLD = 2000`.
 - Iris attestation: `complete`, `finalityThresholdExecuted=2000`; destination mint pending Sepolia gas.
 - Use `scripts/complete-cctp.ts` to finish the Sepolia mint once funded.
 
+### Inbound CCTP deposit proof (Oct 2026)
+- 10 USDC burned on Ethereum Sepolia by `0x72Cbd56507699F5002A10aCdDC5D20b4C2207a75`
+  to Arc domain `26`, mintRecipient the same wallet:
+  source tx `0x2f62e20a4e5b0c650bfe0bad15629509f1d4779d0269ecf1fffdff03b81d9501`.
+- Iris source-domain `0` attestation is `complete`; destination domain `26`, amount `10000000`.
+- Arc `receiveMessage` was simulated from the recipient and returned `true`. The Arc mint and
+  treasury `deposit()` still require the user's wallet signature.
+
 ### Frontend hotfix additions
 - `LegacyRecoveryCard` in the Withdraw tab recovers funds from the old stack via `withdrawLocal`.
 - `OwnershipCard` in Settings accepts the Ownable2Step handoff on all three contracts.
 - `CctpCompletionCard` polls Circle Iris after a burn, switches to the destination chain, and submits `receiveMessage`. It also lists recent CCTP requests and accepts a pasted Arc burn tx hash. The destination mint still needs destination-chain gas.
-- `CrossChainDepositCard` implements inbound CCTP in the Deposit tab: source-chain `depositForBurn` → Iris poll → Arc `receiveMessage` (mints to the connected wallet) → Arc `approve` + `treasury.deposit()`. It requires source USDC, source gas, and a little Arc gas. `CCTPReceiver` is not on this path.
+- `CrossChainDepositCard` implements inbound CCTP in the Deposit tab: source-chain `depositForBurn` → Iris poll → Arc `receiveMessage` (mints to the connected wallet) → Arc `approve` + `treasury.deposit()`. It requires source USDC, source gas, and a little Arc gas. `CCTPReceiver` is not on this path. It has a **Track a source transaction** recovery form (validates destination domain, mintRecipient, and destinationCaller) and the Activity tab shows a pending bridge banner with the source tx link, since source-chain burns do not appear in Arc logs until the mint/deposit.
 - `ADDRESSES` / `ARC_TREASURY_DEPLOY_BLOCK` now point at the hotfix stack; `LEGACY_ADDRESSES` keep the old stack for recovery.
 
 ## Pre-hotfix Deployment (legacy — do not use for new CCTP tests)
