@@ -7,6 +7,8 @@ beforeEach(() => {
     depositStep:  'idle', depositHash:  '', approveHash:  '', depositError:  '',
     withdrawStep: 'idle', withdrawHash: '', withdrawError: '',
     cctpStep:     'idle', cctpHash:     '', cctpError:     '', cctpWithdrawalId: '',
+    cctpCompletionStatus: 'idle', cctpDestinationDomain: 0, cctpAmount: '',
+    cctpRecipient: '', cctpMessage: '', cctpAttestation: '', cctpMintHash: '', cctpCompletionError: '',
     settingsStep: 'idle', settingsHash: '', settingsError: '',
   })
 })

@@ -16,7 +16,7 @@ contracts/out/
 contracts/cache/
 contracts/broadcast/
 contracts/lib/
-lib/
+/lib/
 
 # scratch / local verification
 .tmp-*

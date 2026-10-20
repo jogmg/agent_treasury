@@ -9,6 +9,8 @@ import { ActivityTab }  from './components/tabs/ActivityTab'
 import { SettingsTab }  from './components/tabs/SettingsTab'
 import { useTreasuryData, useActivityEvents } from './hooks/useTreasuryData'
 import { useUiStore } from './stores/ui'
+import { useFlowStore } from './stores/flow'
+import { getCctpDestination } from './lib/cctp'
 import { ARC_TESTNET_CHAIN_ID } from './lib/contracts'
 
 // ── Global data bootstrap ────────────────────────────────────────────────────
@@ -22,7 +24,30 @@ function DataBootstrap() {
 function WrongNetworkBanner() {
   const { chainId, isConnected } = useAccount()
   const { switchChain, isPending } = useSwitchChain()
+  const completionStatus = useFlowStore((s) => s.cctpCompletionStatus)
+  const destinationDomain = useFlowStore((s) => s.cctpDestinationDomain)
   if (!isConnected || chainId === ARC_TESTNET_CHAIN_ID) return null
+
+  const destination = getCctpDestination(destinationDomain)
+  const isCompletingMint = completionStatus === 'ready' ||
+    completionStatus === 'minting' ||
+    completionStatus === 'done'
+
+  if (isCompletingMint) {
+    return (
+      <div className="border-b border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-center text-xs text-emerald-300">
+        Completing the CCTP mint on {destination?.name ?? 'the destination chain'}.{' '}
+        <button
+          onClick={() => switchChain({ chainId: ARC_TESTNET_CHAIN_ID })}
+          disabled={isPending}
+          className="font-semibold underline hover:text-emerald-200"
+        >
+          {isPending ? 'Switching…' : 'Back to Arc Testnet'}
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className="border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-center text-xs text-amber-300">
       Wrong network.{' '}

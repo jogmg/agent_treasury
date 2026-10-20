@@ -98,6 +98,7 @@ whole withdrawal. Fix: no return values; `CCTP_MIN_FINALITY_THRESHOLD = 2000`.
 ### Frontend hotfix additions
 - `LegacyRecoveryCard` in the Withdraw tab recovers funds from the old stack via `withdrawLocal`.
 - `OwnershipCard` in Settings accepts the Ownable2Step handoff on all three contracts.
+- `CctpCompletionCard` polls Circle Iris after a burn, switches to the destination chain, and submits `receiveMessage`. It also lists recent CCTP requests and accepts a pasted Arc burn tx hash. The destination mint still needs destination-chain gas.
 - `ADDRESSES` / `ARC_TREASURY_DEPLOY_BLOCK` now point at the hotfix stack; `LEGACY_ADDRESSES` keep the old stack for recovery.
 
 ## Pre-hotfix Deployment (legacy — do not use for new CCTP tests)

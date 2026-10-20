@@ -42,7 +42,7 @@ Protocol constants (testnet and mainnet share the same CCTP contracts and domain
 | Morpho Earn Kit USDC vault | `0xAabbeF1D3971c710276ed41eC791BbE14CdB8E88` |
 | RPC / Explorer | `https://rpc.testnet.arc.io` / `https://explorer.testnet.arc.io` |
 
-> **Status: CCTP hotfix deployed and E2E verified on testnet.** The new stack is fully wired: adapter, receiver, vault 1, keeper, and default vault are live. A real 10 USDC deposit and a real 1 USDC CCTP withdrawal from yield succeeded. The burn produced a finalized Circle attestation for destination domain `0` (Ethereum Sepolia). The destination mint is pending Sepolia gas only; the recipient has no Sepolia ETH. Full record: `deployments/arc-testnet-fixed.json`.
+> **Status: CCTP hotfix deployed and E2E verified on testnet.** The new stack is fully wired: adapter, receiver, vault 1, keeper, and default vault are live. A real 10 USDC deposit and real CCTP withdrawals from yield have succeeded. The burn produced a finalized Circle attestation for destination domain `0` (Ethereum Sepolia). The app now polls Iris automatically, shows the attestation, and submits the destination mint after the user switches networks and approves the transaction. That final mint still needs a little destination-chain gas. Full record: `deployments/arc-testnet-fixed.json`.
 
 ### CCTP hotfix
 
@@ -60,7 +60,17 @@ Circle Iris returned `status: complete` with `finalityThresholdExecuted: 2000` a
 
 The pre-hotfix stack is still on-chain and holds testnet funds. The Withdraw tab exposes a **Legacy Treasury** card that calls its unaffected `withdrawLocal` path so those funds can be recovered without CCTP.
 
-To complete the pending Sepolia mint after funding the recipient with testnet gas:
+### Completing a pending transfer
+
+The Withdraw tab does this automatically after a burn:
+
+1. Polls Circle Iris for the attestation.
+2. Shows **Attestation ready** with the destination chain and amount.
+3. Switches to the destination chain and submits `receiveMessage` from the connected wallet.
+
+The destination mint is a transaction on the destination chain, so its gas token is required there. If the app is opened later, use **Recent CCTP requests** or paste the Arc burn tx hash in the advanced CCTP section to resume.
+
+The script remains available for headless/CLI recovery:
 
 ```bash
 npx tsx scripts/complete-cctp.ts 0x3f0f256843ee4e1498cafceea9978725397904899bb527f684eb98c171e28a1c
@@ -169,7 +179,7 @@ See `docs/RUNBOOK.md` for the exact env vars and smoke tests.
 5. **Activity**: decoded `DepositRecorded`, `WithdrawalToWallet`, `YieldStrategyChanged`, etc., with explorer links and CSV export.
 6. **Settings**: set daily/weekly spending limits; inspect owner/keeper/pause.
 
-Cross-chain outbound (`requestWithdrawal`) is available in the Withdraw tab's advanced section. It burns via CCTP v2 and produces a finalized Iris attestation. The destination mint is a manual relay in this build; `scripts/complete-cctp.ts` submits it once the destination wallet has gas. The Withdraw tab also shows a **Legacy Treasury** recovery card for funds left in the pre-hotfix deployment.
+Cross-chain outbound (`requestWithdrawal`) is available in the Withdraw tab. It burns via CCTP v2 and then the app fetches the Circle attestation automatically. When the attestation is ready, the app switches to the destination chain and asks for one wallet confirmation to submit `receiveMessage`; the final mint needs destination-chain gas. Recent CCTP requests are listed in the Withdraw tab, and pasting an Arc burn tx hash resumes an older transfer. `scripts/complete-cctp.ts` is the headless fallback. The Withdraw tab also shows a **Legacy Treasury** recovery card for funds left in the pre-hotfix deployment.
 
 ---
 
@@ -185,7 +195,7 @@ Cross-chain outbound (`requestWithdrawal`) is available in the Withdraw tab's ad
 | Dashboard, 6 tabs, event history, CSV export | ✅ built, lint/typecheck clean |
 | Testnet deployment | ✅ deployed, wired, and E2E verified with real testnet USDC |
 | Circle Gateway unified balance | ⚠️ contract hook (`gatewayReceiver`) is present; live Gateway balances need a server-side API key and are intentionally not faked in the UI |
-| Automatic Iris relay on the destination chain | ⚠️ manual relay in this build; attestation link is surfaced |
+| Automatic Iris attestation + in-app destination mint | ✅ implemented: poll Iris, switch chain, submit `receiveMessage`; destination gas required |
 | Mainnet deployment | ⛔ not done; needs a funded mainnet deployer (real USDC) |
 
 ---

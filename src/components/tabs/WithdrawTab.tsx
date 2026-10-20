@@ -3,14 +3,16 @@ import { useAccount, usePublicClient, useSwitchChain, useWriteContract } from 'w
 import { useQueryClient } from '@tanstack/react-query'
 import { isAddress } from 'viem'
 import { toast } from 'sonner'
-import { AlertTriangle, Info } from 'lucide-react'
+import { AlertTriangle } from 'lucide-react'
 import { ADDRESSES, TREASURY_ABI, ARC_TESTNET_CHAIN_ID, ARC_CCTP_DOMAIN } from '../../lib/contracts'
 import { parseUsdc, formatUsdcDollar, formatUsdc, addrToBytes32 } from '../../lib/decimals'
 import { parseOnchainError } from '../../lib/errors'
 import { useTreasuryStore } from '../../stores/treasury'
 import { useFlowStore } from '../../stores/flow'
+import { useUiStore } from '../../stores/ui'
 import { TxStep } from '../TxStep'
 import { LegacyRecoveryCard } from '../LegacyRecoveryCard'
+import { CctpCompletionCard } from '../CctpCompletionCard'
 
 const MAX_U256 = BigInt('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff')
 
@@ -27,9 +29,11 @@ export function WithdrawTab() {
   const [cctpAmount, setCctpAmount] = useState('')
   const [destDomain, setDestDomain] = useState('')
   const [mintRecipient, setMintRecipient] = useState('')
+  const [existingTx, setExistingTx] = useState('')
   const [cctpBusy, setCctpBusy] = useState(false)
 
   const { totalBalance } = useTreasuryStore()
+  const activityEvents = useUiStore((s) => s.activityEvents)
   const { withdrawStep, withdrawHash, withdrawError, setWithdraw, resetWithdraw,
           cctpStep, cctpHash, cctpError, setCctp, resetCctp } = useFlowStore()
 
@@ -38,6 +42,35 @@ export function WithdrawTab() {
 
   const isWrongChain = !!address && chainId !== ARC_TESTNET_CHAIN_ID
   const parsedAmount  = amount ? parseUsdc(amount) : 0n
+
+  const recentCctp = address
+    ? activityEvents
+        .filter((event) => {
+          const agent = event.args.agent
+          return event.type === 'WithdrawalRequested' &&
+            typeof agent === 'string' &&
+            agent.toLowerCase() === address.toLowerCase()
+        })
+        .slice(0, 3)
+    : []
+
+  function loadCctpTransfer(txHash: string, rawAmount?: unknown, destinationDomain?: unknown) {
+    const amountValue = typeof rawAmount === 'bigint' ? rawAmount.toString() : ''
+    const domainValue = Number(destinationDomain)
+    setCctp({
+      cctpStep: 'success',
+      cctpHash: txHash,
+      cctpError: '',
+      cctpCompletionStatus: 'waiting',
+      cctpDestinationDomain: Number.isInteger(domainValue) ? domainValue : 0,
+      cctpAmount: amountValue,
+      cctpRecipient: '',
+      cctpMessage: '',
+      cctpAttestation: '',
+      cctpMintHash: '',
+      cctpCompletionError: '',
+    })
+  }
 
   const pct = (p: number) => {
     const val = (totalBalance * BigInt(p)) / 100n
@@ -116,9 +149,20 @@ export function WithdrawTab() {
       const receipt = await publicClient.waitForTransactionReceipt({ hash: tx })
       if (receipt.status !== 'success') throw new Error('CCTP burn transaction reverted')
 
-      setCctp({ cctpStep: 'success' })
+      setCctp({
+        cctpStep: 'success',
+        cctpCompletionStatus: 'waiting',
+        cctpDestinationDomain: domain,
+        cctpAmount: parsed.toString(),
+        cctpRecipient: mintRecipient,
+        cctpMessage: '',
+        cctpAttestation: '',
+        cctpMintHash: '',
+        cctpCompletionError: '',
+      })
+      setCctpAmount('')
       await queryClient.invalidateQueries()
-      toast.success('CCTP burn confirmed. Relay the attestation on the destination chain.')
+      toast.success('CCTP burn confirmed. Fetching the Circle attestation…')
     } catch (e) {
       const msg = parseOnchainError(e)
       setCctp({ cctpStep: 'error', cctpError: msg })
@@ -225,9 +269,10 @@ export function WithdrawTab() {
           <div className="flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-300">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <span>
-              This calls <code>requestWithdrawal</code> which burns USDC on Arc and emits a CCTP message.
-              The destination relay is <strong>manual</strong> — fetch the attestation and call
-              <code> receiveMessage</code> on the destination. Same-domain (Arc, 26) is rejected by the contract.
+              This burns USDC on Arc and mints it on the destination through CCTP. The app fetches
+              the Circle attestation automatically, then asks you to confirm the destination mint.
+              You need a little destination-chain gas for that final transaction. Same-domain (Arc,
+              26) is rejected by the contract.
             </span>
           </div>
 
@@ -276,27 +321,81 @@ export function WithdrawTab() {
             step={cctpStep}
             hash={cctpHash}
             error={cctpError}
-            labels={{ success: 'CCTP burn confirmed. Complete the mint on the destination chain.' }}
-            onReset={resetCctp}
+            labels={{ success: 'CCTP burn confirmed. The app will finish the destination mint.' }}
+            onReset={() => { resetCctp(); setExistingTx('') }}
           />
 
           {cctpStep === 'success' && cctpHash && (
-            <div className="flex items-start gap-2 rounded-lg bg-slate-800/60 p-3 text-xs text-slate-400">
-              <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              <span>
-                The burn tx is on the explorer above. Find its CCTP message hash, fetch the attestation from the{' '}
-                <a
-                  href="https://iris-api-sandbox.circle.com/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-emerald-400 underline"
-                >
-                  Iris sandbox API
-                </a>
-                , then submit it on the destination chain.
-              </span>
+            <CctpCompletionCard burnTx={cctpHash} />
+          )}
+
+          {recentCctp.length > 0 && (
+            <div className="space-y-2 rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+              <p className="text-xs font-medium text-slate-400">
+                Recent CCTP requests from this wallet
+              </p>
+              {recentCctp.map((event) => {
+                const amountArg = event.args.amount
+                const amountLabel = typeof amountArg === 'bigint'
+                  ? formatUsdcDollar(amountArg)
+                  : 'Unknown amount'
+                return (
+                  <div
+                    key={event.id}
+                    className="flex items-center justify-between gap-3 rounded-lg bg-slate-800/50 px-3 py-2"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-white">{amountLabel} USDC</p>
+                      <p className="truncate font-mono text-[11px] text-slate-500">
+                        {event.txHash}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => loadCctpTransfer(
+                        event.txHash,
+                        event.args.amount,
+                        event.args.destinationDomain,
+                      )}
+                      className="shrink-0 rounded-lg border border-slate-700 px-2.5 py-1.5 text-[11px] font-medium text-slate-300 hover:border-emerald-500/40 hover:text-emerald-400"
+                    >
+                      Complete
+                    </button>
+                  </div>
+                )
+              })}
             </div>
           )}
+
+          <div className="space-y-2 border-t border-slate-800 pt-4">
+            <label className="block text-xs text-slate-500">
+              Already burned? Paste the Arc burn tx hash to finish it.
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={existingTx}
+                onChange={(e) => setExistingTx(e.target.value)}
+                placeholder="0x..."
+                className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2 font-mono text-xs text-white outline-none placeholder:text-slate-600 focus:border-emerald-500/50"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const txHash = existingTx.trim()
+                  if (!/^0x[0-9a-fA-F]{64}$/.test(txHash)) {
+                    toast.error('Enter a valid 32-byte transaction hash')
+                    return
+                  }
+                  loadCctpTransfer(txHash)
+                  setExistingTx('')
+                }}
+                className="shrink-0 rounded-lg border border-slate-700 px-3 py-2 text-xs font-medium text-slate-300 hover:border-emerald-500/40 hover:text-emerald-400"
+              >
+                Load
+              </button>
+            </div>
+          </div>
         </div>
       </details>
     </div>
