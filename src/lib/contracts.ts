@@ -58,7 +58,6 @@ export const ADAPTER_ABI = parseAbi([
   'function totalAssets(uint256 vaultId) view returns (uint256)',
   'function pricePerShare(uint256 vaultId) view returns (uint256)',
   'function previewRedeem(uint256 shares, uint256 vaultId) view returns (uint256)',
-  'function getActiveVaults() view returns (tuple(uint256 id,address vaultAddress,string name,string symbol,uint256 minDeposit,bool isActive)[])',
 ])
 
 export const ERC20_ABI = parseAbi([
