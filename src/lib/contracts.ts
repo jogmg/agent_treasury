@@ -1,0 +1,82 @@
+/**
+ * Contract addresses, ABIs, and chain config for Agent Treasury.
+ * Hardcoded fallbacks; overrideable via VITE_ env vars.
+ */
+import { parseAbi } from 'viem'
+
+export const ARC_TESTNET_CHAIN_ID = 5042002
+export const ARC_TESTNET_RPC      = 'https://rpc.testnet.arc.io'
+export const ARC_EXPLORER         = 'https://explorer.testnet.arc.io'
+export const ARC_CCTP_DOMAIN      = 26
+
+export const ADDRESSES = {
+  usdc:     (import.meta.env.VITE_USDC_ADDRESS     || '0x3600000000000000000000000000000000000000') as `0x${string}`,
+  treasury: (import.meta.env.VITE_TREASURY_ADDRESS  || '0x9b390bb10bd30a25b5a07dfb9e0a058d7993ae0d') as `0x${string}`,
+  adapter:  (import.meta.env.VITE_ADAPTER_ADDRESS   || '0xe1dafeef6762c672bb5e4a8ff62c3812e111b2e3') as `0x${string}`,
+  receiver: (import.meta.env.VITE_RECEIVER_ADDRESS  || '0x7697c83c23339ccfdcf2d8e979b26ee5d731e7ee') as `0x${string}`,
+  vault1:   '0xAabbeF1D3971c710276ed41eC791BbE14CdB8E88' as `0x${string}`,
+}
+
+export const VAULT_1_ID = 1n
+export const VAULT_1_NAME = 'USDC Core'
+export const VAULT_1_APY_DISPLAY = '~4.2%'
+
+// ── ABIs ────────────────────────────────────────────────────────────────────
+
+export const TREASURY_ABI = parseAbi([
+  'function deposit(uint256 amount) external',
+  'function withdrawLocal(uint256 amount) external',
+  'function getTotalBalance(address agent) view returns (uint256)',
+  'function getPrincipal(address agent) view returns (uint256)',
+  'function getVaultShares(address agent) view returns (uint256)',
+  'function getActiveVault(address agent) view returns (uint256)',
+  'function getDepositsByChain(address agent, uint32 domain) view returns (uint256)',
+  'function setYieldStrategy(address agent, uint256 vaultId) external',
+  'function setSpendingLimit(address agent, uint256 dailyLimit, uint256 weeklyLimit) external',
+  'function requestWithdrawal(address agent, uint256 amount, uint32 destinationDomain, bytes32 mintRecipient) external returns (uint256 withdrawalId)',
+  'function paused() view returns (bool)',
+  'function owner() view returns (address)',
+  'function keeper() view returns (address)',
+  'function defaultVaultId() view returns (uint256)',
+  'function ARC_DOMAIN() view returns (uint32)',
+  'function nextWithdrawalId() view returns (uint256)',
+  // Events
+  'event DepositRecorded(address indexed agent, uint256 amount, uint32 indexed sourceDomain, uint256 vaultId, uint256 shares)',
+  'event WithdrawalToWallet(address indexed agent, uint256 amount, uint256 sharesBurned)',
+  'event WithdrawalRequested(uint256 indexed id, address indexed agent, uint256 amount, uint32 destinationDomain, bytes32 mintRecipient, bytes32 messageHash)',
+  'event WithdrawalExecuted(uint256 indexed id, address indexed agent)',
+  'event WithdrawalCancelled(uint256 indexed id, address indexed agent)',
+  'event YieldStrategyChanged(address indexed agent, uint256 oldVaultId, uint256 indexed newVaultId)',
+  'event Rebalanced(address indexed agent, uint256 indexed vaultId, uint256 shares)',
+  'event YieldClaimed(address indexed agent, uint256 amount)',
+  'event SpendingLimitSet(address indexed agent, uint256 dailyLimit, uint256 weeklyLimit)',
+])
+
+export const ADAPTER_ABI = parseAbi([
+  'function getVaultConfig(uint256 vaultId) view returns (uint256 id, address vaultAddress, string name, string symbol, uint256 minDeposit, bool isActive)',
+  'function vaultAPY(uint256 vaultId) view returns (uint256)',
+  'function totalAssets(uint256 vaultId) view returns (uint256)',
+  'function pricePerShare(uint256 vaultId) view returns (uint256)',
+  'function previewRedeem(uint256 shares, uint256 vaultId) view returns (uint256)',
+  'function getActiveVaults() view returns (tuple(uint256 id,address vaultAddress,string name,string symbol,uint256 minDeposit,bool isActive)[])',
+])
+
+export const ERC20_ABI = parseAbi([
+  'function balanceOf(address account) view returns (uint256)',
+  'function allowance(address owner, address spender) view returns (uint256)',
+  'function approve(address spender, uint256 amount) external returns (bool)',
+])
+
+// Vault shares are 18-dec on the real Morpho/Earn Kit vault, unlike 6-dec USDC.
+export const VAULT_ABI = parseAbi([
+  'function decimals() view returns (uint8)',
+])
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+export function explorerTx(hash: string) {
+  return `${ARC_EXPLORER}/tx/${hash}`
+}
+export function explorerAddr(addr: string) {
+  return `${ARC_EXPLORER}/address/${addr}`
+}

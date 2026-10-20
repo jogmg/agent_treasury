@@ -1,0 +1,95 @@
+{
+  "_note": "Arc Testnet deployment — Oct 2026. Fully wired and E2E verified.",
+  "chainId": 5042002,
+  "network": "Arc Testnet",
+  "rpc": "https://rpc.testnet.arc.io",
+  "deployedAt": "2026-10-20T02:25:31Z",
+  "wired": true,
+  "e2eVerified": true,
+  "platformDeployer": "0x5B12Ce46C7194aD57d143bC22847224047b1Ef42",
+  "contractOwner": "0xD00fD0B006c01342522cAf4FA04D5f8910aB268c",
+
+  "contracts": {
+    "MorphoVaultAdapter": {
+      "address": "0xe1dafeef6762c672bb5e4a8ff62c3812e111b2e3",
+      "deployTxHash": "0xecd614a3ea7a01d98908f72e4e8e315c22ad932b636c08578215724ed45a9573",
+      "explorerUrl": "https://explorer.testnet.arc.io/address/0xe1dafeef6762c672bb5e4a8ff62c3812e111b2e3",
+      "verified": false,
+      "verifyCmd": "forge verify-contract 0xe1dafeef6762c672bb5e4a8ff62c3812e111b2e3 contracts/src/MorphoVaultAdapter.sol:MorphoVaultAdapter --rpc-url https://rpc.testnet.arc.io --verifier blockscout --verifier-url https://explorer.testnet.arc.io/api"
+    },
+    "CCTPReceiver": {
+      "address": "0x7697c83c23339ccfdcf2d8e979b26ee5d731e7ee",
+      "deployTxHash": "0x2e8711631408ed1caebb45a7051cc8852dc815154958ef5ff05e70ab7fa99a57",
+      "explorerUrl": "https://explorer.testnet.arc.io/address/0x7697c83c23339ccfdcf2d8e979b26ee5d731e7ee",
+      "verified": false,
+      "verifyCmd": "forge verify-contract 0x7697c83c23339ccfdcf2d8e979b26ee5d731e7ee contracts/src/CCTPReceiver.sol:CCTPReceiver --constructor-args $(cast abi-encode 'constructor(address,address,address,address,address)' 0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275 0x3600000000000000000000000000000000000000 0xD00fD0B006c01342522cAf4FA04D5f8910aB268c 0x0000000000000000000000000000000000000000 0xD00fD0B006c01342522cAf4FA04D5f8910aB268c) --rpc-url https://rpc.testnet.arc.io --verifier blockscout --verifier-url https://explorer.testnet.arc.io/api"
+    },
+    "AgentTreasury": {
+      "address": "0x9b390bb10bd30a25b5a07dfb9e0a058d7993ae0d",
+      "deployTxHash": "0x9dbbb181d4a3d94ffbefd057fd02694ccaf53d9b420e0ce2c2579b105beaf06c",
+      "explorerUrl": "https://explorer.testnet.arc.io/address/0x9b390bb10bd30a25b5a07dfb9e0a058d7993ae0d",
+      "verified": false,
+      "verifyCmd": "forge verify-contract 0x9b390bb10bd30a25b5a07dfb9e0a058d7993ae0d contracts/src/AgentTreasury.sol:AgentTreasury --constructor-args $(cast abi-encode 'constructor(address,address,address,address,address,uint32,uint256,uint256,uint256,address)' 0x3600000000000000000000000000000000000000 0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA 0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275 0xe1dafeef6762c672bb5e4a8ff62c3812e111b2e3 0x7697c83c23339ccfdcf2d8e979b26ee5d731e7ee 26 24 0 0 0xD00fD0B006c01342522cAf4FA04D5f8910aB268c) --rpc-url https://rpc.testnet.arc.io --verifier blockscout --verifier-url https://explorer.testnet.arc.io/api"
+    }
+  },
+
+  "protocolAddresses": {
+    "usdc": "0x3600000000000000000000000000000000000000",
+    "tokenMessengerV2": "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA",
+    "messageTransmitterV2": "0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275",
+    "morphoVault1": "0xAabbeF1D3971c710276ed41eC791BbE14CdB8E88",
+    "cctpDomain": 26
+  },
+
+  "wiringTxHashes": {
+    "adapterSetTreasury":         "0xc3af3d9611766bf675e3588fa4228f06f10ee61de209b1d5620c5697ed078a99",
+    "receiverSetTreasury":        "0x3b41581af7bf91df36a33f6d995a6bb9c02da3ff032a34e84356ed78cfe64631",
+    "treasurySetMorphoAdapter":   "0x81edc3bc25bfd72e3c98cbfac1868dbac303352d2e6a002763b52a1a79c23500",
+    "treasurySetGatewayReceiver": "0xf61b4171c499ef67cf1288be6f73d09bfd4517d5932d8fe7a0c2711e573eb377",
+    "adapterSetKeeper":           "0xb5f4ab214a24601013f54a144f47f59aaf76fe5631df8bfbb99dd8eb137ea958",
+    "treasurySetKeeper":          "0x2c41265b2eefd4ac0d1ae82060d9dc1f106393ef330cad07c358b57aa9c96651",
+    "adapterAddVault1":           "0x2af5b816735d0b6d634b9dfe7dcf64e959bacc2969bb5e38d1f26fe3a617b1a9",
+    "adapterSetVaultAPY_wrong":   "0xfe621ffd46cf642dd9ce55092ee1b21b2734f3e77dd73c433632004ae38047bb",
+    "treasurySetDefaultVaultId":  "0x60dd7ea949764b61d96bbaa04f5996ff470c06ee6482551923aeb2b58fb82dbc",
+    "apyFix_4_2e16":              "0x36f5c8a7575ebab7a8bdc49bc732a9587e452b10bab7c8b38b1b30e51ba3243e"
+  },
+
+  "e2eTest": {
+    "owner": "0xD00fD0B006c01342522cAf4FA04D5f8910aB268c",
+    "approveTxHash": "0x1e9428befe97f1c2a55b09413168db7111468409ebe62ad471386d050b1cd3a5",
+    "depositTxHash": "0xa4fc0034c4f2c20a9f308a705fe1439f281981f6b24466a8aff148f1b5b3a520",
+    "withdrawTxHash": "0x27cf6628ffb0d1e3ce45f9d542bc065169b3cc98b28c23c8a09d64e50f11b826",
+    "before": {
+      "walletUsdc":   "19988128",
+      "totalBalance": "0",
+      "principal":    "0",
+      "vaultShares":  "0"
+    },
+    "afterDeposit": {
+      "walletUsdc":      "9974328",
+      "totalBalance":    "9999999",
+      "principal":       "10000000",
+      "vaultShares":     "9989427554789604143",
+      "previewRedeem":   "9999999"
+    },
+    "afterWithdraw1Usdc": {
+      "walletUsdc":      "10965635",
+      "totalBalance":    "9000000",
+      "principal":       "9000001",
+      "vaultShares":     "8990484799310643729",
+      "previewRedeem":   "9000000",
+      "walletDelta":     "+991307 (≈1 USDC, gas consumed remainder)",
+      "principalDelta":  "-999999 (≈-1 USDC)"
+    }
+  },
+
+  "smokeTests": {
+    "treasury_morphoAdapter":      "0xe1dafeef6762c672bb5e4a8ff62c3812e111b2e3 (PASS)",
+    "treasury_gatewayReceiver":    "0x7697c83c23339ccfdcf2d8e979b26ee5d731e7ee (PASS)",
+    "adapter_getVaultConfig_1":    "id=1, vault=0xAabbeF1D3971c710276ed41eC791BbE14CdB8E88, minDeposit=10000000, isActive=true (PASS)",
+    "adapter_vaultAPY_1":          "42000000000000000 = 4.2e16 (4.2%) (PASS)",
+    "treasury_paused":             "false (PASS)",
+    "treasury_defaultVaultId":     "1 (PASS)",
+    "treasury_keeper":             "0xD00fD0B006c01342522cAf4FA04D5f8910aB268c (PASS)"
+  }
+}
