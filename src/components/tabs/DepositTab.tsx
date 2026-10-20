@@ -9,6 +9,7 @@ import { parseOnchainError } from '../../lib/errors'
 import { useTreasuryStore } from '../../stores/treasury'
 import { useFlowStore } from '../../stores/flow'
 import { TxStep } from '../TxStep'
+import { CrossChainDepositCard } from '../CrossChainDepositCard'
 
 const MIN_DEPOSIT = 10_000_000n // 10 USDC in 6 dec
 const MAX_U256 = BigInt('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff')
@@ -211,16 +212,7 @@ export function DepositTab() {
         onReset={resetDeposit}
       />
 
-      {/* Cross-chain info */}
-      <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
-        <p className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500">Cross-Chain Deposits (CCTP)</p>
-        <p className="text-xs text-slate-500">
-          The smart contracts accept CCTP v2 deposits from any supported chain via
-          CCTPReceiver. Send USDC on a source chain with depositForBurnWithHook and include the agent
-          address in hookData; the receiver credits the agent on Arc. This build focuses on the
-          Arc-local deposit path for the demo.
-        </p>
-      </div>
+      <CrossChainDepositCard />
     </div>
   )
 }

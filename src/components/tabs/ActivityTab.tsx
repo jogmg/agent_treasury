@@ -1,10 +1,14 @@
-import { Download, RefreshCw } from 'lucide-react'
+import { Clock, Download, ExternalLink, RefreshCw } from 'lucide-react'
 import { useAccount } from 'wagmi'
 import { useQueryClient } from '@tanstack/react-query'
 import { useUiStore } from '../../stores/ui'
+import { useBridgeDepositStore } from '../../stores/bridgeDeposit'
+import { getCctpDestination } from '../../lib/cctp'
+import { formatUsdcDollar } from '../../lib/decimals'
 import { EventRow } from '../EventRow'
 import { exportCsv } from '../../lib/activity'
 import type { ActivityEventType } from '../../lib/activity'
+import type { BridgeDepositStatus } from '../../stores/bridgeDeposit'
 
 const FILTER_OPTIONS: { label: string; value: ActivityEventType | 'all' }[] = [
   { label: 'All',       value: 'all' },
@@ -14,10 +18,40 @@ const FILTER_OPTIONS: { label: string; value: ActivityEventType | 'all' }[] = [
   { label: 'Yield',     value: 'YieldClaimed' },
 ]
 
+const BRIDGE_STATUS_LABEL: Record<BridgeDepositStatus, string> = {
+  idle: 'Idle',
+  approving: 'Approving source',
+  burning: 'Burning source',
+  waiting: 'Waiting for Circle',
+  ready: 'Ready to mint',
+  minting: 'Minting on Arc',
+  'arc-approving': 'Approving on Arc',
+  depositing: 'Depositing',
+  done: 'Credited',
+  error: 'Needs attention',
+}
+
+function bridgeAmount(amount: string): bigint {
+  try {
+    return amount ? BigInt(amount) : 0n
+  } catch {
+    return 0n
+  }
+}
+
 export function ActivityTab() {
   const { address } = useAccount()
   const queryClient = useQueryClient()
-  const { activityEvents, activityFilter, activityLoading, setFilter } = useUiStore()
+  const { activityEvents, activityFilter, activityLoading, setFilter, setTab } = useUiStore()
+  const bridge = useBridgeDepositStore()
+
+  const bridgeSource = getCctpDestination(bridge.sourceDomain)
+  const bridgeOwnerMatches = Boolean(
+    address && bridge.owner && address.toLowerCase() === bridge.owner.toLowerCase(),
+  )
+  const showBridge =
+    bridgeOwnerMatches && bridge.status !== 'idle' && bridge.status !== 'done'
+  const pendingAmount = bridgeAmount(bridge.amount)
 
   const filtered = activityFilter === 'all'
     ? activityEvents
@@ -44,6 +78,49 @@ export function ActivityTab() {
 
   return (
     <div className="space-y-4">
+      {showBridge && (
+        <div
+          role="status"
+          className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4"
+        >
+          <div className="flex items-start gap-3">
+            <Clock className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm font-medium text-white">Cross-chain deposit in progress</p>
+                <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-300">
+                  {BRIDGE_STATUS_LABEL[bridge.status]}
+                </span>
+              </div>
+              <p className="mt-1 text-xs leading-relaxed text-slate-400">
+                {pendingAmount > 0n ? formatUsdcDollar(pendingAmount) : 'USDC'} from{' '}
+                {bridgeSource?.name ?? 'the source chain'}. The burn is on the source chain; it will
+                appear in Arc activity only after Circle attests and the Arc mint/deposit completes.
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-3">
+                {bridge.burnHash && bridgeSource && (
+                  <a
+                    href={`${bridgeSource.explorer}/tx/${bridge.burnHash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs text-emerald-400 underline hover:text-emerald-300"
+                  >
+                    View source burn <ExternalLink className="h-3 w-3" />
+                  </a>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setTab('deposit')}
+                  className="text-xs text-slate-400 underline hover:text-slate-200"
+                >
+                  View bridge progress
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex gap-1.5 overflow-x-auto">

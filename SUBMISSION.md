@@ -12,7 +12,7 @@ AI agents increasingly pay for compute, data, and services. But they hold funds 
 
 Agent Treasury gives each agent a dedicated on-chain account on Arc with four primitives:
 
-1. **Deposit** — direct Arc USDC (`deposit`) or inbound CCTP v2 (`CCTPReceiver` → `recordDeposit`).
+1. **Deposit** — direct Arc USDC (`deposit`) or inbound CCTP v2 from Ethereum/Base/Arbitrum/OP/Avalanche/Polygon: source burn → mint to the Arc wallet → `deposit()` into the agent treasury.
 2. **Earn** — idle USDC is deployed to an allowlisted Morpho/Earn Kit vault through `MorphoVaultAdapter` (~4.2% APY on testnet).
 3. **Withdraw** — instant same-chain (`withdrawLocal`) or cross-chain CCTP burn (`requestWithdrawal`).
 4. **Control** — daily/weekly spending limits, keeper separation, pause, two-step ownership.
@@ -27,7 +27,7 @@ The entire project was built in Arc Studio: contracts, Foundry tests, deployment
 
 | Product | How it is used |
 |---|---|
-| **CCTP v2** | Outbound `depositForBurnWithHook` with standard finality (`2000`) for reliable Arc-origin attestations; inbound hook receiver that routes minted USDC to the agent's treasury. |
+| **CCTP v2** | Outbound `depositForBurnWithHook` with standard finality (`2000`) for reliable Arc-origin attestations; inbound source-chain burn → mint to the Arc wallet → treasury `deposit()`. CCTP v2 hooks are opaque metadata, so the app does not rely on automatic hook execution; `CCTPReceiver` is a tested relayer adapter for future source-domain accounting. |
 | **Earn Kit (Morpho on Arc)** | Vault 1 is the Earn Kit USDC vault (`0xAabbeF1D...8E88`), deposited/redeemed through the adapter. |
 | **Gateway** | `gatewayReceiver` hook and UI surface are present, but live unified balances need a server-side API key and are not faked. Roadmap item. |
 
@@ -39,9 +39,10 @@ The entire project was built in Arc Studio: contracts, Foundry tests, deployment
   - CCTPReceiver `0x8066bcf8e6b17e2d84082179a89f0972cc6e31c1`
 - **Wiring:** complete — adapter, receiver, vault 1, keeper, and default vault are live at block `68193025`. `vaultAPY(1) = 4.2e16`.
 - **CCTP fix:** Arc's TokenMessengerV2 returns no data; the original interface's `uint64` return caused a post-burn ABI-decode revert. The fixed treasury uses a no-return interface and finality threshold `2000`.
-- **E2E proof:** real 10 USDC deposit → `9,989,427,554,595,819,468` shares; real 1 USDC CCTP withdrawal from yield to destination domain `0` and the connected wallet. Deposit tx `0xbab5877074904d17fb21b49aed8c3d2a956ee8d16d3ddc3ec523046d464a04c4`; withdrawal tx `0x3f0f256843ee4e1498cafceea9978725397904899bb527f684eb98c171e28a1c`; burned `999,999`; `MessageSent` finality `2000`; Circle Iris attestation `complete`. Destination mint is pending Sepolia gas.
-- **Tests:** 80 Foundry tests (unit + invariants) and 36 Vitest tests; frontend lint/typecheck/build clean.
-- **App:** 6 tabs, live reads, approve/deposit, local withdraw, CCTP outbound form, event history, spending-limit settings, legacy-treasury recovery, ownership acceptance.
+- **E2E proof:** real 10 USDC deposit → `9,989,427,554,595,819,468` shares; real 1 USDC CCTP withdrawal from yield to destination domain `0` and the connected wallet. Deposit tx `0xbab5877074904d17fb21b49aed8c3d2a956ee8d16d3ddc3ec523046d464a04c4`; withdrawal tx `0x3f0f256843ee4e1498cafceea9978725397904899bb527f684eb98c171e28a1c`; burned `999,999`; `MessageSent` finality `2000`; Circle Iris attestation `complete`.
+- **Destination mint proof:** 4.999999 USDC minted on Ethereum Sepolia to recipient `0x72Cbd56507699F5002A10aCdDC5D20b4C2207a75`; Sepolia tx `0x843c07455e2c44dffaf174af6cc850810c9fc71ffb197a5f8033175b3f32e50f`. The earlier 1 USDC transfer is still awaiting Sepolia gas.
+- **Tests:** 80 Foundry tests (unit + invariants) and 44 Vitest tests; frontend lint/typecheck/build clean.
+- **App:** 6 tabs, live reads, approve/deposit, cross-chain CCTP deposits, local withdraw, CCTP outbound form, event history, spending-limit settings, legacy-treasury recovery, ownership acceptance.
 
 ## Judging map
 
@@ -50,14 +51,15 @@ The entire project was built in Arc Studio: contracts, Foundry tests, deployment
 | **Functionality (25%)** | Deposit → yield → withdraw loop; spending limits; pause; keeper separation; CCTP outbound; 80 contract tests. |
 | **Arc Studio usage (25%)** | Contracts, tests, deploy scripts, frontend, and docs all generated iteratively in one Arc Studio project; deployment records in `deployments/arc-testnet-fixed.json`. |
 | **Real USDC on Arc (30%)** | **Testnet E2E verified with real USDC**: 10 USDC deposited into the live Earn Kit Morpho vault, then 1 USDC withdrawn from yield through CCTP to destination domain 0; source burn and finalized Iris attestation both confirmed. Mainnet is gated on a funded deployer + audit (see limitations). |
-| **Circle product depth (20%)** | CCTP v2 inbound/outbound with hook data; Earn Kit/Morpho vault; Gateway-ready receiver hook. |
+| **Circle product depth (20%)** | CCTP v2 inbound/outbound; Earn Kit/Morpho vault; Gateway-ready receiver hook. |
 
 ## Honest limitations
 
 - Contracts are **unaudited** and testnet-only.
 - **Mainnet is not deployed.** Real mainnet USDC movement requires a funded mainnet deployer; that is a human funding/ops step, not a code step.
 - **Spending limits are not owner-bounded**: an agent can raise its own limit. This is documented in `docs/SECURITY.md` and is the first post-hackathon fix.
-- **No automatic Iris relay** for destination mints. The 1 USDC test withdrawal is attested but the Sepolia mint is pending destination gas; `scripts/complete-cctp.ts` finishes it once the recipient is funded.
+- **Destination mints still need destination-chain gas.** The app polls Iris and submits the mint, but it cannot pay gas on the destination chain. The 4.999999 USDC Sepolia mint is complete; the earlier 1 USDC transfer is awaiting Sepolia gas. `scripts/complete-cctp.ts` is the headless fallback.
+- **Cross-chain deposits are wallet-mediated.** CCTP v2 hooks are opaque metadata, so the app mints to the connected Arc wallet and then calls `deposit()`. On-chain `chainDeposits` records the deposit as Arc-local; source-domain accounting via `CCTPReceiver` needs a relayer/forwarder and is future work.
 - **Gateway is not live** (server key required) and is not faked in the UI.
 - The pre-hotfix treasury still holds testnet USDC; the UI exposes a local-only recovery card.
 

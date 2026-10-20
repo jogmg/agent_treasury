@@ -21,11 +21,17 @@ export const ARC_CCTP_DOMAIN = 26
 
 // CCTP v2 testnet contracts use the same deterministic addresses on every EVM
 // testnet. Keep the source of truth in one place.
-const MESSAGE_TRANSMITTER_V2 = '0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275' as const
+export const TOKEN_MESSENGER_V2 = '0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA' as const
+export const MESSAGE_TRANSMITTER_V2 = '0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275' as const
 
 export const MESSAGE_TRANSMITTER_V2_ABI = parseAbi([
   'function receiveMessage(bytes message, bytes attestation) external returns (bool)',
   'function usedNonces(bytes32 nonce) external view returns (bool)',
+])
+
+export const TOKEN_MESSENGER_V2_ABI = parseAbi([
+  'function depositForBurn(uint256 amount, uint32 destinationDomain, bytes32 mintRecipient, address burnToken, bytes32 destinationCaller, uint256 maxFee, uint32 minFinalityThreshold) external',
+  'function depositForBurnWithHook(uint256 amount, uint32 destinationDomain, bytes32 mintRecipient, address burnToken, bytes32 destinationCaller, uint256 maxFee, uint32 minFinalityThreshold, bytes hookData) external',
 ])
 
 /**
@@ -46,6 +52,8 @@ export interface CctpDestination {
   domain: number
   name: string
   chain: Chain
+  /** Canonical USDC on the source/destination chain. */
+  usdc: `0x${string}`
   transmitter: `0x${string}`
   explorer: string
   faucet?: string
@@ -56,6 +64,7 @@ export const CCTP_DESTINATIONS: Record<number, CctpDestination> = {
     domain: 0,
     name: 'Ethereum Sepolia',
     chain: sepolia,
+    usdc: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238',
     transmitter: MESSAGE_TRANSMITTER_V2,
     explorer: 'https://sepolia.etherscan.io',
     faucet: 'https://www.alchemy.com/faucets/ethereum-sepolia',
@@ -64,6 +73,7 @@ export const CCTP_DESTINATIONS: Record<number, CctpDestination> = {
     domain: 1,
     name: 'Avalanche Fuji',
     chain: avalancheFuji,
+    usdc: '0x5425890298aed601595a70AB815c96711a31Bc65',
     transmitter: MESSAGE_TRANSMITTER_V2,
     explorer: 'https://testnet.snowtrace.io',
     faucet: 'https://www.alchemy.com/faucets/avalanche-fuji',
@@ -72,6 +82,7 @@ export const CCTP_DESTINATIONS: Record<number, CctpDestination> = {
     domain: 2,
     name: 'OP Sepolia',
     chain: optimismSepolia,
+    usdc: '0x5fd84259d66Cd46123540766Be93DFE6D43130D7',
     transmitter: MESSAGE_TRANSMITTER_V2,
     explorer: 'https://sepolia-optimism.etherscan.io',
     faucet: 'https://www.alchemy.com/faucets/optimism-sepolia',
@@ -80,6 +91,7 @@ export const CCTP_DESTINATIONS: Record<number, CctpDestination> = {
     domain: 3,
     name: 'Arbitrum Sepolia',
     chain: arbitrumSepolia,
+    usdc: '0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d',
     transmitter: MESSAGE_TRANSMITTER_V2,
     explorer: 'https://sepolia.arbiscan.io',
     faucet: 'https://www.alchemy.com/faucets/arbitrum-sepolia',
@@ -88,6 +100,7 @@ export const CCTP_DESTINATIONS: Record<number, CctpDestination> = {
     domain: 6,
     name: 'Base Sepolia',
     chain: baseSepolia,
+    usdc: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
     transmitter: MESSAGE_TRANSMITTER_V2,
     explorer: 'https://sepolia.basescan.org',
     faucet: 'https://www.alchemy.com/faucets/base-sepolia',
@@ -96,6 +109,7 @@ export const CCTP_DESTINATIONS: Record<number, CctpDestination> = {
     domain: 7,
     name: 'Polygon Amoy',
     chain: polygonAmoy,
+    usdc: '0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582',
     transmitter: MESSAGE_TRANSMITTER_V2,
     explorer: 'https://amoy.polygonscan.com',
     faucet: 'https://www.alchemy.com/faucets/polygon-amoy',
@@ -194,6 +208,8 @@ interface WaitOptions {
   intervalMs?: number
   timeoutMs?: number
   signal?: AbortSignal
+  /** CCTP domain that emitted the burn. Defaults to Arc for withdrawals. */
+  sourceDomain?: number
 }
 
 function abortError(): Error {
@@ -240,7 +256,10 @@ export async function waitForCctpAttestation(
     if (options.signal?.aborted) throw abortError()
 
     try {
-      const attestation = await fetchCctpAttestation(burnTx)
+      const attestation = await fetchCctpAttestation(
+        burnTx,
+        options.sourceDomain ?? ARC_CCTP_DOMAIN,
+      )
       if (attestation) return attestation
       lastError = undefined
     } catch (error) {

@@ -91,23 +91,33 @@ User / agent ── approve ──┐
                  TokenMessengerV2 ── CCTP v2 burn ──► MessageTransmitterV2
                                                           │
                                                           ▼
-                                                   CCTPReceiver
-                                                          │ recordDeposit
+                                                   TokenMessengerV2
+                                                          │ mint
+                                                          ▼
+                                                   user's Arc wallet
+                                                          │ approve + deposit()
                                                           ▼
    ┌──────────────────────────────────────────── AgentTreasury ────────────────────────────────────────────┐
    │  per-agent accounting: principal, deployedPrincipal, vaultShares, chainDeposits, spending windows     │
    │                                                                                                        │
-   │  deposit() / recordDeposit() ──► MorphoVaultAdapter ──► Morpho ERC-4626 vault (Earn Kit)              │
+   │  deposit() ─────────────────────► MorphoVaultAdapter ──► Morpho ERC-4626 vault (Earn Kit)              │
    │  withdrawLocal() ──────────────► adapter.withdraw ──► USDC to agent wallet (Arc fast path)            │
    │  requestWithdrawal() ──────────► adapter.withdraw ──► TokenMessengerV2.depositForBurnWithHook ──► ...  │
    └────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
+> CCTP v2 `hookData` is **opaque metadata**. The core MessageTransmitter does not
+> execute arbitrary receiver logic; it calls the destination TokenMessenger,
+> which mints to `mintRecipient`. The app therefore uses the direct path above:
+> mint to the connected Arc wallet, then call `deposit()`. `CCTPReceiver` remains
+> a relayer adapter for source-domain accounting, but the app does not depend on
+> automatic hook execution.
+
 ### Contracts
 
 - **`AgentTreasury.sol`** — per-agent accounts. Holds principal, deployed principal, vault shares, per-domain deposits, daily/weekly spending windows, pending CCTP withdrawals, keeper role, pause, two-step ownership. `getTotalBalance()` is non-reverting: it falls back to principal if the vault preview fails.
 - **`MorphoVaultAdapter.sol`** — allowlisted ERC-4626 vault registry with per-vault min deposits, APY cache, and `previewRedeem`. Only the treasury (or owner) can move funds.
-- **`CCTPReceiver.sol`** — CCTP v2 hook receiver. Decodes the agent from `hookData`, routes malformed hook data to a default beneficiary instead of reverting, and forwards minted USDC into the treasury.
+- **`CCTPReceiver.sol`** — relayer adapter for inbound CCTP. It decodes the agent from `hookData`, routes malformed hook data to a default beneficiary instead of reverting, and forwards USDC into the treasury. It is unit-tested but **not used by the current app**, because CCTP v2 hooks are opaque and require an integrator-run relayer. The direct app path mints to the user's Arc wallet and calls `deposit()`.
 - **`libraries/CCTPMessageLib.sol`** — hook data encode/decode.
 - **`libraries/Errors.sol`** — custom errors.
 
@@ -126,7 +136,7 @@ User / agent ── approve ──┐
 bun install
 bun run dev          # http://localhost:5173
 bun run build        # production build
-bun run test         # Vitest (36 tests)
+bun run test         # Vitest (44 tests)
 bun run check        # lint + typecheck
 ```
 
@@ -179,7 +189,9 @@ See `docs/RUNBOOK.md` for the exact env vars and smoke tests.
 5. **Activity**: decoded `DepositRecorded`, `WithdrawalToWallet`, `YieldStrategyChanged`, etc., with explorer links and CSV export.
 6. **Settings**: set daily/weekly spending limits; inspect owner/keeper/pause.
 
-Cross-chain outbound (`requestWithdrawal`) is available in the Withdraw tab. It burns via CCTP v2 and then the app fetches the Circle attestation automatically. When the attestation is ready, the app switches to the destination chain and asks for one wallet confirmation to submit `receiveMessage`; the final mint needs destination-chain gas. Recent CCTP requests are listed in the Withdraw tab, and pasting an Arc burn tx hash resumes an older transfer. `scripts/complete-cctp.ts` is the headless fallback. The Withdraw tab also shows a **Legacy Treasury** recovery card for funds left in the pre-hotfix deployment.
+Cross-chain **inbound** deposits are in the Deposit tab. Pick a source chain, approve and burn USDC with CCTP v2, then the app polls Iris, switches to Arc, mints to the connected wallet, approves the treasury, and calls `deposit()`. Standard CCTP takes 15–30 minutes and needs a little Arc gas for the final transactions.
+
+Cross-chain **outbound** (`requestWithdrawal`) is available in the Withdraw tab. It burns via CCTP v2 and then the app fetches the Circle attestation automatically. When the attestation is ready, the app switches to the destination chain and asks for one wallet confirmation to submit `receiveMessage`; the final mint needs destination-chain gas. Recent CCTP requests are listed in the Withdraw tab, and pasting an Arc burn tx hash resumes an older transfer. `scripts/complete-cctp.ts` is the headless fallback. The Withdraw tab also shows a **Legacy Treasury** recovery card for funds left in the pre-hotfix deployment.
 
 ---
 
@@ -190,7 +202,8 @@ Cross-chain outbound (`requestWithdrawal`) is available in the Withdraw tab. It 
 | Per-agent treasury, spending limits, pause, keeper separation | ✅ implemented + tested |
 | Morpho/Earn Kit vault deposit, redeem, strategy switch | ✅ implemented + tested (mock vaults) |
 | CCTP v2 outbound burn with hook data | ✅ implemented, unit-tested, and verified live on Arc Testnet (domain 0 burn + finalized attestation) |
-| CCTP v2 inbound hook receiver + malformed-data fallback | ✅ implemented + tested |
+| CCTP v2 **inbound deposit** (source burn → mint to Arc wallet → `deposit()`) | ✅ implemented in the app; requires source USDC + source gas + Arc gas |
+| CCTPReceiver relayer adapter + malformed-data fallback | ✅ unit-tested; ⚠️ not used by the app (CCTP v2 hooks are opaque; a relayer/forwarder is required) |
 | Arc-local fast path (`deposit`, `withdrawLocal`) | ✅ implemented + tested |
 | Dashboard, 6 tabs, event history, CSV export | ✅ built, lint/typecheck clean |
 | Testnet deployment | ✅ deployed, wired, and E2E verified with real testnet USDC |

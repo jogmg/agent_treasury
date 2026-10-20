@@ -6,6 +6,13 @@ describe('CCTP destinations', () => {
     const destination = getCctpDestination(0)
     expect(destination?.chain.id).toBe(11155111)
     expect(destination?.transmitter).toBe('0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275')
+    expect(destination?.usdc).toBe('0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238')
+  })
+
+  it('has a source USDC address for every chain', () => {
+    for (const destination of Object.values(CCTP_DESTINATIONS)) {
+      expect(destination.usdc).toMatch(/^0x[0-9a-fA-F]{40}$/)
+    }
   })
 
   it('maps every configured destination to a unique chain', () => {

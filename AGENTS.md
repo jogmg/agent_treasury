@@ -15,7 +15,7 @@ Cross-chain USDC treasury for AI agents. Accepts USDC from any CCTP-supported ch
 ### Contract files (contracts/src/)
 - `AgentTreasury.sol` - Per-agent accounting, Morpho vault deployment, two withdrawal paths (see below), spending limits, pause
 - `MorphoVaultAdapter.sol` - Whitelisted ERC-4626 vault management (deposit/withdraw/preview/APY cache)
-- `CCTPReceiver.sol` - CCTP v2 hook receiver; tolerant BurnMessageV2 decoder (Layout A versioned + Layout B); routes malformed hookData to defaultBeneficiary
+- `CCTPReceiver.sol` - inbound CCTP relayer adapter; tolerant BurnMessageV2 decoder (Layout A versioned + Layout B); routes malformed hookData to defaultBeneficiary. CCTP v2 hooks are opaque metadata, so the frontend does **not** rely on automatic hook execution; it mints to the user's Arc wallet and calls `deposit()`.
 - `interfaces/` - IAgentTreasury, IMorphoVaultAdapter, ICCTPReceiver, IMorphoVault, ITokenMessengerV2, IMessageTransmitterV2
 - `libraries/Errors.sol` - Custom errors (gas-efficient)
 - `libraries/CCTPMessageLib.sol` - Hook data encode/decode helpers
@@ -51,9 +51,11 @@ Cross-chain USDC treasury for AI agents. Accepts USDC from any CCTP-supported ch
 - Invariants.t.sol (9 tests)
 
 ### Test results (vitest / frontend) — latest pass
-36 tests PASS, 0 fail across:
+44 tests PASS, 0 fail across:
 - src/lib/decimals.test.ts (29 tests) — includes formatShares 18-dec coverage
+- src/lib/cctp.test.ts (5 tests) — destination map + message nonce
 - src/stores/flow.test.ts (7 tests)
+- src/stores/bridgeDeposit.test.ts (2 tests) — inbound CCTP deposit state
 
 ### Deploy scripts
 - `contracts/script/Deploy.s.sol` - Deploys all 3 contracts; reads addresses from ArcConfig + env
@@ -99,6 +101,7 @@ whole withdrawal. Fix: no return values; `CCTP_MIN_FINALITY_THRESHOLD = 2000`.
 - `LegacyRecoveryCard` in the Withdraw tab recovers funds from the old stack via `withdrawLocal`.
 - `OwnershipCard` in Settings accepts the Ownable2Step handoff on all three contracts.
 - `CctpCompletionCard` polls Circle Iris after a burn, switches to the destination chain, and submits `receiveMessage`. It also lists recent CCTP requests and accepts a pasted Arc burn tx hash. The destination mint still needs destination-chain gas.
+- `CrossChainDepositCard` implements inbound CCTP in the Deposit tab: source-chain `depositForBurn` → Iris poll → Arc `receiveMessage` (mints to the connected wallet) → Arc `approve` + `treasury.deposit()`. It requires source USDC, source gas, and a little Arc gas. `CCTPReceiver` is not on this path.
 - `ADDRESSES` / `ARC_TREASURY_DEPLOY_BLOCK` now point at the hotfix stack; `LEGACY_ADDRESSES` keep the old stack for recovery.
 
 ## Pre-hotfix Deployment (legacy — do not use for new CCTP tests)
@@ -151,9 +154,10 @@ where `vaultShareDecimals` is read live from `vault.decimals()`. USDC amounts re
 
 ### Remaining TODOs
 1. Arc mainnet Morpho vault addresses (`VAULT_MAINNET_*` in ArcConfig.sol)
-2. Validate BurnMessageV2 Layout A/B byte offsets against live Arc MessageTransmitterV2
+2. Validate BurnMessageV2 Layout A/B byte offsets against live Arc MessageTransmitterV2, and add the v2 `IMessageHandlerV2` entrypoints if using `CCTPReceiver`
 3. Fork tests (`contracts/test/fork/`) — deferred until Arc testnet RPC is stable
 4. Contract source verification on-chain for the hotfix deployment
+5. Source-domain accounting for inbound deposits: the current app path mints to the wallet and calls `deposit()`, so `chainDeposits` records Arc domain. A relayer/forwarder (or owner-signed `recordDeposit`) is required to record the source domain.
 
 ## Tech Stack
 
