@@ -41,7 +41,7 @@ export function CctpCompletionCard({ burnTx }: Props) {
     setCctp,
   } = useFlowStore()
 
-  const destination = cctpDestinationDomain
+  const destination = Number.isInteger(cctpDestinationDomain)
     ? getCctpDestination(cctpDestinationDomain)
     : undefined
 
