@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import {
   getCctpDestination,
+  getCctpMessageNonce,
   MESSAGE_TRANSMITTER_V2_ABI,
   waitForCctpAttestation,
 } from '../lib/cctp'
@@ -52,6 +53,14 @@ export function CctpCompletionCard({ burnTx }: Props) {
     query: { enabled: Boolean(address && destination) },
   })
 
+  const messageNonce = (() => {
+    try {
+      return cctpMessage ? getCctpMessageNonce(cctpMessage) : null
+    } catch {
+      return null
+    }
+  })()
+
   // Fetch the Circle attestation automatically after the burn. If the tab is
   // closed and reopened, the effect resumes from the stored burn hash.
   useEffect(() => {
@@ -90,6 +99,37 @@ export function CctpCompletionCard({ burnTx }: Props) {
       controller.abort()
     }
   }, [burnTx, cctpCompletionStatus, setCctp])
+
+  // If the destination nonce is already used, this transfer was already
+  // minted. Loading the same burn hash again must not offer a transaction that
+  // is guaranteed to revert.
+  useEffect(() => {
+    if (cctpCompletionStatus !== 'ready' || !destinationClient || !destination || !messageNonce) {
+      return
+    }
+
+    let active = true
+    void (async () => {
+      try {
+        const used = await destinationClient.readContract({
+          address: destination.transmitter,
+          abi: MESSAGE_TRANSMITTER_V2_ABI,
+          functionName: 'usedNonces',
+          args: [messageNonce],
+        })
+        if (active && used) {
+          setCctp({ cctpCompletionStatus: 'done', cctpCompletionError: '' })
+        }
+      } catch {
+        // If the RPC check fails, leave the mint button available; the wallet
+        // will surface the real error if the message is already used.
+      }
+    })()
+
+    return () => {
+      active = false
+    }
+  }, [cctpCompletionStatus, destinationClient, destination, messageNonce, setCctp])
 
   if (!burnTx || cctpCompletionStatus === 'idle') return null
 
@@ -282,9 +322,15 @@ export function CctpCompletionCard({ burnTx }: Props) {
         <div className="flex items-start gap-3 text-sm text-emerald-300">
           <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
           <div>
-            <p className="font-medium">USDC minted on {destination?.name ?? 'the destination chain'}</p>
+            <p className="font-medium">
+              {cctpMintHash
+                ? `USDC minted on ${destination?.name ?? 'the destination chain'}`
+                : 'Transfer already minted'}
+            </p>
             <p className="mt-1 text-xs text-slate-400">
-              The funds are in your destination wallet.
+              {cctpMintHash
+                ? `The funds are in the CCTP recipient wallet${cctpRecipient ? ` (${shortAddr(cctpRecipient)})` : ''}.`
+                : `This CCTP nonce has already been used on ${destination?.name ?? 'the destination chain'}. Re-submitting would revert; no further action is needed.`}
             </p>
             {cctpMintHash && destination && (
               <a
@@ -294,6 +340,16 @@ export function CctpCompletionCard({ burnTx }: Props) {
                 className="mt-1 inline-flex items-center gap-1 text-xs text-emerald-400 underline hover:text-emerald-300"
               >
                 View mint tx <ExternalLink className="h-3 w-3" />
+              </a>
+            )}
+            {!cctpMintHash && cctpRecipient && destination && (
+              <a
+                href={`${destination.explorer}/address/${cctpRecipient}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-1 inline-flex items-center gap-1 text-xs text-emerald-400 underline hover:text-emerald-300"
+              >
+                View recipient on explorer <ExternalLink className="h-3 w-3" />
               </a>
             )}
           </div>

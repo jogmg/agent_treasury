@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { getCctpDestination, CCTP_DESTINATIONS } from './cctp'
+import { getCctpDestination, getCctpMessageNonce, CCTP_DESTINATIONS } from './cctp'
 
 describe('CCTP destinations', () => {
   it('maps Ethereum Sepolia (domain 0)', () => {
@@ -15,5 +15,16 @@ describe('CCTP destinations', () => {
 
   it('does not treat Arc as a destination', () => {
     expect(getCctpDestination(26)).toBeUndefined()
+  })
+})
+
+describe('CCTP message header', () => {
+  it('extracts the nonce from a v2 message', () => {
+    const message = `0x${'00000001'}${'0000001a'}${'00000000'}${'11'.repeat(32)}${'22'.repeat(32)}`
+    expect(getCctpMessageNonce(message)).toBe(`0x${'11'.repeat(32)}`)
+  })
+
+  it('rejects a malformed message', () => {
+    expect(() => getCctpMessageNonce('0x1234')).toThrow('Invalid CCTP message header')
   })
 })

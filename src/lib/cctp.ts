@@ -25,7 +25,22 @@ const MESSAGE_TRANSMITTER_V2 = '0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275' as c
 
 export const MESSAGE_TRANSMITTER_V2_ABI = parseAbi([
   'function receiveMessage(bytes message, bytes attestation) external returns (bool)',
+  'function usedNonces(bytes32 nonce) external view returns (bool)',
 ])
+
+/**
+ * The CCTP message header is:
+ *   version (4) | sourceDomain (4) | destinationDomain (4) | nonce (32) | ...
+ * The nonce is the key used by MessageTransmitterV2.usedNonces on the
+ * destination chain. It lets the UI tell whether a transfer was already minted.
+ */
+export function getCctpMessageNonce(message: string): `0x${string}` {
+  const nonce = message.slice(2 + 24, 2 + 24 + 64)
+  if (!/^[0-9a-fA-F]{64}$/.test(nonce)) {
+    throw new Error('Invalid CCTP message header')
+  }
+  return `0x${nonce}`
+}
 
 export interface CctpDestination {
   domain: number
