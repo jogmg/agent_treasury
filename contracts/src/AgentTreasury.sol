@@ -37,9 +37,12 @@ contract AgentTreasury is IAgentTreasury, Ownable2Step, Pausable, ReentrancyGuar
     uint256 private constant SECONDS_PER_DAY  = 86_400;
     uint256 private constant SECONDS_PER_WEEK = 604_800;
 
-    // ── CCTP fast-transfer parameters ────────────────────────────────────────
-    /// @dev minFinalityThreshold for Fast Transfer (soft finality). Per Circle spec.
-    uint32  public constant FAST_FINALITY_THRESHOLD = 1000;
+    // ── CCTP finality parameters ─────────────────────────────────────────────
+    /// @dev CCTP v2 minFinalityThreshold for outbound burns. Arc Testnet
+    ///      requires 2000 (standard/finalized) for a reliable IRIS attestation.
+    ///      1000 (Fast Transfer) is accepted by the TokenMessenger but is not
+    ///      reliable for Arc-origin messages, so we use finality instead.
+    uint32  public constant CCTP_MIN_FINALITY_THRESHOLD = 2000;
     /// @dev Default max fee in the underlying token (0 = platform default cap).
     uint256 public defaultMaxFee;
 
@@ -410,7 +413,7 @@ contract AgentTreasury is IAgentTreasury, Ownable2Step, Pausable, ReentrancyGuar
             address(usdc),
             bytes32(0),
             defaultMaxFee,
-            FAST_FINALITY_THRESHOLD,
+            CCTP_MIN_FINALITY_THRESHOLD,
             hookData
         );
 

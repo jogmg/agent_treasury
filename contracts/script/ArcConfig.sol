@@ -40,7 +40,7 @@ library ArcConfig {
     address constant ARC_TOKEN_MESSENGER_V2     = 0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA;
     address constant ARC_MESSAGE_TRANSMITTER_V2 = 0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275;
 
-    // ── CCTP Fast Transfer parameters ────────────────────────────────────────────
+    // ── CCTP finality parameters ────────────────────────────────────────────────
     uint32  constant FAST_FINALITY_THRESHOLD     = 1_000; // soft finality (Fast Transfer)
     uint32  constant STANDARD_FINALITY_THRESHOLD = 2_000; // hard finality (standard)
 

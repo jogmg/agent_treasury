@@ -20,17 +20,30 @@ export const ARC_RPC_URLS = [
 
 // AgentTreasury deployment block. Starting the activity scan here avoids
 // rescanning Arc's entire history (and hitting eth_getLogs range limits).
+// Current deployment (CCTP hotfix): all three contracts were created at block
+// 68193025. Keep this in sync with deployments/arc-testnet-fixed.json.
 export const ARC_TREASURY_DEPLOY_BLOCK = BigInt(
-  import.meta.env.VITE_TREASURY_DEPLOY_BLOCK || '68109314',
+  (import.meta.env.VITE_TREASURY_DEPLOY_BLOCK as string | undefined) || '68193025',
 )
 
 export const ADDRESSES = {
   usdc:     (import.meta.env.VITE_USDC_ADDRESS     || '0x3600000000000000000000000000000000000000') as `0x${string}`,
-  treasury: (import.meta.env.VITE_TREASURY_ADDRESS  || '0x9b390bb10bd30a25b5a07dfb9e0a058d7993ae0d') as `0x${string}`,
-  adapter:  (import.meta.env.VITE_ADAPTER_ADDRESS   || '0xe1dafeef6762c672bb5e4a8ff62c3812e111b2e3') as `0x${string}`,
-  receiver: (import.meta.env.VITE_RECEIVER_ADDRESS  || '0x7697c83c23339ccfdcf2d8e979b26ee5d731e7ee') as `0x${string}`,
+  treasury: (import.meta.env.VITE_TREASURY_ADDRESS  || '0x5e2e3da19533ebf85bc916612eff5cdc7bf4d489') as `0x${string}`,
+  adapter:  (import.meta.env.VITE_ADAPTER_ADDRESS   || '0x333deccbf9091540e849b7af80f2f10b72197b71') as `0x${string}`,
+  receiver: (import.meta.env.VITE_RECEIVER_ADDRESS  || '0x8066bcf8e6b17e2d84082179a89f0972cc6e31c1') as `0x${string}`,
   vault1:   '0xAabbeF1D3971c710276ed41eC791BbE14CdB8E88' as `0x${string}`,
 }
+
+// The pre-hotfix stack still holds testnet USDC for the owner and one agent.
+// `withdrawLocal` on the old treasury works, so the UI exposes a recovery card
+// instead of stranding those funds after the address switch.
+export const LEGACY_ADDRESSES = {
+  treasury: '0x9b390bb10bd30a25b5a07dfb9e0a058d7993ae0d' as `0x${string}`,
+  adapter:  '0xe1dafeef6762c672bb5e4a8ff62c3812e111b2e3' as `0x${string}`,
+  receiver: '0x7697c83c23339ccfdcf2d8e979b26ee5d731e7ee' as `0x${string}`,
+} as const
+
+export const LEGACY_TREASURY_DEPLOY_BLOCK = 68109314n
 
 export const VAULT_1_ID = 1n
 export const VAULT_1_NAME = 'USDC Core'
@@ -54,6 +67,7 @@ export const TREASURY_ABI = parseAbi([
   'function keeper() view returns (address)',
   'function defaultVaultId() view returns (uint256)',
   'function ARC_DOMAIN() view returns (uint32)',
+  'function CCTP_MIN_FINALITY_THRESHOLD() view returns (uint32)',
   'function nextWithdrawalId() view returns (uint256)',
   // Events
   'event DepositRecorded(address indexed agent, uint256 amount, uint32 indexed sourceDomain, uint256 vaultId, uint256 shares)',
@@ -73,6 +87,15 @@ export const ADAPTER_ABI = parseAbi([
   'function totalAssets(uint256 vaultId) view returns (uint256)',
   'function pricePerShare(uint256 vaultId) view returns (uint256)',
   'function previewRedeem(uint256 shares, uint256 vaultId) view returns (uint256)',
+  'function treasury() view returns (address)',
+  'function keeper() view returns (address)',
+])
+
+// Shared Ownable2Step surface for ownership acceptance in Settings.
+export const OWNABLE_ABI = parseAbi([
+  'function owner() view returns (address)',
+  'function pendingOwner() view returns (address)',
+  'function acceptOwnership() external',
 ])
 
 export const ERC20_ABI = parseAbi([

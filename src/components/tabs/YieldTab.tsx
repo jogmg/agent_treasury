@@ -8,6 +8,16 @@ import { StatCard } from '../StatCard'
 import { formatUsdcDollar, formatApy, formatUsdc, formatShares, projectYield } from '../../lib/decimals'
 import { VAULT_1_NAME, VAULT_1_APY_DISPLAY } from '../../lib/contracts'
 
+/** Compact axis label. Always includes the time, not just the calendar date. */
+function formatSnapshotTime(ts: number): string {
+  return new Date(ts).toLocaleString(undefined, {
+    month:  'short',
+    day:    'numeric',
+    hour:   '2-digit',
+    minute: '2-digit',
+  })
+}
+
 export function YieldTab() {
   const { address } = useAccount()
   const { totalBalance, principal, vaultShares, vaultApy, vaultTvl, pricePerShare, vaultShareDecimals } = useTreasuryStore()
@@ -28,11 +38,16 @@ export function YieldTab() {
   const projected = projectYield(totalBalance, vaultApy, projDays)
   const projGain   = projected > totalBalance ? projected - totalBalance : 0n
 
-  // Growth chart data
-  const chartData = growthHistory.map((s) => ({
-    time: new Date(s.ts).toLocaleDateString(),
-    value: Number(formatUsdc(s.value, 2)),
-  }))
+  // Growth chart data. Use the raw 6-decimal balance for the plotted value
+  // (rather than a rounded display string) and keep the timestamp alongside it
+  // so the tooltip can show the exact date and time for each point.
+  const chartData = [...growthHistory]
+    .sort((a, b) => a.ts - b.ts)
+    .map((s) => ({
+      ts:    s.ts,
+      time:  formatSnapshotTime(s.ts),
+      value: Number(formatUsdc(s.value, 6)),
+    }))
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -157,13 +172,24 @@ export function YieldTab() {
                   <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <XAxis dataKey="time" tick={{ fill: '#64748b', fontSize: 10 }} axisLine={false} tickLine={false} />
-              <YAxis hide />
+              <XAxis
+                dataKey="time"
+                tick={{ fill: '#64748b', fontSize: 10 }}
+                axisLine={false}
+                tickLine={false}
+                minTickGap={32}
+                interval="preserveStartEnd"
+              />
+              <YAxis hide domain={['auto', 'auto']} />
               <Tooltip
                 contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', color: '#e2e8f0', fontSize: '12px' }}
-                formatter={(v: unknown) => [`$${(v as number).toFixed(2)}`, 'Balance']}
+                cursor={{ stroke: '#334155', strokeWidth: 1 }}
+                labelFormatter={(label) =>
+                  typeof label === 'string' || typeof label === 'number' ? String(label) : ''
+                }
+                formatter={(v: unknown) => [`$${Number(v).toFixed(2)}`, 'Balance']}
               />
-              <Area type="monotone" dataKey="value" stroke="#10b981" strokeWidth={2} fill="url(#emeraldGrad)" />
+              <Area type="monotone" dataKey="value" stroke="#10b981" strokeWidth={2} fill="url(#emeraldGrad)" isAnimationActive={false} />
             </AreaChart>
           </ResponsiveContainer>
         )}

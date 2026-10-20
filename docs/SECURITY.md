@@ -16,13 +16,15 @@ The keeper separation is enforced and covered by regression tests: a keeper cann
 
 ## Testnet E2E evidence
 
-The deployed contracts moved real testnet USDC through the live Morpho Earn Kit vault:
+The hotfix contracts moved real testnet USDC through the live Morpho Earn Kit vault and outbound CCTP:
 
-- Deposit 10 USDC: [`0xa4fc0034…3a520`](https://explorer.testnet.arc.io/tx/0xa4fc0034c4f2c20a9f308a705fe1439f281981f6b24466a8aff148f1b5b3a520) → `9,989,427,554,789,604,143` shares (18 dec), `previewRedeem` `9,999,999`.
-- Withdraw 1 USDC: [`0x27cf6628…1b826`](https://explorer.testnet.arc.io/tx/0x27cf6628ffb0d1e3ce45f9d542bc065169b3cc98b28c23c8a09d64e50f11b826) → total `9,000,000`, wallet `+991,307` (rest is gas).
-- APY fix: [`0x36f5c8a7…3243e`](https://explorer.testnet.arc.io/tx/0x36f5c8a7575ebab7a8bdc49bc732a9587e452b10bab7c8b38b1b30e51ba3243e) → `vaultAPY(1) = 4.2e16`.
+- Deposit 10 USDC: [`0xbab58770…04c4`](https://explorer.testnet.arc.io/tx/0xbab5877074904d17fb21b49aed8c3d2a956ee8d16d3ddc3ec523046d464a04c4) → balance `9,999,999`, `9,989,427,554,595,819,468` shares (18 dec).
+- CCTP withdrawal 1 USDC to domain 0: [`0x3f0f2568…8a1c`](https://explorer.testnet.arc.io/tx/0x3f0f256843ee4e1498cafceea9978725397904899bb527f684eb98c171e28a1c) → withdrawal id `1`, burned `999,999`, `MessageSent` finality `2000`, Iris attestation `complete`.
+- APY: `vaultAPY(1) = 4.2e16`.
 
-This proves the deposit → vault → redeem → transfer loop, but it does **not** replace an audit, mainnet rehearsal, or adversarial testing.
+The earlier 10 USDC deposit / 1 USDC local withdrawal proof is preserved in `deployments/arc-testnet.json`. The original CCTP path was broken by an ABI return-value mismatch (Arc returns no data); the hotfix removes that return declaration and uses finality threshold `2000`.
+
+This proves the deposit → vault → CCTP burn → attestation loop, but it does **not** replace an audit, mainnet rehearsal, or adversarial testing. The destination Sepolia mint is pending gas; see `scripts/complete-cctp.ts`.
 
 ## Invariants
 

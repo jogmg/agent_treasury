@@ -16,6 +16,10 @@ contracts/out/
 contracts/cache/
 contracts/broadcast/
 contracts/lib/
+lib/
+
+# scratch / local verification
+.tmp-*
 
 # env / secrets — never commit keys
 .env

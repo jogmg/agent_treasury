@@ -16,6 +16,12 @@ export function useTreasuryData() {
   const { address } = useAccount()
   const set = useTreasuryStore((s) => s.set)
   const pushSnapshot = useUiStore((s) => s.pushSnapshot)
+  const setGrowthContext = useUiStore((s) => s.setGrowthContext)
+
+  // Scope the growth chart to the connected wallet and current deployment.
+  useEffect(() => {
+    setGrowthContext(address, ADDRESSES.treasury)
+  }, [address, setGrowthContext])
 
   // ── Batch read: all balance/config calls ────────────────────────────────────
   const { data: reads, isLoading } = useReadContracts({
@@ -84,8 +90,11 @@ export function useTreasuryData() {
       set({ ...patch, isFetching: false, lastFetched: Date.now() })
     }
 
-    // Snapshot for growth chart
-    if (totalBalance !== undefined && totalBalance > 0n) pushSnapshot(totalBalance)
+    // Snapshot for growth chart. Include zero so a full withdrawal is visible
+    // instead of leaving the last pre-withdrawal balance frozen on the chart.
+    if (totalBalance !== undefined) {
+      pushSnapshot(totalBalance, address, ADDRESSES.treasury)
+    }
   }, [reads, address, isLoading, set, pushSnapshot])
 
   return { isLoading }

@@ -34,7 +34,7 @@ contract MockTokenMessenger {
         uint256 maxFee_,
         uint32  minFinalityThreshold_,
         bytes   calldata hookData
-    ) external returns (uint64 nonce) {
+    ) external {
         // Pull tokens from caller (simulates burn).
         IERC20(burnToken).safeTransferFrom(msg.sender, address(this), amount);
 
@@ -48,7 +48,7 @@ contract MockTokenMessenger {
             hookData:             hookData
         }));
 
-        nonce = nextNonce++;
+        uint64 nonce = nextNonce++;
         bytes memory message = abi.encode(nonce, amount, destinationDomain, mintRecipient);
         emit MessageSent(message);
     }
@@ -61,9 +61,9 @@ contract MockTokenMessenger {
         bytes32,
         uint256, /* maxFee */
         uint32   /* minFinalityThreshold */
-    ) external returns (uint64 nonce) {
+    ) external {
         IERC20(burnToken).safeTransferFrom(msg.sender, address(this), amount);
-        nonce = nextNonce++;
+        uint64 nonce = nextNonce++;
         emit MessageSent(abi.encode(nonce, amount, destinationDomain, mintRecipient));
     }
 

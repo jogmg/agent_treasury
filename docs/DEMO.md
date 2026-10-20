@@ -2,10 +2,11 @@
 
 ## Before you record
 
-- [ ] Wiring complete (`morphoAdapter()` non-zero, `vaultAPY(1) == 4.2e16`, `paused() == false`).
-- [ ] Demo wallet has 10–20 testnet USDC.
+- [ ] Hotfix wiring complete (`morphoAdapter()` non-zero, `vaultAPY(1) == 4.2e16`, `paused() == false`, `CCTP_MIN_FINALITY_THRESHOLD() == 2000`).
+- [ ] Demo wallet has 10–20 testnet USDC on Arc.
 - [ ] App running (`bun run dev`) or the Arc Studio preview open.
-- [ ] Explorer tabs pre-opened for the treasury and adapter.
+- [ ] Explorer tabs pre-opened for treasury `0x5e2e…d489` and adapter `0x333d…7b71`.
+- [ ] Optional: a funded Sepolia wallet if you want to show the destination mint.
 
 ## 0:00 — Hook
 
@@ -23,7 +24,7 @@ Show the Overview tab: total value, principal, yield, APY, vault shares.
 
 > "The treasury pulls USDC, credits the agent, and deploys it into the Morpho Earn Kit vault in the same transaction."
 
-On-chain proof if asked: deposit `0xa4fc0034…3a520`, withdraw `0x27cf6628…1b826`.
+On-chain proof if asked: deposit `0xbab58770…04c4`, CCTP withdraw `0x3f0f2568…8a1c`.
 
 ## 0:50 — Yield
 
@@ -40,8 +41,10 @@ On-chain proof if asked: deposit `0xa4fc0034…3a520`, withdraw `0x27cf6628…1b
 2. Click **25%**, then **Withdraw**.
 3. Show the wallet balance increase and shares decrease.
 4. Open the advanced CCTP section; explain destination domain + bytes32 recipient and the manual Iris relay.
+5. Show the existing proof tx `0x3f0f2568…8a1c`: burn `999,999`, `MessageSent` finality `2000`, Iris status `complete`.
+6. Point out the **Legacy Treasury** card below; explain that it recovers the pre-hotfix stack via local withdrawal.
 
-> "Same-chain withdrawals are instant. Cross-chain withdrawals burn via CCTP v2 and mint on the destination."
+> "Same-chain withdrawals are instant. Cross-chain withdrawals burn via CCTP v2 and produce a finalized attestation; the destination mint is a permissionless relay step. Our live test burned from yield to domain 0 and Circle attested it."
 
 ## 1:40 — Controls
 
@@ -62,10 +65,11 @@ On-chain proof if asked: deposit `0xa4fc0034…3a520`, withdraw `0x27cf6628…1b
 
 ## 2:30 — Close
 
-> "Three Circle products: CCTP v2 for cross-chain USDC, Earn Kit/Morpho for yield, and a Gateway-ready hook. Built end-to-end in Arc Studio, 80 Foundry tests and 36 frontend tests green, with a verified on-chain deposit/withdraw. Testnet today; mainnet is gated on a funded deployer and an audit."
+> "Three Circle products: CCTP v2 for cross-chain USDC, Earn Kit/Morpho for yield, and a Gateway-ready hook. Built end-to-end in Arc Studio, 80 Foundry tests and 36 frontend tests green, with a verified deposit and a live CCTP burn from yield to domain 0 plus a finalized Circle attestation. Testnet today; mainnet is gated on a funded deployer and an audit."
 
 ## Fallbacks
 
-- **RPC/app unavailable:** show the verified deposit/withdraw tx hashes in `deployments/arc-testnet.json` and run `forge test -vv` as the proof. Do not fake a deposit.
+- **RPC/app unavailable:** show the verified deposit/CCTP-withdrawal tx hashes and Iris attestation in `deployments/arc-testnet-fixed.json`, and run `forge test -vv` as the proof. Do not fake a deposit.
 - **No testnet USDC:** show the faucet step and the empty states; keep the recording honest.
+- **Destination mint not visible:** explain that the burn is attested but Sepolia gas is a separate step; show the Iris `complete` response and `scripts/complete-cctp.ts`. Never claim the destination mint already happened.
 - **RPC slow:** pre-load the tabs once before recording.

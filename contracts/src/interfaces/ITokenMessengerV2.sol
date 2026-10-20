@@ -10,6 +10,10 @@ interface ITokenMessengerV2 {
     ///         `hookData` is forwarded to the hook handler on the destination.
     ///         `maxFee` caps the relayer fee in the same token units (0 = no cap for standard).
     ///         `minFinalityThreshold`: 1000 = Fast Transfer (soft finality), 2000 = standard.
+    /// @dev Arc's deployed TokenMessengerV2 returns NO data for this function. Do not
+    ///      declare a return value here: Solidity would try to ABI-decode an empty
+    ///      return buffer and revert *after* the burn succeeds, rolling the whole
+    ///      withdrawal back. This was the cause of the 0x-only CCTP withdrawals.
     function depositForBurnWithHook(
         uint256 amount,
         uint32  destinationDomain,
@@ -19,9 +23,10 @@ interface ITokenMessengerV2 {
         uint256 maxFee,
         uint32  minFinalityThreshold,
         bytes   calldata hookData
-    ) external returns (uint64 nonce);
+    ) external;
 
     /// @notice Standard burn without hook data.
+    /// @dev Arc's deployed TokenMessengerV2 returns NO data here either.
     function depositForBurn(
         uint256 amount,
         uint32  destinationDomain,
@@ -30,5 +35,5 @@ interface ITokenMessengerV2 {
         bytes32 destinationCaller,
         uint256 maxFee,
         uint32  minFinalityThreshold
-    ) external returns (uint64 nonce);
+    ) external;
 }

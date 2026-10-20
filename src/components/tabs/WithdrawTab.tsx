@@ -10,6 +10,7 @@ import { parseOnchainError } from '../../lib/errors'
 import { useTreasuryStore } from '../../stores/treasury'
 import { useFlowStore } from '../../stores/flow'
 import { TxStep } from '../TxStep'
+import { LegacyRecoveryCard } from '../LegacyRecoveryCard'
 
 const MAX_U256 = BigInt('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff')
 
@@ -212,6 +213,8 @@ export function WithdrawTab() {
           onReset={resetWithdraw}
         />
       </div>
+
+      <LegacyRecoveryCard />
 
       {/* CCTP advanced */}
       <details className="rounded-xl border border-slate-800 bg-slate-900/40">

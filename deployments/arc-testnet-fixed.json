@@ -1,0 +1,84 @@
+{
+  "_note": "Arc Testnet CCTP-hotfix deployment — Oct 2026. Fixes ITokenMessengerV2 returning no data (Arc-specific); CCTP_MIN_FINALITY_THRESHOLD=2000.",
+  "chainId": 5042002,
+  "network": "Arc Testnet",
+  "rpc": "https://rpc.testnet.arc.io",
+  "deployedAt": "2026-10-20T11:50:00Z",
+  "deployBlock": 68193025,
+  "cctpMinFinalityThreshold": 2000,
+  "owner": "0xD00fD0B006c01342522cAf4FA04D5f8910aB268c",
+  "keeper": "0xD00fD0B006c01342522cAf4FA04D5f8910aB268c",
+  "vault1": "0xAabbeF1D3971c710276ed41eC791BbE14CdB8E88",
+  "vaultAPY": "42000000000000000",
+  "contracts": {
+    "MorphoVaultAdapter": {
+      "address": "0x333deccbf9091540e849b7af80f2f10b72197b71",
+      "deployTxHash": "0x2223d01694081af02f35b511247bd60b3b2ff83e220cfe315969a3c34d6220be",
+      "deployBlock": 68193025,
+      "explorerUrl": "https://explorer.testnet.arc.io/address/0x333deccbf9091540e849b7af80f2f10b72197b71"
+    },
+    "CCTPReceiver": {
+      "address": "0x8066bcf8e6b17e2d84082179a89f0972cc6e31c1",
+      "deployTxHash": "0xdf20df5ebb935966b2bb1a58342f0a58919d2246e5393fe8f4f67c628a75d167",
+      "deployBlock": 68193025,
+      "explorerUrl": "https://explorer.testnet.arc.io/address/0x8066bcf8e6b17e2d84082179a89f0972cc6e31c1"
+    },
+    "AgentTreasury": {
+      "address": "0x5e2e3da19533ebf85bc916612eff5cdc7bf4d489",
+      "deployTxHash": "0x7b6c6727070b1da18746447c6e97fee7b2684aea3f8296604f8716461db7337f",
+      "deployBlock": 68193025,
+      "explorerUrl": "https://explorer.testnet.arc.io/address/0x5e2e3da19533ebf85bc916612eff5cdc7bf4d489"
+    }
+  },
+  "smokeTests": {
+    "adapter_treasury": "0x5E2e3da19533Ebf85Bc916612eFf5cDC7BF4D489 (PASS)",
+    "receiver_treasury": "0x5E2e3da19533Ebf85Bc916612eFf5cDC7BF4D489 (PASS)",
+    "treasury_defaultVaultId": "1 (PASS)",
+    "treasury_keeper": "0xD00fD0B006c01342522cAf4FA04D5f8910aB268c (PASS)",
+    "adapter_getVaultConfig_1": "(1, 0xAabbeF1D3971c710276ed41eC791BbE14CdB8E88, USDC Core, mUSDC-CORE, 10000000, true) (PASS)",
+    "adapter_vaultAPY_1": "42000000000000000 (PASS)",
+    "adapter_owner": "0xD00fD0B006c01342522cAf4FA04D5f8910aB268c (PASS)",
+    "receiver_owner": "0xD00fD0B006c01342522cAf4FA04D5f8910aB268c (PASS)",
+    "treasury_owner": "0xD00fD0B006c01342522cAf4FA04D5f8910aB268c (PASS)",
+    "adapter_pendingOwner": "0xD00fD0B006c01342522cAf4FA04D5f8910aB268c (PASS)",
+    "receiver_pendingOwner": "0xD00fD0B006c01342522cAf4FA04D5f8910aB268c (PASS)",
+    "treasury_pendingOwner": "0xD00fD0B006c01342522cAf4FA04D5f8910aB268c (PASS)"
+  },
+  "liveSmokeTest": {
+    "date": "2026-10-20",
+    "wallet": "0xD00fD0B006c01342522cAf4FA04D5f8910aB268c",
+    "approveTx": "0x158ed9048899e22ef6d087bdd2489cf70a215ae6b6ca602e6828e997a2df69fe",
+    "depositTx": "0xbab5877074904d17fb21b49aed8c3d2a956ee8d16d3ddc3ec523046d464a04c4",
+    "withdrawalTx": "0x3f0f256843ee4e1498cafceea9978725397904899bb527f684eb98c171e28a1c",
+    "withdrawalId": 1,
+    "balanceAfterDeposit": 9999999,
+    "balanceAfterWithdrawal": 9000000,
+    "vaultSharesAfterDeposit": "9989427554595819468",
+    "messageSent": {
+      "sourceDomain": 26,
+      "destinationDomain": 0,
+      "mintRecipient": "0xd00fd0b006c01342522caf4fa04d5f8910ab268c",
+      "amount": 999999,
+      "minFinalityThreshold": 2000,
+      "finalityThresholdExecuted": 2000,
+      "destinationTokenMessenger": "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA",
+      "nonce": "0x6369599aa778cf070a502224c7bc09e1d4fe8672904411718381e5eb2b71c79a",
+      "attestationStatus": "complete"
+    }
+  },
+  "destinationMint": {
+    "status": "pending_gas",
+    "chain": "Ethereum Sepolia",
+    "domain": 0,
+    "recipient": "0xD00fD0B006c01342522cAf4FA04D5f8910aB268c",
+    "amount": 999999,
+    "sourceTx": "0x3f0f256843ee4e1498cafceea9978725397904899bb527f684eb98c171e28a1c",
+    "messageNonce": "0x6369599aa778cf070a502224c7bc09e1d4fe8672904411718381e5eb2b71c79a",
+    "attestationStatus": "complete",
+    "blocker": "The recipient has 0 Sepolia ETH. Fund the recipient with Sepolia gas, then call MessageTransmitterV2.receiveMessage(message, attestation) on Sepolia. The signed attestation is available from Circle Iris (GET /v2/messages/26?transactionHash=<sourceTx>)."
+  },
+  "pendingActions": [
+    "Optional: the final owner 0xD00fD0B006c01342522cAf4FA04D5f8910aB268c is already the active owner on all three contracts. Calling acceptOwnership() on each clears the redundant pendingOwner entry; the app's Settings tab exposes this."
+  ],
+  "supersedes": "deployments/arc-testnet.json"
+}

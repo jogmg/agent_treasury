@@ -1,5 +1,7 @@
 {
-  "_note": "Arc Testnet deployment — Oct 2026. Fully wired and E2E verified.",
+  "_note": "Arc Testnet pre-hotfix deployment — Oct 2026. Historical record. Its CCTP withdrawal path reverts on Arc; use deployments/arc-testnet-fixed.json for the current stack. Local withdrawLocal still works for legacy recovery.",
+  "_deprecated": true,
+  "_supersededBy": "deployments/arc-testnet-fixed.json",
   "chainId": 5042002,
   "network": "Arc Testnet",
   "rpc": "https://rpc.testnet.arc.io",

@@ -10,7 +10,7 @@ Built with [Arc Studio](https://studio.arc.io) · Arc Testnet (chain ID `5042002
 
 AI agents are becoming economic actors, but they have nowhere safe to keep working capital. Agent Treasury gives each agent a non-custodial USDC account on Arc that:
 
-1. **Receives USDC from any CCTP-supported chain** via CCTP v2 Fast Transfer.
+1. **Receives USDC from any CCTP-supported chain** via CCTP v2.
 2. **Automatically deploys idle USDC into a Morpho vault** through Circle's Earn Kit rails, earning ~4.2% APY on testnet.
 3. **Withdraws to any destination chain** by burning USDC on Arc and minting it on the destination domain.
 4. **Enforces per-agent spending limits, pausing, and a two-step owner model** so an agent can operate autonomously without unlimited custody.
@@ -25,9 +25,11 @@ The app is a single-page dashboard: Overview, Deposit, Yield, Withdraw, Activity
 
 | Contract | Address |
 |---|---|
-| AgentTreasury | [`0x9b390bb10bd30a25b5a07dfb9e0a058d7993ae0d`](https://explorer.testnet.arc.io/address/0x9b390bb10bd30a25b5a07dfb9e0a058d7993ae0d) |
-| MorphoVaultAdapter | [`0xe1dafeef6762c672bb5e4a8ff62c3812e111b2e3`](https://explorer.testnet.arc.io/address/0xe1dafeef6762c672bb5e4a8ff62c3812e111b2e3) |
-| CCTPReceiver | [`0x7697c83c23339ccfdcf2d8e979b26ee5d731e7ee`](https://explorer.testnet.arc.io/address/0x7697c83c23339ccfdcf2d8e979b26ee5d731e7ee) |
+| AgentTreasury | [`0x5e2e3da19533ebf85bc916612eff5cdc7bf4d489`](https://explorer.testnet.arc.io/address/0x5e2e3da19533ebf85bc916612eff5cdc7bf4d489) |
+| MorphoVaultAdapter | [`0x333deccbf9091540e849b7af80f2f10b72197b71`](https://explorer.testnet.arc.io/address/0x333deccbf9091540e849b7af80f2f10b72197b71) |
+| CCTPReceiver | [`0x8066bcf8e6b17e2d84082179a89f0972cc6e31c1`](https://explorer.testnet.arc.io/address/0x8066bcf8e6b17e2d84082179a89f0972cc6e31c1) |
+
+Deployment block: `68193025`. Owner and keeper: `0xD00fD0B006c01342522cAf4FA04D5f8910aB268c`. Full record: `deployments/arc-testnet-fixed.json`.
 
 Protocol constants (testnet and mainnet share the same CCTP contracts and domain):
 
@@ -40,17 +42,32 @@ Protocol constants (testnet and mainnet share the same CCTP contracts and domain
 | Morpho Earn Kit USDC vault | `0xAabbeF1D3971c710276ed41eC791BbE14CdB8E88` |
 | RPC / Explorer | `https://rpc.testnet.arc.io` / `https://explorer.testnet.arc.io` |
 
-> **Status: wired and E2E verified on testnet.** The owner `0xD00fD0B006c01342522cAf4FA04D5f8910aB268c` broadcast the 9 wiring transactions; the adapter, receiver, vault, keeper, and default vault are live. A real 10 USDC deposit and a real 1 USDC withdrawal both settled against the Morpho Earn Kit vault. Full record: `deployments/arc-testnet.json`.
+> **Status: CCTP hotfix deployed and E2E verified on testnet.** The new stack is fully wired: adapter, receiver, vault 1, keeper, and default vault are live. A real 10 USDC deposit and a real 1 USDC CCTP withdrawal from yield succeeded. The burn produced a finalized Circle attestation for destination domain `0` (Ethereum Sepolia). The destination mint is pending Sepolia gas only; the recipient has no Sepolia ETH. Full record: `deployments/arc-testnet-fixed.json`.
+
+### CCTP hotfix
+
+The original treasury (`0x9b390bb10bd30a25b5a07dfb9e0a058d7993ae0d`) burned successfully but reverted while ABI-decoding the return value of `depositForBurnWithHook`. Arc's TokenMessengerV2 returns **no data**, while the original interface declared `returns (uint64)`. The whole withdrawal rolled back after the burn. The fixed interface returns nothing, and `CCTP_MIN_FINALITY_THRESHOLD` is `2000` for reliable Arc-origin attestations.
 
 ### On-chain proof (Arc Testnet)
 
 | Action | Transaction | Result |
 |---|---|---|
-| Deposit 10 USDC | [`0xa4fc0034…3a520`](https://explorer.testnet.arc.io/tx/0xa4fc0034c4f2c20a9f308a705fe1439f281981f6b24466a8aff148f1b5b3a520) | 10,000,000 principal → 9,989,427,554,789,604,143 shares (18 dec), `previewRedeem` = 9,999,999 |
-| Withdraw 1 USDC | [`0x27cf6628…1b826`](https://explorer.testnet.arc.io/tx/0x27cf6628ffb0d1e3ce45f9d542bc065169b3cc98b28c23c8a09d64e50f11b826) | principal 9,000,001, total 9,000,000, wallet +991,307 (rest is gas) |
-| APY corrected to 4.2% | [`0x36f5c8a7…3243e`](https://explorer.testnet.arc.io/tx/0x36f5c8a7575ebab7a8bdc49bc732a9587e452b10bab7c8b38b1b30e51ba3243e) | `vaultAPY(1) = 42000000000000000` |
+| Approve 10 USDC | [`0x158ed904…69fe`](https://explorer.testnet.arc.io/tx/0x158ed9048899e22ef6d087bdd2489cf70a215ae6b6ca602e6828e997a2df69fe) | USDC allowance to the new treasury |
+| Deposit 10 USDC | [`0xbab58770…04c4`](https://explorer.testnet.arc.io/tx/0xbab5877074904d17fb21b49aed8c3d2a956ee8d16d3ddc3ec523046d464a04c4) | balance `9,999,999`; 18-dec vault shares `9,989,427,554,595,819,468` |
+| CCTP withdraw 1 USDC to domain 0 | [`0x3f0f2568…8a1c`](https://explorer.testnet.arc.io/tx/0x3f0f256843ee4e1498cafceea9978725397904899bb527f684eb98c171e28a1c) | withdrawal id `1`; burned `999,999`; `MessageSent` finality `2000`; balance `9,000,000` |
 
-The one-unit difference between `principal` and `previewRedeem` is ERC-4626 rounding — the withdrawal path uses the actual redeemed amount, so no dust is stranded.
+Circle Iris returned `status: complete` with `finalityThresholdExecuted: 2000` and `mintRecipient` set to the connected wallet. The one-unit difference between the requested `1,000,000` and burned `999,999` is ERC-4626 share rounding; the withdrawal path uses the actual redeemed amount, so no dust is stranded.
+
+The pre-hotfix stack is still on-chain and holds testnet funds. The Withdraw tab exposes a **Legacy Treasury** card that calls its unaffected `withdrawLocal` path so those funds can be recovered without CCTP.
+
+To complete the pending Sepolia mint after funding the recipient with testnet gas:
+
+```bash
+npx tsx scripts/complete-cctp.ts 0x3f0f256843ee4e1498cafceea9978725397904899bb527f684eb98c171e28a1c
+# or, with a funded key:
+SEPOLIA_RPC_URL=... PRIVATE_KEY=... npx tsx scripts/complete-cctp.ts 0x3f0f... --send
+# Bun is equivalent: bun scripts/complete-cctp.ts 0x3f0f... --send
+```
 
 ---
 
@@ -120,15 +137,24 @@ VITE_TREASURY_ADDRESS=0x...
 VITE_ADAPTER_ADDRESS=0x...
 VITE_RECEIVER_ADDRESS=0x...
 VITE_USDC_ADDRESS=0x...
+VITE_TREASURY_DEPLOY_BLOCK=68193025
 ```
 
-Deploy / wire:
+Fresh hotfix deployment (deploys and wires all three contracts, then starts the
+Ownable2Step handoff):
 
 ```bash
 cd contracts
-forge script script/DeployTestnet.s.sol --rpc-url https://rpc.testnet.arc.io --broadcast
-forge script script/ConfigureTestnet.s.sol --rpc-url https://rpc.testnet.arc.io --broadcast
+forge script script/DeployFixedTestnet.s.sol \
+  --rpc-url https://rpc.testnet.arc.io \
+  --broadcast \
+  --private-key "$DEPLOYER_PRIVATE_KEY" \
+  -vv
 ```
+
+Required env: `DEPLOYER_ADDRESS`, `FINAL_OWNER_ADDRESS`, `ARC_USDC`,
+`ARC_TOKEN_MESSENGER`, `ARC_MESSAGE_TRANSMITTER`, `ARC_CCTP_DOMAIN`, and
+`VAULT_1_ADDRESS`. See `docs/RUNBOOK.md`.
 
 See `docs/RUNBOOK.md` for the exact env vars and smoke tests.
 
@@ -143,7 +169,7 @@ See `docs/RUNBOOK.md` for the exact env vars and smoke tests.
 5. **Activity**: decoded `DepositRecorded`, `WithdrawalToWallet`, `YieldStrategyChanged`, etc., with explorer links and CSV export.
 6. **Settings**: set daily/weekly spending limits; inspect owner/keeper/pause.
 
-Cross-chain outbound (`requestWithdrawal`) is available in the Withdraw tab's advanced section. It burns via CCTP v2 and links to the Iris attestation; the destination mint is a manual relay in this build.
+Cross-chain outbound (`requestWithdrawal`) is available in the Withdraw tab's advanced section. It burns via CCTP v2 and produces a finalized Iris attestation. The destination mint is a manual relay in this build; `scripts/complete-cctp.ts` submits it once the destination wallet has gas. The Withdraw tab also shows a **Legacy Treasury** recovery card for funds left in the pre-hotfix deployment.
 
 ---
 
@@ -153,7 +179,7 @@ Cross-chain outbound (`requestWithdrawal`) is available in the Withdraw tab's ad
 |---|---|
 | Per-agent treasury, spending limits, pause, keeper separation | ✅ implemented + tested |
 | Morpho/Earn Kit vault deposit, redeem, strategy switch | ✅ implemented + tested (mock vaults) |
-| CCTP v2 outbound burn with hook data | ✅ implemented + tested (mock messenger) |
+| CCTP v2 outbound burn with hook data | ✅ implemented, unit-tested, and verified live on Arc Testnet (domain 0 burn + finalized attestation) |
 | CCTP v2 inbound hook receiver + malformed-data fallback | ✅ implemented + tested |
 | Arc-local fast path (`deposit`, `withdrawLocal`) | ✅ implemented + tested |
 | Dashboard, 6 tabs, event history, CSV export | ✅ built, lint/typecheck clean |

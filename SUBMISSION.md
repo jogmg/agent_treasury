@@ -27,28 +27,29 @@ The entire project was built in Arc Studio: contracts, Foundry tests, deployment
 
 | Product | How it is used |
 |---|---|
-| **CCTP v2 Fast Transfer** | Outbound `depositForBurnWithHook` with fast finality; inbound hook receiver that routes minted USDC to the agent's treasury. |
+| **CCTP v2** | Outbound `depositForBurnWithHook` with standard finality (`2000`) for reliable Arc-origin attestations; inbound hook receiver that routes minted USDC to the agent's treasury. |
 | **Earn Kit (Morpho on Arc)** | Vault 1 is the Earn Kit USDC vault (`0xAabbeF1D...8E88`), deposited/redeemed through the adapter. |
 | **Gateway** | `gatewayReceiver` hook and UI surface are present, but live unified balances need a server-side API key and are not faked. Roadmap item. |
 
 ## What is live
 
-- **Arc Testnet contracts** (deployed):
-  - AgentTreasury `0x9b390bb10bd30a25b5a07dfb9e0a058d7993ae0d`
-  - MorphoVaultAdapter `0xe1dafeef6762c672bb5e4a8ff62c3812e111b2e3`
-  - CCTPReceiver `0x7697c83c23339ccfdcf2d8e979b26ee5d731e7ee`
-- **Wiring:** complete — 9 configure transactions; adapter, receiver, vault 1, keeper, and default vault are live. APY corrected to `4.2e16` on-chain.
-- **E2E proof:** real 10 USDC deposit → `9,989,427,554,789,604,143` shares; real 1 USDC withdrawal. Deposit tx `0xa4fc0034c4f2c20a9f308a705fe1439f281981f6b24466a8aff148f1b5b3a520`; withdraw tx `0x27cf6628ffb0d1e3ce45f9d542bc065169b3cc98b28c23c8a09d64e50f11b826`.
+- **Arc Testnet contracts** (hotfix deployment):
+  - AgentTreasury `0x5e2e3da19533ebf85bc916612eff5cdc7bf4d489`
+  - MorphoVaultAdapter `0x333deccbf9091540e849b7af80f2f10b72197b71`
+  - CCTPReceiver `0x8066bcf8e6b17e2d84082179a89f0972cc6e31c1`
+- **Wiring:** complete — adapter, receiver, vault 1, keeper, and default vault are live at block `68193025`. `vaultAPY(1) = 4.2e16`.
+- **CCTP fix:** Arc's TokenMessengerV2 returns no data; the original interface's `uint64` return caused a post-burn ABI-decode revert. The fixed treasury uses a no-return interface and finality threshold `2000`.
+- **E2E proof:** real 10 USDC deposit → `9,989,427,554,595,819,468` shares; real 1 USDC CCTP withdrawal from yield to destination domain `0` and the connected wallet. Deposit tx `0xbab5877074904d17fb21b49aed8c3d2a956ee8d16d3ddc3ec523046d464a04c4`; withdrawal tx `0x3f0f256843ee4e1498cafceea9978725397904899bb527f684eb98c171e28a1c`; burned `999,999`; `MessageSent` finality `2000`; Circle Iris attestation `complete`. Destination mint is pending Sepolia gas.
 - **Tests:** 80 Foundry tests (unit + invariants) and 36 Vitest tests; frontend lint/typecheck/build clean.
-- **App:** 6 tabs, live reads, approve/deposit, local withdraw, CCTP outbound form, event history, spending-limit settings.
+- **App:** 6 tabs, live reads, approve/deposit, local withdraw, CCTP outbound form, event history, spending-limit settings, legacy-treasury recovery, ownership acceptance.
 
 ## Judging map
 
 | Criterion | Evidence |
 |---|---|
 | **Functionality (25%)** | Deposit → yield → withdraw loop; spending limits; pause; keeper separation; CCTP outbound; 80 contract tests. |
-| **Arc Studio usage (25%)** | Contracts, tests, deploy scripts, frontend, and docs all generated iteratively in one Arc Studio project; deployment records in `deployments/arc-testnet.json`. |
-| **Real USDC on Arc (30%)** | **Testnet E2E verified with real USDC**: 10 USDC deposited into the live Earn Kit Morpho vault, 1 USDC withdrawn to the wallet, both with on-chain tx hashes. Mainnet is gated on a funded deployer + audit (see limitations). |
+| **Arc Studio usage (25%)** | Contracts, tests, deploy scripts, frontend, and docs all generated iteratively in one Arc Studio project; deployment records in `deployments/arc-testnet-fixed.json`. |
+| **Real USDC on Arc (30%)** | **Testnet E2E verified with real USDC**: 10 USDC deposited into the live Earn Kit Morpho vault, then 1 USDC withdrawn from yield through CCTP to destination domain 0; source burn and finalized Iris attestation both confirmed. Mainnet is gated on a funded deployer + audit (see limitations). |
 | **Circle product depth (20%)** | CCTP v2 inbound/outbound with hook data; Earn Kit/Morpho vault; Gateway-ready receiver hook. |
 
 ## Honest limitations
@@ -56,13 +57,14 @@ The entire project was built in Arc Studio: contracts, Foundry tests, deployment
 - Contracts are **unaudited** and testnet-only.
 - **Mainnet is not deployed.** Real mainnet USDC movement requires a funded mainnet deployer; that is a human funding/ops step, not a code step.
 - **Spending limits are not owner-bounded**: an agent can raise its own limit. This is documented in `docs/SECURITY.md` and is the first post-hackathon fix.
-- **No automatic Iris relay** for destination mints; the UI surfaces the attestation path.
+- **No automatic Iris relay** for destination mints. The 1 USDC test withdrawal is attested but the Sepolia mint is pending destination gas; `scripts/complete-cctp.ts` finishes it once the recipient is funded.
 - **Gateway is not live** (server key required) and is not faked in the UI.
+- The pre-hotfix treasury still holds testnet USDC; the UI exposes a local-only recovery card.
 
 ## Repo / demo
 
 - Code: this repository
-- App preview: Arc Studio project `459b639e-b500-4f59-b057-aa17f5446888`
+- App preview: https://studio.arc.io/app/459b639e-b500-4f59-b057-aa17f5446888
 - Demo video: _link_
 - Deck: _link_
 

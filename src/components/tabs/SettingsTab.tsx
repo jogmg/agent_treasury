@@ -9,6 +9,7 @@ import { parseOnchainError } from '../../lib/errors'
 import { useTreasuryStore } from '../../stores/treasury'
 import { useFlowStore } from '../../stores/flow'
 import { TxStep } from '../TxStep'
+import { OwnershipCard } from '../OwnershipCard'
 
 function CopyButton({ value }: { value: string }) {
   const [copied, setCopied] = useState(false)
@@ -161,6 +162,8 @@ export function SettingsTab() {
           onReset={resetSettings}
         />
       </div>
+
+      <OwnershipCard />
 
       {/* Contract info */}
       <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-5">

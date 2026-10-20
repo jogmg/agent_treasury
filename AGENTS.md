@@ -8,7 +8,7 @@ This is the **project memory** - what Arc Studio remembers about building this a
 
 ## What This App Does
 
-Cross-chain USDC treasury for AI agents. Accepts USDC from any CCTP-supported chain via CCTP v2 Fast Transfer, auto-deploys into a Morpho yield vault on Arc, and allows withdrawals to any destination chain. Three Circle products: CCTP v2 + Circle Gateway + Earn Kit (Morpho).
+Cross-chain USDC treasury for AI agents. Accepts USDC from any CCTP-supported chain via CCTP v2, auto-deploys into a Morpho yield vault on Arc, and allows withdrawals to any destination chain. Three Circle products: CCTP v2 + Circle Gateway + Earn Kit (Morpho). Outbound burns use standard finality (2000) for reliable Arc-origin attestations.
 
 ## Stage 2 + Hardening Pass Contract Summary
 
@@ -58,6 +58,8 @@ Cross-chain USDC treasury for AI agents. Accepts USDC from any CCTP-supported ch
 ### Deploy scripts
 - `contracts/script/Deploy.s.sol` - Deploys all 3 contracts; reads addresses from ArcConfig + env
 - `contracts/script/Configure.s.sol` - Wires references, sets keeper, registers vaults, initiates Ownable2Step transfer
+- `contracts/script/DeployFixedTestnet.s.sol` - **current** full-stack hotfix deployment + wiring + handoff
+- `scripts/complete-cctp.ts` - fetch Iris attestation and call `receiveMessage` on Sepolia
 
 ### Resolved constants (contracts/script/ArcConfig.sol)
 - Arc testnet chain ID: 5042002 / mainnet: 5042
@@ -67,7 +69,38 @@ Cross-chain USDC treasury for AI agents. Accepts USDC from any CCTP-supported ch
 - MessageTransmitterV2: 0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275
 - Morpho vault testnet (conservative, ~4.2% APY): 0xAabbeF1D3971c710276ed41eC791BbE14CdB8E88
 
-## Arc Testnet Deployments (Oct 2026) — WIRED + E2E VERIFIED
+## CCTP Hotfix Deployment (current, Oct 2026) — WIRED + E2E VERIFIED
+
+| Contract | Address | Explorer |
+|---|---|---|
+| MorphoVaultAdapter | `0x333deccbf9091540e849b7af80f2f10b72197b71` | [link](https://explorer.testnet.arc.io/address/0x333deccbf9091540e849b7af80f2f10b72197b71) |
+| CCTPReceiver | `0x8066bcf8e6b17e2d84082179a89f0972cc6e31c1` | [link](https://explorer.testnet.arc.io/address/0x8066bcf8e6b17e2d84082179a89f0972cc6e31c1) |
+| AgentTreasury | `0x5e2e3da19533ebf85bc916612eff5cdc7bf4d489` | [link](https://explorer.testnet.arc.io/address/0x5e2e3da19533ebf85bc916612eff5cdc7bf4d489) |
+
+Deploy block: `68193025`. Owner/keeper: `0xD00fD0B006c01342522cAf4FA04D5f8910aB268c`.
+Full record: `deployments/arc-testnet-fixed.json`.
+
+### CCTP root cause + fix
+Arc's `TokenMessengerV2.depositForBurnWithHook` returns **no data**. The original
+`ITokenMessengerV2` declared `returns (uint64 nonce)`, so every burn succeeded and
+then the treasury reverted while decoding the empty return buffer, rolling back the
+whole withdrawal. Fix: no return values; `CCTP_MIN_FINALITY_THRESHOLD = 2000`.
+
+### Live E2E proof (real testnet USDC)
+- Approve 10 USDC: `0x158ed9048899e22ef6d087bdd2489cf70a215ae6b6ca602e6828e997a2df69fe`
+- Deposit 10 USDC: `0xbab5877074904d17fb21b49aed8c3d2a956ee8d16d3ddc3ec523046d464a04c4`
+  → balance `9999999`, shares `9989427554595819468`
+- CCTP withdraw 1 USDC to domain 0: `0x3f0f256843ee4e1498cafceea9978725397904899bb527f684eb98c171e28a1c`
+  → withdrawal id `1`, burned `999999`, `MessageSent` finality `2000`, balance `9000000`
+- Iris attestation: `complete`, `finalityThresholdExecuted=2000`; destination mint pending Sepolia gas.
+- Use `scripts/complete-cctp.ts` to finish the Sepolia mint once funded.
+
+### Frontend hotfix additions
+- `LegacyRecoveryCard` in the Withdraw tab recovers funds from the old stack via `withdrawLocal`.
+- `OwnershipCard` in Settings accepts the Ownable2Step handoff on all three contracts.
+- `ADDRESSES` / `ARC_TREASURY_DEPLOY_BLOCK` now point at the hotfix stack; `LEGACY_ADDRESSES` keep the old stack for recovery.
+
+## Pre-hotfix Deployment (legacy — do not use for new CCTP tests)
 
 | Contract | Address | Explorer |
 |---|---|---|
@@ -76,7 +109,7 @@ Cross-chain USDC treasury for AI agents. Accepts USDC from any CCTP-supported ch
 | AgentTreasury | `0x9b390bb10bd30a25b5a07dfb9e0a058d7993ae0d` | [link](https://explorer.testnet.arc.io/address/0x9b390bb10bd30a25b5a07dfb9e0a058d7993ae0d) |
 
 Owner/deployer/keeper: `0xD00fD0B006c01342522cAf4FA04D5f8910aB268c`
-Wired: true. Full record: `deployments/arc-testnet.json`
+Wired: true (legacy). Historical record: `deployments/arc-testnet.json`
 
 ### Wiring tx hashes (ConfigureTestnet.s.sol broadcast, Oct 2026)
 - adapter.setTreasury: `0xc3af3d9611766bf675e3588fa4228f06f10ee61de209b1d5620c5697ed078a99`
@@ -119,7 +152,7 @@ where `vaultShareDecimals` is read live from `vault.decimals()`. USDC amounts re
 1. Arc mainnet Morpho vault addresses (`VAULT_MAINNET_*` in ArcConfig.sol)
 2. Validate BurnMessageV2 Layout A/B byte offsets against live Arc MessageTransmitterV2
 3. Fork tests (`contracts/test/fork/`) — deferred until Arc testnet RPC is stable
-4. Contract source verification on-chain (blockscout verifyCmd in deployments/arc-testnet.json)
+4. Contract source verification on-chain for the hotfix deployment
 
 ## Tech Stack
 
