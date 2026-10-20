@@ -6,7 +6,7 @@ import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useAccount, useReadContracts } from 'wagmi'
 import { ARC_TESTNET_CHAIN_ID, ADDRESSES, TREASURY_ABI, ADAPTER_ABI, ERC20_ABI, VAULT_ABI, VAULT_1_ID } from '../lib/contracts'
-import { useTreasuryStore } from '../stores/treasury'
+import { useTreasuryStore, type TreasuryState } from '../stores/treasury'
 import { useUiStore } from '../stores/ui'
 import { fetchActivityEvents } from '../lib/activity'
 
@@ -41,32 +41,51 @@ export function useTreasuryData() {
     set({ isFetching: isLoading })
     if (!reads || !address) return
 
-    const r = (i: number) => reads[i]?.result
+    // A failed call (e.g. RPC 429) has no result. Only apply successful
+    // values so a transient failure can't overwrite a good balance with 0.
+    const r = <T,>(i: number): T | undefined => {
+      const item = reads[i]
+      return item?.status === 'success' ? (item.result as T) : undefined
+    }
 
-    const totalBalance  = (r(0) as bigint | undefined) ?? 0n
-    const principal     = (r(1) as bigint | undefined) ?? 0n
-    const vaultShares   = (r(2) as bigint | undefined) ?? 0n
-    const activeVaultId = (r(3) as bigint | undefined) ?? 0n
-    const isPaused      = (r(4) as boolean | undefined) ?? false
-    const ownerAddr     = ((r(5) as string | undefined) ?? '').toLowerCase()
-    const keeperAddr    = ((r(6) as string | undefined) ?? '').toLowerCase()
-    const usdcBalance   = (r(7) as bigint | undefined) ?? 0n
-    const usdcAllowance = (r(8) as bigint | undefined) ?? 0n
-    const vaultApy      = (r(9) as bigint | undefined) ?? 0n
-    const vaultTvl      = (r(10) as bigint | undefined) ?? 0n
-    const pricePerShare = (r(11) as bigint | undefined) ?? BigInt('1000000000000000000')
-    const vaultShareDecimals = Number((r(12) as number | undefined) ?? 18)
+    const patch: Partial<TreasuryState> = {}
+    const totalBalance  = r<bigint>(0)
+    const principal     = r<bigint>(1)
+    const vaultShares   = r<bigint>(2)
+    const activeVaultId = r<bigint>(3)
+    const isPaused      = r<boolean>(4)
+    const ownerAddr     = r<string>(5)
+    const keeperAddr    = r<string>(6)
+    const usdcBalance   = r<bigint>(7)
+    const usdcAllowance = r<bigint>(8)
+    const vaultApy      = r<bigint>(9)
+    const vaultTvl      = r<bigint>(10)
+    const pricePerShare = r<bigint>(11)
+    const vaultShareDecimals = r<number>(12)
 
-    set({
-      totalBalance, principal, vaultShares, activeVaultId,
-      isPaused, ownerAddr, keeperAddr,
-      usdcBalance, usdcAllowance,
-      vaultApy, vaultTvl, pricePerShare, vaultShareDecimals,
-      lastFetched: Date.now(),
-    })
+    if (totalBalance !== undefined)  patch.totalBalance = totalBalance
+    if (principal !== undefined)     patch.principal = principal
+    if (vaultShares !== undefined)   patch.vaultShares = vaultShares
+    if (activeVaultId !== undefined) patch.activeVaultId = activeVaultId
+    if (isPaused !== undefined)      patch.isPaused = isPaused
+    if (ownerAddr !== undefined)     patch.ownerAddr = ownerAddr.toLowerCase()
+    if (keeperAddr !== undefined)    patch.keeperAddr = keeperAddr.toLowerCase()
+    if (usdcBalance !== undefined) {
+      patch.usdcBalance = usdcBalance
+      patch.usdcBalanceLoaded = true
+    }
+    if (usdcAllowance !== undefined) patch.usdcAllowance = usdcAllowance
+    if (vaultApy !== undefined)      patch.vaultApy = vaultApy
+    if (vaultTvl !== undefined)      patch.vaultTvl = vaultTvl
+    if (pricePerShare !== undefined) patch.pricePerShare = pricePerShare
+    if (vaultShareDecimals !== undefined) patch.vaultShareDecimals = Number(vaultShareDecimals)
+
+    if (Object.keys(patch).length > 0) {
+      set({ ...patch, isFetching: false, lastFetched: Date.now() })
+    }
 
     // Snapshot for growth chart
-    if (totalBalance > 0n) pushSnapshot(totalBalance)
+    if (totalBalance !== undefined && totalBalance > 0n) pushSnapshot(totalBalance)
   }, [reads, address, isLoading, set, pushSnapshot])
 
   return { isLoading }
@@ -92,7 +111,8 @@ export function useActivityEvents() {
       }
     },
     enabled: !!address,
-    refetchInterval: 30_000,
-    staleTime: 15_000,
+    refetchInterval: 120_000,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
   })
 }

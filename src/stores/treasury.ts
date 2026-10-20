@@ -7,6 +7,7 @@ export interface TreasuryState {
   vaultShares:     bigint
   activeVaultId:   bigint
   usdcBalance:     bigint   // wallet ERC-20 balance
+  usdcBalanceLoaded: boolean // true once balanceOf has succeeded at least once
   usdcAllowance:   bigint
   // Vault / adapter
   vaultApy:        bigint   // 1e18-scaled
@@ -30,6 +31,7 @@ export const useTreasuryStore = create<TreasuryState>((setState) => ({
   vaultShares:   0n,
   activeVaultId: 0n,
   usdcBalance:   0n,
+  usdcBalanceLoaded: false,
   usdcAllowance: 0n,
   vaultApy:      0n,
   vaultTvl:      0n,

@@ -23,7 +23,7 @@ export function DepositTab() {
   const [busy, setBusy] = useState(false)
   const [submittedAmount, setSubmittedAmount] = useState('')
 
-  const { usdcBalance, usdcAllowance, isFetching } = useTreasuryStore()
+  const { usdcBalance, usdcBalanceLoaded, usdcAllowance } = useTreasuryStore()
   const { depositStep, depositHash, approveHash, depositError, setDeposit, resetDeposit } = useFlowStore()
 
   const { writeContractAsync: approve } = useWriteContract()
@@ -119,11 +119,11 @@ export function DepositTab() {
       <div className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-3">
         <span className="text-sm text-slate-400">Wallet USDC</span>
         <span className="font-mono text-sm tabular-nums text-white">
-          {isFetching ? '…' : formatUsdcDollar(usdcBalance)}
+          {!usdcBalanceLoaded ? '—' : formatUsdcDollar(usdcBalance)}
         </span>
       </div>
 
-      {usdcBalance === 0n && !isFetching && (
+      {usdcBalanceLoaded && usdcBalance === 0n && (
         <div className="flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-300">
           <Info className="mt-0.5 h-4 w-4 shrink-0" />
           <span>

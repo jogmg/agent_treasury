@@ -9,6 +9,21 @@ export const ARC_TESTNET_RPC      = 'https://rpc.testnet.arc.io'
 export const ARC_EXPLORER         = 'https://explorer.testnet.arc.io'
 export const ARC_CCTP_DOMAIN      = 26
 
+// Arc's public RPC rate-limits aggressively. Fail over across the four
+// endpoints published in viem's arcTestnet chain definition.
+export const ARC_RPC_URLS = [
+  ARC_TESTNET_RPC,
+  'https://rpc.blockdaemon.testnet.arc.io',
+  'https://rpc.drpc.testnet.arc.io',
+  'https://rpc.quicknode.testnet.arc.io',
+] as const
+
+// AgentTreasury deployment block. Starting the activity scan here avoids
+// rescanning Arc's entire history (and hitting eth_getLogs range limits).
+export const ARC_TREASURY_DEPLOY_BLOCK = BigInt(
+  import.meta.env.VITE_TREASURY_DEPLOY_BLOCK || '68109314',
+)
+
 export const ADDRESSES = {
   usdc:     (import.meta.env.VITE_USDC_ADDRESS     || '0x3600000000000000000000000000000000000000') as `0x${string}`,
   treasury: (import.meta.env.VITE_TREASURY_ADDRESS  || '0x9b390bb10bd30a25b5a07dfb9e0a058d7993ae0d') as `0x${string}`,

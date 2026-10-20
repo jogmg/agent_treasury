@@ -2,9 +2,9 @@
  * Chunked event-log fetcher for AgentTreasury activity.
  * Scans backwards from latest in <=9,000-block chunks to tolerate RPC limits.
  */
-import { createPublicClient, http, parseAbiItem, type Log, type AbiEvent } from 'viem'
+import { createPublicClient, fallback, http, parseAbiItem, type Log, type AbiEvent } from 'viem'
 import { arcTestnet } from 'viem/chains'
-import { ARC_TESTNET_RPC, ADDRESSES } from './contracts'
+import { ARC_RPC_URLS, ARC_TREASURY_DEPLOY_BLOCK, ADDRESSES } from './contracts'
 
 export type ActivityEventType =
   | 'DepositRecorded'
@@ -27,6 +27,8 @@ export interface ActivityEvent {
   args: Record<string, unknown>
 }
 
+// Arc's public RPC rejects eth_getLogs ranges of 10k+ blocks; 9k is the
+// largest range that works reliably.
 const CHUNK = 9_000n
 
 // Event signatures
@@ -42,6 +44,9 @@ const EVENTS: Record<ActivityEventType, AbiEvent> = {
   SpendingLimitSet:    parseAbiItem('event SpendingLimitSet(address indexed agent, uint256 dailyLimit, uint256 weeklyLimit)'),
 }
 
+const ALL_EVENTS = Object.values(EVENTS)
+const EVENT_TYPES = new Set(Object.keys(EVENTS))
+
 function toActivityEvent(type: ActivityEventType, log: Log): ActivityEvent {
   return {
     id: `${log.transactionHash}-${log.logIndex}`,
@@ -55,11 +60,11 @@ function toActivityEvent(type: ActivityEventType, log: Log): ActivityEvent {
 
 export async function fetchActivityEvents(
   agentAddress?: string,
-  maxBlocks = 90_000n,
+  fromBlock = ARC_TREASURY_DEPLOY_BLOCK,
 ): Promise<ActivityEvent[]> {
   const client = createPublicClient({
     chain: arcTestnet,
-    transport: http(ARC_TESTNET_RPC),
+    transport: fallback(ARC_RPC_URLS.map((url) => http(url))),
   })
 
   let toBlock: bigint
@@ -69,37 +74,39 @@ export async function fetchActivityEvents(
     return []
   }
 
-  const fromBlock = toBlock > maxBlocks ? toBlock - maxBlocks : 0n
+  if (toBlock < fromBlock) return []
+
   const events: ActivityEvent[] = []
 
-  // Scan backwards in CHUNK-sized windows
+  // Scan backwards in CHUNK-sized windows. One getLogs request per window
+  // (all nine event signatures) instead of nine parallel requests keeps us
+  // under the public RPC's request-rate limit.
   let end = toBlock
   while (end >= fromBlock) {
-    const start = end > CHUNK ? end - CHUNK : fromBlock
+    const start = end >= fromBlock + CHUNK - 1n ? end - CHUNK + 1n : fromBlock
 
-    await Promise.allSettled(
-      Object.entries(EVENTS).map(async ([type, abi]) => {
-        try {
-          const logs = await client.getLogs({
-            address: ADDRESSES.treasury,
-            event: abi,
-            fromBlock: start,
-            toBlock: end,
-          })
-          for (const log of logs) {
-            const ev = toActivityEvent(type as ActivityEventType, log)
-            // Filter by agent if provided
-            if (agentAddress) {
-              const agentArg = (ev.args as { agent?: string }).agent
-              if (agentArg && agentArg.toLowerCase() !== agentAddress.toLowerCase()) continue
-            }
-            events.push(ev)
-          }
-        } catch {
-          // RPC limit hit on this chunk — skip silently
-        }
+    try {
+      const logs = await client.getLogs({
+        address: ADDRESSES.treasury,
+        events: ALL_EVENTS,
+        fromBlock: start,
+        toBlock: end,
       })
-    )
+
+      for (const log of logs) {
+        const type = log.eventName
+        if (!type || !EVENT_TYPES.has(type)) continue
+
+        const ev = toActivityEvent(type as ActivityEventType, log)
+        if (agentAddress) {
+          const agentArg = (ev.args as { agent?: string }).agent
+          if (agentArg && agentArg.toLowerCase() !== agentAddress.toLowerCase()) continue
+        }
+        events.push(ev)
+      }
+    } catch {
+      // RPC limit hit on this chunk — skip it and keep the rest.
+    }
 
     if (start === fromBlock) break
     end = start - 1n
