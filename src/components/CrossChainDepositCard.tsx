@@ -145,6 +145,7 @@ export function CrossChainDepositCard() {
 
   let validation: string | null = null
   if (!address) validation = 'Connect wallet'
+  else if (minDeposit === undefined) validation = 'Reading vault minimum. Try again in a moment'
   else if (parsedAmount === 0n) validation = 'Enter amount'
   else if (parsedAmount < minDeposit) validation = `Minimum cross-chain deposit is ${formatUsdcDollar(minDeposit)}`
   else if (sourceBalance !== undefined && parsedAmount > sourceBalance) {

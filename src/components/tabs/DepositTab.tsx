@@ -38,6 +38,7 @@ export function DepositTab() {
 
   const validate = (): string | null => {
     if (!address) return 'Connect wallet'
+    if (minDeposit === undefined) return 'Reading vault minimum. Try again in a moment'
     if (parsedAmount === 0n) return 'Enter amount'
     if (parsedAmount > usdcBalance) return 'Insufficient USDC balance'
     if (parsedAmount < minDeposit) return `Minimum deposit is ${formatUsdcDollar(minDeposit)}`
@@ -164,7 +165,9 @@ export function DepositTab() {
             MAX
           </button>
         </div>
-        <p className="mt-2 text-xs text-slate-600">Min deposit: {formatUsdcDollar(minDeposit)}</p>
+        <p className="mt-2 text-xs text-slate-600">
+          Min deposit: {minDeposit === undefined ? '...' : formatUsdcDollar(minDeposit)}
+        </p>
       </div>
 
       {/* Progress steps */}

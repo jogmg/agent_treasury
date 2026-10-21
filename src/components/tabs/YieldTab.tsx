@@ -157,7 +157,7 @@ export function YieldTab() {
             <div>
               <p className="text-sm font-medium text-white">{VAULT_1_NAME}</p>
               <p className="text-xs text-slate-500">
-                Conservative — {formatUsdcDollar(minDeposit)} min
+                Conservative — {minDeposit === undefined ? '...' : formatUsdcDollar(minDeposit)} min
               </p>
             </div>
             <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs text-emerald-400">Active</span>

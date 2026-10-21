@@ -118,11 +118,13 @@ cast call 0x333deccbf9091540e849b7af80f2f10b72197b71 \
   --rpc-url https://rpc.testnet.arc.io
 ```
 
-The frontend reads this value live (`useMinDeposit`, falls back to 1 USDC), so
-the Deposit tab, cross-chain deposit card, and vault tier label update
-automatically after the tx lands. Caveat: very small deposits can mint zero
-shares if the vault's pricePerShare rises far above 1e18 — safe now (testnet
-TVL is tiny), revisit after more deposits.
+The frontend reads this value live (`useMinDeposit`). While the read is
+unresolved the UI blocks submission ("Reading vault minimum."); it never
+substitutes a permissive default, because that allowed txs that revert with
+`BelowMinDeposit`. The Deposit tab, cross-chain deposit card, and vault tier
+label update automatically after the tx lands. Caveat: very small deposits can
+mint zero shares if the vault's pricePerShare rises far above 1e18 — safe now
+(testnet TVL is tiny), revisit after more deposits.
 
 ### Recover the pre-hotfix treasury
 

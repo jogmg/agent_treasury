@@ -178,7 +178,7 @@ where `vaultShareDecimals` is read live from `vault.decimals()`. USDC amounts re
 
 ### Remaining TODOs
 1. Arc mainnet Morpho vault addresses (`VAULT_MAINNET_*` in ArcConfig.sol)
-2. Vault minimum deposit: the UI now reads `getVaultConfig(1).minDeposit` live (`useMinDeposit` hook; Deposit tab, cross-chain card, and vault label all follow it). Lowering it to 1 USDC on-chain needs one keeper tx `adapter.updateVault(1, 1_000_000, true)` — command in `docs/RUNBOOK.md`; until that tx lands the live UI keeps showing/enforcing 10 USDC.
+2. Vault minimum deposit: the UI reads `getVaultConfig(1).minDeposit` live (`useMinDeposit` hook); while the read is unresolved it BLOCKS deposits (no permissive default — that allowed reverting tx on Oct 21). Lowering it to 1 USDC on-chain needs one keeper tx `adapter.updateVault(1, 1_000_000, true)` — command in `docs/RUNBOOK.md`; until then the UI keeps showing/enforcing 10 USDC.
 2. Validate BurnMessageV2 Layout A/B byte offsets against live Arc MessageTransmitterV2, and add the v2 `IMessageHandlerV2` entrypoints if using `CCTPReceiver`
 3. Fork tests (`contracts/test/fork/`) — deferred until Arc testnet RPC is stable
 4. Contract source verification on-chain for the hotfix deployment
