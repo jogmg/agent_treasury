@@ -179,6 +179,11 @@ contract MorphoVaultAdapter is IMorphoVaultAdapter, Ownable2Step, Pausable, Reen
 
         shares = vault.deposit(assets, address(this));
 
+        // A tiny deposit can round down to zero shares when pricePerShare is
+        // high. The vault still took the assets, so revert the whole call
+        // rather than silently lose the deposit's value.
+        if (shares == 0) revert Errors.ZeroShares();
+
         emit Deposited(vaultId, assets, shares);
     }
 

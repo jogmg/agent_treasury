@@ -9,6 +9,7 @@ import { parseOnchainError } from '../../lib/errors'
 import { useTreasuryStore } from '../../stores/treasury'
 import { useFlowStore } from '../../stores/flow'
 import { useMinDeposit } from '../../hooks/useMinDeposit'
+import { useDepositShares } from '../../hooks/useDepositShares'
 import { TxStep } from '../TxStep'
 import { CrossChainDepositCard } from '../CrossChainDepositCard'
 
@@ -35,6 +36,8 @@ export function DepositTab() {
   const isWrongChain = !!address && chainId !== ARC_TESTNET_CHAIN_ID
   // The treasury enforces the adapter's on-chain minimum; mirror it exactly.
   const minDeposit = useMinDeposit()
+  // Block deposits the vault would accept but mint zero shares for.
+  const { zeroShares, oneShareAssets } = useDepositShares(parsedAmount)
 
   const validate = (): string | null => {
     if (!address) return 'Connect wallet'
@@ -42,6 +45,11 @@ export function DepositTab() {
     if (parsedAmount === 0n) return 'Enter amount'
     if (parsedAmount > usdcBalance) return 'Insufficient USDC balance'
     if (parsedAmount < minDeposit) return `Minimum deposit is ${formatUsdcDollar(minDeposit)}`
+    if (zeroShares) {
+      return oneShareAssets
+        ? `Amount too small for the vault's share price — deposit at least ${formatUsdcDollar(oneShareAssets)}`
+        : 'Amount too small to mint vault shares'
+    }
     return null
   }
   const validationMsg = validate()

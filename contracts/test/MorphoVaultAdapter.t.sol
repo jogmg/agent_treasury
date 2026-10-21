@@ -121,6 +121,27 @@ contract MorphoVaultAdapterTest is Test {
         vm.stopPrank();
     }
 
+    function test_deposit_zero_shares_reverts() public {
+        // Seed the vault so the pricePerShare path applies (not the 1:1
+        // inception branch), then push the price high enough that a 10 USDC
+        // deposit rounds down to zero shares: 10e6 * 1e18 / 1e26 == 0.
+        usdc.mint(address(this), 100e6);
+        usdc.approve(address(vault1), 100e6);
+        vault1.deposit(100e6, address(this));
+        vault1.setPricePerShare(1e26);
+
+        uint256 amount = 10e6;
+        usdc.mint(treasury, amount);
+        vm.startPrank(treasury);
+        usdc.approve(address(adapter), amount);
+        vm.expectRevert(Errors.ZeroShares.selector);
+        adapter.deposit(amount, VAULT_ID_1);
+        vm.stopPrank();
+
+        // The revert unwinds the asset transfer: nothing is stranded.
+        assertEq(usdc.balanceOf(treasury), amount, "deposit assets must not be lost");
+    }
+
     function test_deposit_inactive_vault_reverts() public {
         adapter.deactivateVault(VAULT_ID_1);
         usdc.mint(treasury, 100e6);

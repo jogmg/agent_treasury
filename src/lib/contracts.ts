@@ -110,6 +110,8 @@ export const ERC20_ABI = parseAbi([
 // Vault shares are 18-dec on the real Morpho/Earn Kit vault, unlike 6-dec USDC.
 export const VAULT_ABI = parseAbi([
   'function decimals() view returns (uint8)',
+  'function previewDeposit(uint256 assets) view returns (uint256 shares)',
+  'function previewMint(uint256 shares) view returns (uint256 assets)',
 ])
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

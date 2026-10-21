@@ -134,24 +134,32 @@ reverted `BelowMinDeposit` while the chain still enforced 10 USDC (Oct 21).
 The Deposit tab, cross-chain deposit card, and vault tier label update
 automatically after any config change.
 
-### Tiny deposits and zero-share risk (recommendation before mainnet)
+### Tiny deposits and zero-share risk (implemented Oct 21, 2026)
 
-`deposit()` now accepts anything >= 1 USDC, but the vault mints 18-decimal
+`deposit()` accepts anything >= the vault minimum, but the vault mints 18-decimal
 shares against its `pricePerShare`. At today's ~1:1 price, 1 USDC mints
 ~9.99e17 shares, so the 1 USDC floor is safe. If the vault ever appreciates far
 enough that `assets * 1e18 / pricePerShare < 1`, a deposit would mint **zero
-shares** — the USDC is still transferred but gives the depositor no vault
-claim. Recommended hardening, to fold into the mainnet/audit pass:
+shares** — the USDC is still transferred but gives the depositor no vault claim.
+Implemented mitigations:
 
-1. **Adapter guard (authoritative):** in `deposit()`, require `shares > 0` and
-   revert with a dedicated error before/while forwarding assets, plus a unit
-   test using a vault whose price makes a tiny deposit round to zero.
-2. **Frontend pre-check (immediate, no redeploy):** before submitting, call the
-   vault's ERC-4626 `previewDeposit(amount)` (or derive it from
-   `adapter.pricePerShare(vaultId)`) and block when shares would be 0, showing
-   the smallest amount that mints 1 share.
-3. **Threshold policy:** on mainnet, set `minDeposit` from the live share price
-   rather than a fixed 1 USDC — adjust any time via `updateVault`, no redeploy.
+1. **Adapter guard (in source):** `MorphoVaultAdapter.deposit()` reverts with
+   `Errors.ZeroShares()` when the vault returns 0 shares, which unwinds the whole
+   call (no stranded assets). Covered by `test_deposit_zero_shares_reverts`.
+   **The live testnet adapter deployment predates this guard** — enforcing it
+   on-chain requires a redeploy + rewire (`treasury.setMorphoAdapter`,
+   `adapter.setTreasury/setKeeper`, `addVault`, `updateVault`, ownership
+   handoff). Until then the frontend guard is what protects the app.
+2. **Frontend pre-check (live):** `useDepositShares` reads the vault's
+   ERC-4626 `previewDeposit(amount)` plus `previewMint(1)` (the smallest amount
+   that mints one share) and blocks a zero-share deposit in both the Deposit tab
+   and the cross-chain deposit card; the card re-checks immediately before
+   `treasury.deposit()` because its amount comes from persisted bridge state.
+3. **Mainnet policy:** do NOT hardcode 1 USDC on mainnet. Derive `minDeposit`
+   from the vault's live share price and unit economics (gas vs. expected yield)
+   — e.g. a 5–10 USDC floor at current prices — and adjust it with `updateVault`
+   (config-only, no redeploy) as the share price moves. 1 USDC stays as the
+   testnet demo floor.
 
 ### Recover the pre-hotfix treasury
 

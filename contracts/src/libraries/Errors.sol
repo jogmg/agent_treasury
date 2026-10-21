@@ -26,6 +26,9 @@ library Errors {
     /// @notice Deposit amount is below the vault's minimum deposit.
     error BelowMinDeposit();
 
+    /// @notice The deposit would mint zero vault shares (amount too small for the share price).
+    error ZeroShares();
+
     /// @notice Vault ID 0 is reserved / invalid.
     error InvalidVaultId();
 

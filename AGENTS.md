@@ -55,9 +55,9 @@ Cross-chain USDC treasury for AI agents. Accepts USDC from any CCTP-supported ch
 - Spending limit bypass fixed: `_redeemAndAccount` resolves the actual amount first; `_enforceSpendingLimit` is called on the resolved amount for BOTH max and partial withdrawals, in both CCTP and local paths
 
 ### Test results (forge test) — latest pass
-80 tests PASS, 0 fail across:
+81 tests PASS, 0 fail across:
 - AgentTreasury.t.sol (39 tests)
-- MorphoVaultAdapter.t.sol (21 tests)
+- MorphoVaultAdapter.t.sol (22 tests)
 - CCTPReceiver.t.sol (11 tests)
 - Invariants.t.sol (9 tests)
 
@@ -125,6 +125,7 @@ whole withdrawal. Fix: no return values; `CCTP_MIN_FINALITY_THRESHOLD = 2000`.
 - `OwnershipCard` in Settings accepts the Ownable2Step handoff on all three contracts.
 - `CctpCompletionCard` polls Circle Iris after a burn, switches to the destination chain, and submits `receiveMessage`. It also lists recent CCTP requests and accepts a pasted Arc burn tx hash. The destination mint still needs destination-chain gas.
 - `CrossChainDepositCard` implements inbound CCTP in the Deposit tab as a **collapsible `<details>` panel** (summary shows a live status badge and auto-opens while in flight): source-chain `depositForBurn` → Iris poll → Arc `receiveMessage` (mints to the connected wallet) → Arc `approve` + `treasury.deposit()`. It requires source USDC, source gas, and a little Arc gas. `CCTPReceiver` is not on this path. It has a **Track a source transaction** recovery form (validates destination domain, mintRecipient, and destinationCaller) and the Activity tab shows a pending bridge banner with the source tx link, since source-chain burns do not appear in Arc logs until the mint/deposit.
+- **Zero-share deposit guard:** `MorphoVaultAdapter.deposit()` reverts `Errors.ZeroShares()` if the vault mints 0 shares (test: `test_deposit_zero_shares_reverts`). The live testnet adapter predates this guard, so a redeploy + rewire is needed to enforce it on-chain. The frontend covers the app meanwhile: `useDepositShares` calls `previewDeposit(amount)` + `previewMint(1)` and blocks zero-share deposits in the Deposit tab and cross-chain card (the card re-checks just before `treasury.deposit()`). Mainnet policy: derive `minDeposit` from the live share price/economics via `updateVault` instead of hardcoding 1 USDC.
 - The in-flight flow and its burn hash survive a reload: the active bridge-deposit state and a recent-burns list are persisted (`agent-treasury-bridge-deposit-v1`), and outbound CCTP withdrawals are persisted in `flow.ts` (`agent-treasury-cctp-outbound-v1`) once the burn receipt confirms. Activity rows render through one uniform `ActivityRow` UI (`EventRow.tsx`): `eventRowData` maps chain events, `pendingRowData` (PendingCctpRow.tsx) maps transfers with explicit **CCTP Deposit** / **CCTP Withdrawal** kind badges, status, chains, amount, burn/mint tx links in the expandable panel, timestamp, and a Resume CTA that restores the active flow and switches tabs (completed transfers render no CTA). Rows are merged and sorted most-recent first: `fetchActivityEvents` enriches each event with its block timestamp (`getBlocks` cached per block, linear interpolation when a fetch fails); if any timestamp is missing the UI falls back to block order with pending rows first. Expanded chain panels show `Block N · date time`. Filters are **All / In flight / Deposits / Withdrawals / Yield** (the old Pending value was renamed to `inflight`); chain-event rows are relabeled (`WithdrawalRequested` → "CCTP Withdrawal", local → "Local Withdraw", `DepositRecorded` shows the source chain). The Withdraw tab has **no** recent-request list (transfers live in the Activity tab) — only the paste-hash recovery remains. The growth chart has 24h/7d/30d/All range buttons. `resetCctp`/`resetBridgeDeposit` intentionally keep the history lists. The Withdraw tab's destination selector is a chain-name dropdown built from `CCTP_DESTINATIONS`.
 - `ADDRESSES` / `ARC_TREASURY_DEPLOY_BLOCK` now point at the hotfix stack; `LEGACY_ADDRESSES` keep the old stack for recovery.
 - **`getVaultConfig` ABI quirk:** the deployed adapter returns `VaultConfig` as a SINGLE struct (one tuple output). `ADAPTER_ABI` must declare `returns ((uint256 id, address vaultAddress, string name, string symbol, uint256 minDeposit, bool isActive))` and callers read `data.minDeposit`. Declaring six flat outputs makes viem decode `name` from the vault address and throw `IntegerOutOfRangeError`, silently killing the live min-deposit read.
@@ -184,6 +185,7 @@ where `vaultShareDecimals` is read live from `vault.decimals()`. USDC amounts re
 3. Fork tests (`contracts/test/fork/`) — deferred until Arc testnet RPC is stable
 4. Contract source verification on-chain for the hotfix deployment
 5. Source-domain accounting for inbound deposits: the current app path mints to the wallet and calls `deposit()`, so `chainDeposits` records Arc domain. A relayer/forwarder (or owner-signed `recordDeposit`) is required to record the source domain.
+6. Redeploy the adapter (with the new `ZeroShares` guard) before mainnet, then set `minDeposit` from the vault's live share price/economics rather than a fixed 1 USDC.
 
 ## Tech Stack
 

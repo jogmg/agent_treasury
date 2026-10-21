@@ -38,11 +38,13 @@ import {
   ARC_TESTNET_CHAIN_ID,
   ERC20_ABI,
   TREASURY_ABI,
+  VAULT_ABI,
 } from '../lib/contracts'
 import { addrToBytes32, formatUsdc, formatUsdcDollar, parseUsdc, shortAddr } from '../lib/decimals'
 import { parseOnchainError } from '../lib/errors'
 import { BRIDGE_STATUS_LABEL, useBridgeDepositStore } from '../stores/bridgeDeposit'
 import { useMinDeposit } from '../hooks/useMinDeposit'
+import { useDepositShares } from '../hooks/useDepositShares'
 
 const ARC_GAS_SYMBOL = 'USDC'
 // Keep enough native USDC for the Arc mint, approval, and treasury deposit.
@@ -135,6 +137,8 @@ export function CrossChainDepositCard() {
   const needsApprove = parsedAmount > 0n && (sourceAllowance ?? 0n) < parsedAmount
   // The treasury enforces the adapter's on-chain minimum; mirror it exactly.
   const minDeposit = useMinDeposit()
+  // Block burns whose bridged amount would mint zero vault shares.
+  const { zeroShares, oneShareAssets } = useDepositShares(parsedAmount)
   const ownerMatches = Boolean(
     address && owner && address.toLowerCase() === owner.toLowerCase(),
   )
@@ -148,6 +152,11 @@ export function CrossChainDepositCard() {
   else if (minDeposit === undefined) validation = 'Reading vault minimum. Try again in a moment'
   else if (parsedAmount === 0n) validation = 'Enter amount'
   else if (parsedAmount < minDeposit) validation = `Minimum cross-chain deposit is ${formatUsdcDollar(minDeposit)}`
+  else if (zeroShares) {
+    validation = oneShareAssets
+      ? `Amount too small for the vault's share price — deposit at least ${formatUsdcDollar(oneShareAssets)}`
+      : 'Amount too small to mint vault shares'
+  }
   else if (sourceBalance !== undefined && parsedAmount > sourceBalance) {
     validation = `Insufficient USDC on ${source.name}`
   }
@@ -471,6 +480,21 @@ export function CrossChainDepositCard() {
       }
 
       setBridgeDeposit({ status: 'depositing', error: '' })
+
+      // The bridged amount is fixed, so re-check it right before depositing:
+      // a zero-share deposit would take the USDC and mint no claim.
+      const previewShares = await arcClient.readContract({
+        address: ADDRESSES.vault1,
+        abi: VAULT_ABI,
+        functionName: 'previewDeposit',
+        args: [amountToDeposit],
+      })
+      if (previewShares === 0n) {
+        throw new Error(
+          'This amount would mint 0 vault shares at the current share price. Contact the owner to raise the deposit or the vault minimum.',
+        )
+      }
+
       const depositTx = await writeContractAsync({
         address: ADDRESSES.treasury,
         abi: TREASURY_ABI,
