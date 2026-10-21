@@ -41,7 +41,7 @@ The entire project was built in Arc Studio: contracts, Foundry tests, deployment
 - **CCTP fix:** Arc's TokenMessengerV2 returns no data; the original interface's `uint64` return caused a post-burn ABI-decode revert. The fixed treasury uses a no-return interface and finality threshold `2000`.
 - **E2E proof:** real 10 USDC deposit → `9,989,427,554,595,819,468` shares; real 1 USDC CCTP withdrawal from yield to destination domain `0` and the connected wallet. Deposit tx `0xbab5877074904d17fb21b49aed8c3d2a956ee8d16d3ddc3ec523046d464a04c4`; withdrawal tx `0x3f0f256843ee4e1498cafceea9978725397904899bb527f684eb98c171e28a1c`; burned `999,999`; `MessageSent` finality `2000`; Circle Iris attestation `complete`.
 - **Destination mint proof:** 4.999999 USDC minted on Ethereum Sepolia to recipient `0x72Cbd56507699F5002A10aCdDC5D20b4C2207a75`; Sepolia tx `0x843c07455e2c44dffaf174af6cc850810c9fc71ffb197a5f8033175b3f32e50f`. The earlier 1 USDC transfer is still awaiting Sepolia gas.
-- **Tests:** 80 Foundry tests (unit + invariants) and 44 Vitest tests; frontend lint/typecheck/build clean.
+- **Tests:** 80 Foundry tests (unit + invariants) and 52 Vitest tests; frontend lint/typecheck/build clean.
 - **App:** 6 tabs, live reads, approve/deposit, cross-chain CCTP deposits, local withdraw, CCTP outbound form, event history, spending-limit settings, legacy-treasury recovery, ownership acceptance.
 
 ## Judging map

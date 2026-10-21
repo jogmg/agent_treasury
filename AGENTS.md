@@ -51,11 +51,11 @@ Cross-chain USDC treasury for AI agents. Accepts USDC from any CCTP-supported ch
 - Invariants.t.sol (9 tests)
 
 ### Test results (vitest / frontend) — latest pass
-44 tests PASS, 0 fail across:
+52 tests PASS, 0 fail across:
 - src/lib/decimals.test.ts (29 tests) — includes formatShares 18-dec coverage
-- src/lib/cctp.test.ts (5 tests) — destination map + message nonce
-- src/stores/flow.test.ts (7 tests)
-- src/stores/bridgeDeposit.test.ts (2 tests) — inbound CCTP deposit state
+- src/lib/cctp.test.ts (6 tests) — destination map + message nonce
+- src/stores/flow.test.ts (12 tests) — flow steps + persisted outbound CCTP transfer history
+- src/stores/bridgeDeposit.test.ts (5 tests) — inbound CCTP deposit state + recent source burns
 
 ### Deploy scripts
 - `contracts/script/Deploy.s.sol` - Deploys all 3 contracts; reads addresses from ArcConfig + env
@@ -110,6 +110,7 @@ whole withdrawal. Fix: no return values; `CCTP_MIN_FINALITY_THRESHOLD = 2000`.
 - `OwnershipCard` in Settings accepts the Ownable2Step handoff on all three contracts.
 - `CctpCompletionCard` polls Circle Iris after a burn, switches to the destination chain, and submits `receiveMessage`. It also lists recent CCTP requests and accepts a pasted Arc burn tx hash. The destination mint still needs destination-chain gas.
 - `CrossChainDepositCard` implements inbound CCTP in the Deposit tab: source-chain `depositForBurn` → Iris poll → Arc `receiveMessage` (mints to the connected wallet) → Arc `approve` + `treasury.deposit()`. It requires source USDC, source gas, and a little Arc gas. `CCTPReceiver` is not on this path. It has a **Track a source transaction** recovery form (validates destination domain, mintRecipient, and destinationCaller) and the Activity tab shows a pending bridge banner with the source tx link, since source-chain burns do not appear in Arc logs until the mint/deposit.
+- The in-flight flow and its burn hash survive a reload: the active bridge-deposit state and a recent-burns list are persisted (`agent-treasury-bridge-deposit-v1`), and outbound CCTP withdrawals are persisted in `flow.ts` (`agent-treasury-cctp-outbound-v1`) once the burn receipt confirms. The Activity tab's **Pending** filter renders both directions as rows (status badge, chains, amount, burn/mint tx links, timestamp, Resume button that restores the active flow and switches tabs); records are scoped by wallet. `resetCctp`/`resetBridgeDeposit` intentionally keep the history lists.
 - `ADDRESSES` / `ARC_TREASURY_DEPLOY_BLOCK` now point at the hotfix stack; `LEGACY_ADDRESSES` keep the old stack for recovery.
 
 ## Pre-hotfix Deployment (legacy — do not use for new CCTP tests)

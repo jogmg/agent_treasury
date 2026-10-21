@@ -60,6 +60,7 @@ export function WithdrawTab() {
     setCctp({
       cctpStep: 'success',
       cctpHash: txHash,
+      cctpOwner: address ?? '',
       cctpError: '',
       cctpCompletionStatus: 'waiting',
       cctpDestinationDomain: Number.isInteger(domainValue) ? domainValue : 0,
@@ -151,6 +152,7 @@ export function WithdrawTab() {
 
       setCctp({
         cctpStep: 'success',
+        cctpOwner: address,
         cctpCompletionStatus: 'waiting',
         cctpDestinationDomain: domain,
         cctpAmount: parsed.toString(),

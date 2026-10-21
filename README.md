@@ -68,7 +68,7 @@ The Withdraw tab does this automatically after a burn:
 2. Shows **Attestation ready** with the destination chain and amount.
 3. Switches to the destination chain and submits `receiveMessage` from the connected wallet.
 
-The destination mint is a transaction on the destination chain, so its gas token is required there. If the app is opened later, use **Recent CCTP requests** or paste the Arc burn tx hash in the advanced CCTP section to resume.
+The destination mint is a transaction on the destination chain, so its gas token is required there. If the app is opened later, use **Recent CCTP requests**, the Activity tab's **Pending** filter, or paste the Arc burn tx hash in the advanced CCTP section to resume.
 
 The script remains available for headless/CLI recovery:
 
@@ -136,7 +136,7 @@ User / agent ── approve ──┐
 bun install
 bun run dev          # http://localhost:5173
 bun run build        # production build
-bun run test         # Vitest (44 tests)
+bun run test         # Vitest (52 tests)
 bun run check        # lint + typecheck
 ```
 
@@ -192,6 +192,8 @@ See `docs/RUNBOOK.md` for the exact env vars and smoke tests.
 Cross-chain **inbound** deposits are in the Deposit tab. Pick a source chain, approve and burn USDC with CCTP v2, then the app polls Iris, switches to Arc, mints to the connected wallet, approves the treasury, and calls `deposit()`. Standard CCTP takes 15–30 minutes and needs a little Arc gas for the final transactions.
 
 Cross-chain **outbound** (`requestWithdrawal`) is available in the Withdraw tab. It burns via CCTP v2 and then the app fetches the Circle attestation automatically. When the attestation is ready, the app switches to the destination chain and asks for one wallet confirmation to submit `receiveMessage`; the final mint needs destination-chain gas. Recent CCTP requests are listed in the Withdraw tab, and pasting an Arc burn tx hash resumes an older transfer. `scripts/complete-cctp.ts` is the headless fallback. The Withdraw tab also shows a **Legacy Treasury** recovery card for funds left in the pre-hotfix deployment.
+
+The Activity tab has a **Pending** filter listing every cross-chain CCTP transfer still in flight, inbound and outbound, with the burn tx hash, chains, amount, status, and a Resume button. Pending transfers are persisted in the browser (`localStorage`), so a page reload never loses them — unlike chain events, they exist until the mint/deposit lands on Arc.
 
 ---
 

@@ -3,15 +3,20 @@ import { useAccount } from 'wagmi'
 import { useQueryClient } from '@tanstack/react-query'
 import { useUiStore } from '../../stores/ui'
 import { useBridgeDepositStore } from '../../stores/bridgeDeposit'
+import { useFlowStore } from '../../stores/flow'
 import { getCctpDestination } from '../../lib/cctp'
 import { formatUsdcDollar } from '../../lib/decimals'
+import { ARC_CCTP_DOMAIN } from '../../lib/contracts'
 import { EventRow } from '../EventRow'
+import { PendingCctpRow } from '../PendingCctpRow'
+import type { PendingCctpItem } from '../PendingCctpRow'
 import { exportCsv } from '../../lib/activity'
 import type { ActivityEventType } from '../../lib/activity'
 import type { BridgeDepositStatus } from '../../stores/bridgeDeposit'
 
-const FILTER_OPTIONS: { label: string; value: ActivityEventType | 'all' }[] = [
+const FILTER_OPTIONS: { label: string; value: ActivityEventType | 'all' | 'pending' }[] = [
   { label: 'All',       value: 'all' },
+  { label: 'Pending',   value: 'pending' },
   { label: 'Deposits',  value: 'DepositRecorded' },
   { label: 'Withdrawals', value: 'WithdrawalToWallet' },
   { label: 'CCTP',      value: 'WithdrawalRequested' },
@@ -31,6 +36,20 @@ const BRIDGE_STATUS_LABEL: Record<BridgeDepositStatus, string> = {
   error: 'Needs attention',
 }
 
+const OUT_STATUS_LABEL: Record<string, { label: string; tone: PendingCctpItem['tone'] }> = {
+  waiting: { label: 'Waiting for Circle', tone: 'info' },
+  ready:   { label: 'Ready to mint', tone: 'action' },
+  minting: { label: 'Minting', tone: 'info' },
+  error:   { label: 'Needs attention', tone: 'error' },
+  done:    { label: 'Credited', tone: 'action' },
+}
+
+function bridgeStatusTone(status: BridgeDepositStatus): PendingCctpItem['tone'] {
+  if (status === 'ready') return 'action'
+  if (status === 'error') return 'error'
+  return 'info'
+}
+
 function bridgeAmount(amount: string): bigint {
   try {
     return amount ? BigInt(amount) : 0n
@@ -39,11 +58,64 @@ function bridgeAmount(amount: string): bigint {
   }
 }
 
+/**
+ * Pending transfers are enriched from persisted client-side state, so they
+ * exist before the Arc logs do (source burns are not in Arc logs until the
+ * mint/deposit lands). Both halves are filtered to the connected wallet so
+ * one browser does not show another wallet's transfers.
+ */
+function buildPendingItems(address: string): PendingCctpItem[] {
+  const items: PendingCctpItem[] = []
+
+  // Inbound: source-chain burn -> Arc mint (bridge deposit store)
+  for (const record of useBridgeDepositStore.getState().recent) {
+    if (record.status === 'done') continue
+    if (record.owner.toLowerCase() !== address.toLowerCase()) continue
+    items.push({
+      id: `in-${record.burnHash}`,
+      direction: 'in',
+      sourceDomain: record.sourceDomain,
+      destinationDomain: ARC_CCTP_DOMAIN,
+      amount: record.amount,
+      burnHash: record.burnHash,
+      mintHash: '',
+      statusLabel: BRIDGE_STATUS_LABEL[record.status],
+      tone: bridgeStatusTone(record.status),
+      timestamp: record.createdAt,
+    })
+  }
+
+  // Outbound: Arc burn -> destination mint (flow store history)
+  for (const record of useFlowStore.getState().cctpHistory) {
+    if (record.status === 'done') continue
+    if (record.owner.toLowerCase() !== address.toLowerCase()) continue
+    const labeled = OUT_STATUS_LABEL[record.status] ?? { label: 'In progress', tone: 'info' as const }
+    items.push({
+      id: `out-${record.burnHash}`,
+      direction: 'out',
+      sourceDomain: ARC_CCTP_DOMAIN,
+      destinationDomain: record.destinationDomain,
+      amount: record.amount,
+      burnHash: record.burnHash,
+      mintHash: record.mintHash,
+      statusLabel: labeled.label,
+      tone: labeled.tone,
+      timestamp: record.updatedAt,
+    })
+  }
+
+  return items.sort((a, b) => b.timestamp - a.timestamp)
+}
+
 export function ActivityTab() {
   const { address } = useAccount()
   const queryClient = useQueryClient()
   const { activityEvents, activityFilter, activityLoading, setFilter, setTab } = useUiStore()
   const bridge = useBridgeDepositStore()
+  const flow = useFlowStore()
+
+  const showPendingOnly = activityFilter === 'pending'
+  const pendingItems = address ? buildPendingItems(address) : []
 
   const bridgeSource = getCctpDestination(bridge.sourceDomain)
   const bridgeOwnerMatches = Boolean(
@@ -53,7 +125,7 @@ export function ActivityTab() {
     bridgeOwnerMatches && bridge.status !== 'idle' && bridge.status !== 'done'
   const pendingAmount = bridgeAmount(bridge.amount)
 
-  const filtered = activityFilter === 'all'
+  const filtered = showPendingOnly || activityFilter === 'all'
     ? activityEvents
     : activityEvents.filter((e) => e.type === activityFilter)
 
@@ -68,6 +140,39 @@ export function ActivityTab() {
     URL.revokeObjectURL(url)
   }
 
+  function resumePending(item: PendingCctpItem) {
+    if (item.direction === 'in') {
+      const record = bridge.recent.find(
+        (r) => `in-${r.burnHash}` === item.id,
+      )
+      if (record) bridge.restoreBridgeDeposit(record)
+      setTab('deposit')
+      return
+    }
+    const record = flow.cctpHistory.find(
+      (r) => `out-${r.burnHash}` === item.id,
+    )
+    if (record) {
+      // Restore the flow the same way the Withdraw tab's paste-hash recovery
+      // does: waiting re-triggers the Iris poll + already-minted detection.
+      flow.setCctp({
+        cctpStep: 'success',
+        cctpHash: record.burnHash,
+        cctpOwner: record.owner,
+        cctpError: '',
+        cctpCompletionStatus: 'waiting',
+        cctpDestinationDomain: record.destinationDomain,
+        cctpAmount: record.amount,
+        cctpRecipient: record.recipient,
+        cctpMessage: '',
+        cctpAttestation: '',
+        cctpMintHash: '',
+        cctpCompletionError: '',
+      })
+    }
+    setTab('withdraw')
+  }
+
   if (!address) {
     return (
       <div className="flex min-h-[40vh] flex-col items-center justify-center text-center">
@@ -78,7 +183,7 @@ export function ActivityTab() {
 
   return (
     <div className="space-y-4">
-      {showBridge && (
+      {showBridge && !showPendingOnly && (
         <div
           role="status"
           className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4"
@@ -146,7 +251,7 @@ export function ActivityTab() {
             <RefreshCw className={`h-3 w-3 ${activityLoading ? 'animate-spin' : ''}`} />
             Refresh
           </button>
-          {filtered.length > 0 && (
+          {!showPendingOnly && filtered.length > 0 && (
             <button
               onClick={handleCsv}
               className="flex items-center gap-1 rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-400 hover:text-slate-200"
@@ -158,8 +263,23 @@ export function ActivityTab() {
         </div>
       </div>
 
-      {/* Table */}
-      {activityLoading && filtered.length === 0 ? (
+      {/* Pending cross-chain transfers (from persisted local state) */}
+      {showPendingOnly ? (
+        pendingItems.length === 0 ? (
+          <div className="flex h-40 flex-col items-center justify-center gap-2 text-center">
+            <p className="text-sm text-slate-500">No pending cross-chain transfers.</p>
+            <p className="text-xs text-slate-600">
+              CCTP deposits and withdrawals in flight appear here with their burn tx hash.
+            </p>
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-800 rounded-xl border border-slate-800 bg-slate-900/60">
+            {pendingItems.map((item) => (
+              <PendingCctpRow key={item.id} item={item} onResume={resumePending} />
+            ))}
+          </div>
+        )
+      ) : activityLoading && filtered.length === 0 ? (
         <div className="flex h-40 items-center justify-center">
           <p className="text-sm text-slate-500">Scanning event logs…</p>
         </div>

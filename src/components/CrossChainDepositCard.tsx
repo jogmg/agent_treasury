@@ -94,8 +94,10 @@ export function CrossChainDepositCard() {
     message,
     attestation,
     error,
+    recent,
     setBridgeDeposit,
     resetBridgeDeposit,
+    restoreBridgeDeposit,
   } = useBridgeDepositStore()
 
   const source = getCctpDestination(sourceDomain) ?? CCTP_DESTINATIONS[0]
@@ -140,6 +142,9 @@ export function CrossChainDepositCard() {
     address && owner && address.toLowerCase() === owner.toLowerCase(),
   )
   const isActive = status !== 'idle'
+  const myRecent = address
+    ? recent.filter((record) => record.owner.toLowerCase() === address.toLowerCase())
+    : []
 
   let validation: string | null = null
   if (!address) validation = 'Connect wallet'
@@ -500,6 +505,16 @@ export function CrossChainDepositCard() {
     resetBridgeDeposit()
   }
 
+  async function copyBurnHash() {
+    if (!burnHash) return
+    try {
+      await navigator.clipboard.writeText(burnHash)
+      toast.success('Source burn hash copied')
+    } catch {
+      toast.error('Could not copy. Open the burn transaction and copy it from the explorer.')
+    }
+  }
+
   return (
     <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-5">
       <div className="mb-3 flex items-center justify-between gap-3">
@@ -669,6 +684,43 @@ export function CrossChainDepositCard() {
                   {resuming ? 'Checking…' : 'Track'}
                 </button>
               </div>
+
+              {myRecent.length > 0 && (
+                <div className="space-y-1.5 border-t border-slate-800 pt-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[10px] uppercase tracking-wide text-slate-600">
+                      Recent source burns
+                    </p>
+                    <p className="text-[10px] text-slate-600">Saved in this browser</p>
+                  </div>
+                  {myRecent.slice(0, 5).map((record) => {
+                    const recordSource = getCctpDestination(record.sourceDomain)
+                    const recordAmount = rawAmount(record.amount)
+                    return (
+                      <button
+                        key={record.burnHash}
+                        type="button"
+                        onClick={() => restoreBridgeDeposit(record)}
+                        className="w-full rounded-lg border border-slate-800 bg-slate-800/40 px-3 py-2 text-left transition hover:border-emerald-500/30"
+                      >
+                        <span className="block text-xs text-slate-300">
+                          {recordAmount > 0n ? formatUsdcDollar(recordAmount) : 'USDC'} ·{' '}
+                          {recordSource?.name ?? `Domain ${record.sourceDomain}`}
+                        </span>
+                        <span
+                          className="mt-0.5 block truncate font-mono text-[10px] text-slate-500"
+                          title={record.burnHash}
+                        >
+                          {record.burnHash}
+                        </span>
+                        <span className="mt-0.5 block text-[10px] text-slate-600">
+                          {new Date(record.createdAt).toLocaleString()}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           </details>
         </div>
@@ -698,14 +750,23 @@ export function CrossChainDepositCard() {
               {activeAmountLabel} from {activeSource.name}
             </span>
             {burnHash && (
-              <a
-                href={`${activeSource.explorer}/tx/${burnHash}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-300"
-              >
-                Burn tx <ExternalLink className="h-3 w-3" />
-              </a>
+              <div className="flex items-center gap-2">
+                <a
+                  href={`${activeSource.explorer}/tx/${burnHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-300"
+                >
+                  Burn tx <ExternalLink className="h-3 w-3" />
+                </a>
+                <button
+                  type="button"
+                  onClick={() => { void copyBurnHash() }}
+                  className="text-slate-500 underline hover:text-slate-300"
+                >
+                  Copy hash
+                </button>
+              </div>
             )}
           </div>
 
@@ -761,8 +822,8 @@ export function CrossChainDepositCard() {
                 <p className="mt-1 text-xs text-slate-400">
                   Standard CCTP from {activeSource.name} can take 15–30 minutes (15–19 minutes from
                   Ethereum Sepolia). The source burn is confirmed; there is no Arc transaction yet.
-                  You can switch tabs and come back. If you reload, paste the burn hash under
-                  “Track a source transaction” on the Deposit tab.
+                  You can switch tabs and come back. This burn is saved in your browser, so a
+                  reload restores the pending deposit automatically.
                 </p>
               </div>
             </div>
