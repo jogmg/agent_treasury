@@ -39,17 +39,11 @@ import {
   ERC20_ABI,
   TREASURY_ABI,
 } from '../lib/contracts'
-import {
-  addrToBytes32,
-  formatUsdc,
-  formatUsdcDollar,
-  parseUsdc,
-  shortAddr,
-} from '../lib/decimals'
+import { addrToBytes32, formatUsdc, formatUsdcDollar, parseUsdc, shortAddr } from '../lib/decimals'
 import { parseOnchainError } from '../lib/errors'
 import { BRIDGE_STATUS_LABEL, useBridgeDepositStore } from '../stores/bridgeDeposit'
+import { useMinDeposit } from '../hooks/useMinDeposit'
 
-const MIN_DEPOSIT = 10_000_000n // 10 USDC in 6 decimals
 const ARC_GAS_SYMBOL = 'USDC'
 // Keep enough native USDC for the Arc mint, approval, and treasury deposit.
 // Arc gas is paid from the same native USDC balance, so depositing the entire
@@ -139,6 +133,8 @@ export function CrossChainDepositCard() {
 
   const parsedAmount = amount ? parseUsdc(amount) : 0n
   const needsApprove = parsedAmount > 0n && (sourceAllowance ?? 0n) < parsedAmount
+  // The treasury enforces the adapter's on-chain minimum; mirror it exactly.
+  const minDeposit = useMinDeposit()
   const ownerMatches = Boolean(
     address && owner && address.toLowerCase() === owner.toLowerCase(),
   )
@@ -150,7 +146,7 @@ export function CrossChainDepositCard() {
   let validation: string | null = null
   if (!address) validation = 'Connect wallet'
   else if (parsedAmount === 0n) validation = 'Enter amount'
-  else if (parsedAmount < MIN_DEPOSIT) validation = 'Minimum cross-chain deposit is 10 USDC'
+  else if (parsedAmount < minDeposit) validation = `Minimum cross-chain deposit is ${formatUsdcDollar(minDeposit)}`
   else if (sourceBalance !== undefined && parsedAmount > sourceBalance) {
     validation = `Insufficient USDC on ${source.name}`
   }

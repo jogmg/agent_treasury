@@ -8,10 +8,10 @@ import { parseUsdc, formatUsdcDollar, formatUsdc } from '../../lib/decimals'
 import { parseOnchainError } from '../../lib/errors'
 import { useTreasuryStore } from '../../stores/treasury'
 import { useFlowStore } from '../../stores/flow'
+import { useMinDeposit } from '../../hooks/useMinDeposit'
 import { TxStep } from '../TxStep'
 import { CrossChainDepositCard } from '../CrossChainDepositCard'
 
-const MIN_DEPOSIT = 10_000_000n // 10 USDC in 6 dec
 const MAX_U256 = BigInt('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff')
 
 export function DepositTab() {
@@ -33,12 +33,14 @@ export function DepositTab() {
   const parsedAmount = amount ? parseUsdc(amount) : 0n
   const needsApprove = parsedAmount > 0n && usdcAllowance < parsedAmount
   const isWrongChain = !!address && chainId !== ARC_TESTNET_CHAIN_ID
+  // The treasury enforces the adapter's on-chain minimum; mirror it exactly.
+  const minDeposit = useMinDeposit()
 
   const validate = (): string | null => {
     if (!address) return 'Connect wallet'
     if (parsedAmount === 0n) return 'Enter amount'
     if (parsedAmount > usdcBalance) return 'Insufficient USDC balance'
-    if (parsedAmount < MIN_DEPOSIT) return 'Minimum deposit is 10 USDC'
+    if (parsedAmount < minDeposit) return `Minimum deposit is ${formatUsdcDollar(minDeposit)}`
     return null
   }
   const validationMsg = validate()

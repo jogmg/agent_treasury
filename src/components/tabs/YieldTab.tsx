@@ -4,6 +4,7 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'rec
 import { useAccount } from 'wagmi'
 import { useTreasuryStore } from '../../stores/treasury'
 import { useUiStore } from '../../stores/ui'
+import { useMinDeposit } from '../../hooks/useMinDeposit'
 import { StatCard } from '../StatCard'
 import { formatUsdcDollar, formatApy, formatUsdc, formatShares, projectYield } from '../../lib/decimals'
 import { VAULT_1_NAME, VAULT_1_APY_DISPLAY } from '../../lib/contracts'
@@ -53,6 +54,8 @@ export function YieldTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [growthHistory, growthCutoff],
   )
+
+  const minDeposit = useMinDeposit()
 
   if (!address) {
     return (
@@ -153,7 +156,9 @@ export function YieldTab() {
           <div className="flex items-center justify-between rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4">
             <div>
               <p className="text-sm font-medium text-white">{VAULT_1_NAME}</p>
-              <p className="text-xs text-slate-500">Conservative — 10 USDC min</p>
+              <p className="text-xs text-slate-500">
+                Conservative — {formatUsdcDollar(minDeposit)} min
+              </p>
             </div>
             <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs text-emerald-400">Active</span>
           </div>

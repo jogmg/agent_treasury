@@ -101,6 +101,29 @@ npx tsx scripts/complete-cctp.ts 0x3f0f256843ee4e1498cafceea9978725397904899bb52
 The script fetches the attested message from Circle Iris and calls
 `receiveMessage(message, attestation)` on Sepolia's MessageTransmitterV2.
 
+### Lower the vault minimum deposit (one-time keeper tx)
+
+The 10 USDC minimum lives on-chain in the MorphoVaultAdapter's vault config
+(`getVaultConfig(1).minDeposit == 10e6`); `deposit()` reverts `BelowMinDeposit`
+below it. To allow 1 USDC deposits, the owner/keeper wallet sends one config
+tx (no redeploy, no contract change):
+
+```bash
+cast send 0x333deccbf9091540e849b7af80f2f10b72197b71 \
+  "updateVault(uint256,uint256,bool)" 1 1000000 true \
+  --rpc-url https://rpc.testnet.arc.io --private-key $KEEPER_KEY
+# verify (expect minDeposit = 1000000)
+cast call 0x333deccbf9091540e849b7af80f2f10b72197b71 \
+  "getVaultConfig(uint256)(uint256,address,string,string,uint256,bool)" 1 \
+  --rpc-url https://rpc.testnet.arc.io
+```
+
+The frontend reads this value live (`useMinDeposit`, falls back to 1 USDC), so
+the Deposit tab, cross-chain deposit card, and vault tier label update
+automatically after the tx lands. Caveat: very small deposits can mint zero
+shares if the vault's pricePerShare rises far above 1e18 — safe now (testnet
+TVL is tiny), revisit after more deposits.
+
 ### Recover the pre-hotfix treasury
 
 The old `0x9b390...` treasury still holds testnet USDC. Its `withdrawLocal` path
