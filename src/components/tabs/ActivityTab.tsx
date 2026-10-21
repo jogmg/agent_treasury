@@ -7,8 +7,8 @@ import { useFlowStore } from '../../stores/flow'
 import { getCctpDestination } from '../../lib/cctp'
 import { formatUsdcDollar } from '../../lib/decimals'
 import { ARC_CCTP_DOMAIN } from '../../lib/contracts'
-import { EventRow } from '../EventRow'
-import { PendingCctpRow } from '../PendingCctpRow'
+import { EventRow, ActivityRow } from '../EventRow'
+import { pendingRowData } from '../PendingCctpRow'
 import type { PendingCctpItem } from '../PendingCctpRow'
 import { exportCsv } from '../../lib/activity'
 import type { ActivityEventType } from '../../lib/activity'
@@ -275,8 +275,9 @@ export function ActivityTab() {
         </div>
       </div>
 
-      {/* Table. Pending rows (persisted client-side state) render first so an
-          in-flight transfer is visible even though Arc has no log for it yet. */}
+      {/* Table. Pending rows use the same ActivityRow UI as chain events and
+          render first, since a source burn does not exist in Arc logs until
+          the mint/deposit lands. */}
       {filter === 'inflight' ? (
         pendingItems.length === 0 ? (
           <div className="flex h-40 flex-col items-center justify-center gap-2 text-center">
@@ -289,7 +290,10 @@ export function ActivityTab() {
         ) : (
           <div className="divide-y divide-slate-800 rounded-xl border border-slate-800 bg-slate-900/60">
             {pendingItems.map((item) => (
-              <PendingCctpRow key={item.id} item={item} onResume={resumePending} />
+              <ActivityRow
+                key={item.id}
+                data={pendingRowData(item, resumePending)}
+              />
             ))}
           </div>
         )
@@ -305,13 +309,11 @@ export function ActivityTab() {
       ) : (
         <div className="divide-y divide-slate-800 rounded-xl border border-slate-800 bg-slate-900/60">
           {pendingItems.map((item) => (
-            <PendingCctpRow key={item.id} item={item} onResume={resumePending} />
+            <ActivityRow
+              key={item.id}
+              data={pendingRowData(item, resumePending)}
+            />
           ))}
-          {pendingItems.length > 0 && filtered.length > 0 && (
-            <div className="bg-slate-950/60 px-4 py-1.5 text-[10px] uppercase tracking-wider text-slate-600">
-              On-chain events
-            </div>
-          )}
           {filtered.map((e) => (
             <EventRow key={e.id} event={e} />
           ))}

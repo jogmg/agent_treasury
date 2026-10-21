@@ -1,12 +1,16 @@
 /**
- * A pending cross-chain CCTP transfer row for the Activity tab. Unlike chain
- * event rows these come from the persisted client-side stores, so they still
- * show after a reload — long before the mint/deposit appears in Arc logs.
+ * Pending cross-chain CCTP transfers builder. These rows use the same
+ * ActivityRow presentation as treasury chain events so the Activity tab is
+ * uniform; they render before the chain rows because a source burn does not
+ * exist in Arc logs until the mint/deposit lands.
  */
-import { ExternalLink, MoveRight } from 'lucide-react'
+import {
+  ARC_CCTP_DOMAIN,
+  explorerTx,
+} from '../lib/contracts'
 import { getCctpDestination } from '../lib/cctp'
-import { ARC_CCTP_DOMAIN, explorerTx } from '../lib/contracts'
 import { formatUsdcDollar } from '../lib/decimals'
+import type { ActivityLink, ActivityRowData } from './EventRow'
 
 export interface PendingCctpItem {
   id: string                   // direction-prefixed burn hash
@@ -22,32 +26,31 @@ export interface PendingCctpItem {
   completed?: boolean          // finished transfer: no Resume CTA
 }
 
-const TONE_CLASSES: Record<PendingCctpItem['tone'], string> = {
-  info:   'bg-amber-500/15 text-amber-400 border-amber-500/20',
-  action: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20',
-  error:  'bg-red-500/15 text-red-400 border-red-500/20',
-}
-
 const KIND_LABEL: Record<PendingCctpItem['direction'], string> = {
   in: 'CCTP Deposit',
   out: 'CCTP Withdrawal',
 }
 
-const KIND_CLASSES: Record<PendingCctpItem['direction'], string> = {
+const KIND_CLASS: Record<PendingCctpItem['direction'], string> = {
   in:  'bg-blue-500/15 text-blue-400 border-blue-500/20',
   out: 'bg-purple-500/15 text-purple-400 border-purple-500/20',
 }
 
-function hashLabel(hash: string): string {
+/** Completed status badge: keeps the kind badge but flips it to a done tone. */
+const COMPLETED_CLASS = 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20'
+
+function shortHash(hash: string): string {
   return `${hash.slice(0, 10)}…${hash.slice(-6)}`
 }
 
-interface Props {
-  item: PendingCctpItem
-  onResume: (item: PendingCctpItem) => void
-}
-
-export function PendingCctpRow({ item, onResume }: Props) {
+/**
+ * Build the shared-shape row for a pending transfer. `onResume` receives the
+ * item (only invoked from the non-completed CTA).
+ */
+export function pendingRowData(
+  item: PendingCctpItem,
+  onResume: (item: PendingCctpItem) => void,
+): ActivityRowData {
   const source = getCctpDestination(item.sourceDomain)
   const destination = getCctpDestination(item.destinationDomain)
   // Arc is not a CCTP destination entry (withdrawals to Arc domain 26 are
@@ -73,61 +76,19 @@ export function PendingCctpRow({ item, onResume }: Props) {
     ? `${destination.explorer}/tx/${item.mintHash}`
     : ''
 
-  return (
-    <div className="px-4 py-3">
-      <div className="flex flex-wrap items-center gap-3">
-        <span
-          className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider ${KIND_CLASSES[item.direction]}`}
-        >
-          {KIND_LABEL[item.direction]}
-        </span>
-        <span
-          className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider ${TONE_CLASSES[item.tone]}`}
-        >
-          {item.statusLabel}
-        </span>
-        <span className="flex min-w-0 flex-1 items-center gap-1 truncate text-sm text-slate-300">
-          {amountLabel}
-          <span className="text-slate-600">·</span>
-          {sourceLabel}
-          <MoveRight className="h-3 w-3 shrink-0 text-slate-600" />
-          {destinationLabel}
-        </span>
-        {item.completed ? (
-          <span className="shrink-0 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-300">
-            Completed
-          </span>
-        ) : (
-          <button
-            type="button"
-            onClick={() => onResume(item)}
-            className="shrink-0 rounded-lg border border-slate-700 px-2.5 py-1 text-[11px] font-medium text-slate-300 hover:border-emerald-500/40 hover:text-emerald-400"
-          >
-            Resume
-          </button>
-        )}
-      </div>
-      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-slate-600">
-        <span>{new Date(item.timestamp).toLocaleString()}</span>
-        <a
-          href={burnHref}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-1 font-mono text-emerald-400 hover:text-emerald-300"
-        >
-          {hashLabel(item.burnHash)} <ExternalLink className="h-3 w-3" />
-        </a>
-        {item.mintHash && mintHref && (
-          <a
-            href={mintHref}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1 font-mono text-blue-400 hover:text-blue-300"
-          >
-            Mint {hashLabel(item.mintHash)} <ExternalLink className="h-3 w-3" />
-          </a>
-        )}
-      </div>
-    </div>
-  )
+  const links: ActivityLink[] = [{ href: burnHref, label: `Burn ${shortHash(item.burnHash)}` }]
+  if (item.mintHash && mintHref) {
+    links.push({ href: mintHref, label: `Mint ${shortHash(item.mintHash)}`, className: 'text-blue-400 hover:text-blue-300' })
+  }
+
+  return {
+    badgeLabel: KIND_LABEL[item.direction],
+    badgeClass: item.completed ? COMPLETED_CLASS : KIND_CLASS[item.direction],
+    title: `${amountLabel} · ${item.statusLabel} · ${sourceLabel} → ${destinationLabel}`,
+    meta: new Date(item.timestamp).toLocaleString(),
+    links,
+    action: item.completed
+      ? undefined
+      : { label: 'Resume', onClick: () => onResume(item) },
+  }
 }

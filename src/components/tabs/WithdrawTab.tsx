@@ -10,7 +10,6 @@ import { CCTP_DESTINATIONS } from '../../lib/cctp'
 import { parseOnchainError } from '../../lib/errors'
 import { useTreasuryStore } from '../../stores/treasury'
 import { useFlowStore } from '../../stores/flow'
-import { useUiStore } from '../../stores/ui'
 import { TxStep } from '../TxStep'
 import { CctpCompletionCard } from '../CctpCompletionCard'
 
@@ -33,33 +32,14 @@ export function WithdrawTab() {
   const [cctpBusy, setCctpBusy] = useState(false)
 
   const { totalBalance } = useTreasuryStore()
-  const activityEvents = useUiStore((s) => s.activityEvents)
   const { withdrawStep, withdrawHash, withdrawError, setWithdraw, resetWithdraw,
-          cctpStep, cctpHash, cctpError, setCctp, resetCctp, cctpHistory } = useFlowStore()
+          cctpStep, cctpHash, cctpError, setCctp, resetCctp } = useFlowStore()
 
   const { writeContractAsync: withdraw } = useWriteContract()
   const { writeContractAsync: requestWithdrawal } = useWriteContract()
 
   const isWrongChain = !!address && chainId !== ARC_TESTNET_CHAIN_ID
   const parsedAmount  = amount ? parseUsdc(amount) : 0n
-
-  // Recent burns from Arc logs, minus transfers we know are already minted on
-  // the destination: those are finished (visible in the Activity tab), and the
-  // completion card would only redo the attestation dance for them.
-  const doneBurnHashes = new Set(
-    cctpHistory.filter((r) => r.status === 'done').map((r) => r.burnHash.toLowerCase()),
-  )
-  const recentCctp = address
-    ? activityEvents
-        .filter((event) => {
-          const agent = event.args.agent
-          return event.type === 'WithdrawalRequested' &&
-            typeof agent === 'string' &&
-            agent.toLowerCase() === address.toLowerCase() &&
-            !doneBurnHashes.has(event.txHash.toLowerCase())
-        })
-        .slice(0, 3)
-    : []
 
   function loadCctpTransfer(txHash: string, rawAmount?: unknown, destinationDomain?: unknown) {
     const amountValue = typeof rawAmount === 'bigint' ? rawAmount.toString() : ''
@@ -343,47 +323,10 @@ export function WithdrawTab() {
             <CctpCompletionCard burnTx={cctpHash} />
           )}
 
-          {recentCctp.length > 0 && (
-            <div className="space-y-2 rounded-lg border border-slate-800 bg-slate-900/60 p-3">
-              <p className="text-xs font-medium text-slate-400">
-                Recent CCTP requests from this wallet
-              </p>
-              {recentCctp.map((event) => {
-                const amountArg = event.args.amount
-                const amountLabel = typeof amountArg === 'bigint'
-                  ? formatUsdcDollar(amountArg)
-                  : 'Unknown amount'
-                return (
-                  <div
-                    key={event.id}
-                    className="flex items-center justify-between gap-3 rounded-lg bg-slate-800/50 px-3 py-2"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-xs font-medium text-white">{amountLabel} USDC</p>
-                      <p className="truncate font-mono text-[11px] text-slate-500">
-                        {event.txHash}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => loadCctpTransfer(
-                        event.txHash,
-                        event.args.amount,
-                        event.args.destinationDomain,
-                      )}
-                      className="shrink-0 rounded-lg border border-slate-700 px-2.5 py-1.5 text-[11px] font-medium text-slate-300 hover:border-emerald-500/40 hover:text-emerald-400"
-                    >
-                      Complete
-                    </button>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-
           <div className="space-y-2 border-t border-slate-800 pt-4">
             <label className="block text-xs text-slate-500">
-              Already burned? Paste the Arc burn tx hash to finish it.
+              Already burned? Paste the Arc burn tx hash to finish it. Completed requests are in the
+              Activity tab.
             </label>
             <div className="flex gap-2">
               <input
