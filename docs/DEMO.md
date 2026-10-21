@@ -67,7 +67,7 @@ On-chain proof if asked: deposit `0xbab58770…04c4`, CCTP withdraw `0x3f0f2568�
 
 ## 2:30 — Close
 
-> "Three Circle products: CCTP v2 for cross-chain USDC, Earn Kit/Morpho for yield, and a Gateway-ready hook. Built end-to-end in Arc Studio, 81 Foundry tests and 52 frontend tests green, with a verified testnet deposit and a live CCTP burn from yield to domain 0 plus a finalized Circle attestation. The same stack is deployed and wired on Arc mainnet with guardrails; the first live mainnet deposit is the next proof step."
+> "Three Circle products: CCTP v2 for cross-chain USDC, Earn Kit/Morpho for yield, and a Gateway-ready hook. Built end-to-end in Arc Studio, 81 Foundry tests and 52 frontend tests green. Testnet: verified deposit plus a live CCTP burn from yield to domain 0 and a finalized Circle attestation. Mainnet: the same stack is deployed and wired with guardrails, and a real 5 USDC deposit → Galaxy USDC → 1 USDC local withdrawal has passed on-chain."
 
 ## Fallbacks
 

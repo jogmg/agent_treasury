@@ -303,7 +303,8 @@ spending limit `25 USDC/day / 50 USDC/week`, owner/keeper
 
 Post-deploy policy:
 
-- Keep the 5 USDC minimum and 25/50 limits until a live E2E passes and an external audit is booked.
+- Keep the 5 USDC minimum and 25/50 limits until the external audit is booked and passed.
 - Rotate the keeper from the owner EOA to a dedicated key before scaling volume.
 - Do not raise caps, accept third-party deposits, or add vaults without an audit.
-- The deployer is below the 5 USDC minimum after gas; fund it with ≥5 USDC to run the live E2E.
+- Live E2E passed October 21, 2026 (5 USDC deposit → 1 USDC `withdrawLocal`); hashes and state are in
+  `deployments/arc-mainnet.json`. A mainnet CCTP withdrawal/mint is still the open proof.

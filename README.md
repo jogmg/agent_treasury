@@ -44,8 +44,8 @@ Deployment blocks: adapter `27153175`, treasury `27153209`. Owner and keeper:
 - Spending limit **25 USDC/day, 50 USDC/week** for the owner agent.
 - Keeper is the owner EOA for launch; rotate to a dedicated key before scaling.
 - External audit before raising caps or onboarding third-party agents.
-- A live mainnet deposit is still pending: the deployer wallet held ~3.32 USDC after gas, below the
-  5 USDC minimum. The deployment itself, wiring, and config are verified on-chain.
+- A live mainnet **5 USDC deposit + 1 USDC local withdrawal** passed on October 21, 2026 (deposit
+  `0xf48c28…0225`, withdraw `0x5caf81…76b0`). Mainnet CCTP withdrawal/mint is still untested.
 
 Protocol constants (the CCTP deployments differ between networks):
 
@@ -235,14 +235,14 @@ The Activity tab groups activity with **All / In flight / Deposits / Withdrawals
 | Capability | Status |
 |---|---|
 | Per-agent treasury, spending limits, pause, keeper separation | ✅ implemented + tested |
-| Morpho/Earn Kit vault deposit, redeem, strategy switch | ✅ implemented + tested; live testnet path verified, mainnet wired to Galaxy USDC |
+| Morpho/Earn Kit vault deposit, redeem, strategy switch | ✅ implemented + tested; live on testnet and on mainnet with Galaxy USDC (5 USDC deposit, 1 USDC local withdrawal) |
 | CCTP v2 outbound burn with hook data | ✅ implemented, unit-tested, and verified live on Arc Testnet (domain 0 burn + finalized attestation) |
 | CCTP v2 **inbound deposit** (source burn → mint to Arc wallet → `deposit()`) | ✅ implemented in the app; requires source USDC + source gas + Arc gas |
 | CCTPReceiver relayer adapter + malformed-data fallback | ✅ unit-tested; ⚠️ not used by the app (CCTP v2 hooks are opaque; a relayer/forwarder is required) |
 | Arc-local fast path (`deposit`, `withdrawLocal`) | ✅ implemented + tested |
 | Dashboard, 6 tabs, event history, CSV export | ✅ built, lint/typecheck clean |
 | Testnet deployment | ✅ deployed, wired, and E2E verified with real testnet USDC |
-| Mainnet deployment | ✅ deployed and wired on Arc mainnet; ⏳ live deposit pending wallet funding above the 5 USDC minimum |
+| Mainnet deployment | ✅ deployed, wired, and E2E verified: 5 USDC deposit → Galaxy USDC → 1 USDC local withdrawal. ⏳ mainnet CCTP withdrawal/mint not yet exercised |
 | Circle Gateway unified balance | ⚠️ contract hook (`gatewayReceiver`) is present; live Gateway balances need a server-side API key and are intentionally not faked in the UI |
 | Automatic Iris attestation + in-app destination mint | ✅ implemented: poll Iris, switch chain, submit `receiveMessage`; destination gas required |
 
@@ -259,10 +259,13 @@ Mainnet was deployed on **October 21, 2026** and is fully wired. Independent on-
 - vault `asset() == USDC`, active, `minDeposit == 5_000_000`, APY `2.65%`,
 - `previewDeposit(5 USDC) > 0` and `previewMint(1 wei) >= 1` (no zero-share minimum).
 
-A live mainnet deposit is the remaining proof step: the deployer had ~3.32 USDC after gas, below
-the 5 USDC minimum. Once funded, run a small deposit → `withdrawLocal` and record the hashes in
-`deployments/arc-mainnet.json`. The exact 10-transaction sequence was rehearsed first on a live
-Arc mainnet fork (`contracts/test/fork/MainnetDeploy.t.sol`).
+A live mainnet **5 USDC deposit → 1 USDC `withdrawLocal`** passed on October 21, 2026. The deposit
+minted `4,996,584,486,017,754,953` Galaxy USDC shares; the withdrawal resolved to `0.999999` USDC
+and burned `999,316,858,421,847,964` shares (ERC-4626 rounding). After the round trip:
+principal `4.000001`, shares `3,997,267,627,595,906,989`, `getTotalBalance` `4` USDC. Hashes and
+state are in `deployments/arc-mainnet.json`. The exact 10-transaction deploy sequence was rehearsed
+first on a live Arc mainnet fork (`contracts/test/fork/MainnetDeploy.t.sol`). A mainnet CCTP
+withdrawal/mint remains the last unproven path.
 
 **Audit plan:** the contracts are unaudited, so mainnet runs with deliberately low caps and only the
 owner's funds. Before raising the limits or onboarding third-party agents: external review of

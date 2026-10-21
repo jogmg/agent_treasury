@@ -111,8 +111,58 @@
     "ownerNativeUsdc18": "3.323327212292452634",
     "ownerErc20Usdc6": "3.323327"
   },
+  "liveE2E": {
+    "date": "2026-10-21",
+    "verifiedAtBlock": 27169708,
+    "network": "Arc Mainnet",
+    "wallet": "0xD00fD0B006c01342522cAf4FA04D5f8910aB268c",
+    "operator": "User signed all transactions in MetaMask through the app; no private key handled by the repo or the agent.",
+    "transactions": {
+      "approveUsdc": {
+        "tx": "0xce4676932a01655966cccadb6aaa430ae617dac02dde65acab380f04c19de375",
+        "block": 27169405,
+        "spender": "AgentTreasury",
+        "amount": "unlimited (MAX_U256); one-time approval pattern used by the app"
+      },
+      "deposit": {
+        "tx": "0xf48c28d10b8c1d4c25b0b27fb19f6ce0df3c02abbea4f88551dc6b353fc50225",
+        "block": 27169424,
+        "function": "deposit(uint256)",
+        "amountUsdc": "5",
+        "amountRaw": "5000000",
+        "vaultId": 1,
+        "shares": "4996584486017754953",
+        "event": "DepositRecorded(agent, 5000000, sourceDomain 26, vaultId 1, shares 4996584486017754953)"
+      },
+      "withdrawLocal": {
+        "tx": "0x5caf815a39ea83f9c7b77a6933183bedaf7417c5397f6c9c7506acf314d276b0",
+        "block": 27169501,
+        "function": "withdrawLocal(uint256)",
+        "requestedUsdc": "1",
+        "amountUsdc": "0.999999",
+        "amountRaw": "999999",
+        "sharesBurned": "999316858421847964",
+        "event": "WithdrawalToWallet(agent, 999999, sharesBurned 999316858421847964)"
+      }
+    },
+    "stateAfter": {
+      "principalUsdc": "4.000001",
+      "vaultShares": "3997267627595906989",
+      "totalBalanceUsdc": "4",
+      "previewRedeemSharesUsdc": "4",
+      "activeVault": 1,
+      "walletErc20Usdc": "9.286509",
+      "walletNativeUsdc18": "9.286509291488452634"
+    },
+    "notes": [
+      "Deposit minted vault shares on-chain (not just an internal credit): adapter/vault share balance backs the treasury accounting.",
+      "The 1 USDC withdrawal resolved to 0.999999 USDC because 18-decimal vault shares and the ~1.0007 USDC share price leave a 1-unit ERC-4626 rounding remainder. Spending-limit accounting uses the resolved amount.",
+      "All receipts succeeded; getPrincipal + getVaultShares + getTotalBalance agree with the emitted events.",
+      "This proves the mainnet deposit -> Galaxy USDC vault -> local withdrawal path. A live mainnet CCTP withdrawal/mint is still untested."
+    ]
+  },
   "pendingActions": [
-    "Live E2E deposit requires topping the owner wallet above the 5 USDC vault minimum.",
+    "Live mainnet CCTP withdrawal/mint end-to-end (local deposit/withdraw is proven).",
     "Rotate the keeper role to a dedicated hot key before scaling real volume.",
     "External audit before raising caps or onboarding third-party agents."
   ],

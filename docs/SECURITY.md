@@ -29,8 +29,9 @@ Verified: bytecode, owner/keeper, adapter/receiver links, mainnet CCTP and domai
 `1`, unpaused, vault asset USDC, active with `minDeposit = 5 USDC`, APY `2.65%`, and positive previews.
 
 Launch guardrails: **5 USDC minimum**, **25 USDC/day and 50 USDC/week** spending limit, owner EOA as
-keeper. A live mainnet deposit is pending wallet funding above the 5 USDC minimum. The exact deploy
-sequence passed on a mainnet fork first. Full record: `deployments/arc-mainnet.json`.
+keeper. A live **5 USDC deposit → 1 USDC local withdrawal** passed on mainnet on October 21, 2026
+(evidence below). The exact deploy sequence passed on a mainnet fork first. Full record:
+`deployments/arc-mainnet.json`.
 
 ## Testnet E2E evidence
 
@@ -43,9 +44,21 @@ The hotfix contracts moved real testnet USDC through the live Morpho Earn Kit va
 The earlier 10 USDC deposit / 1 USDC local withdrawal proof is preserved in `deployments/arc-testnet.json`. The original CCTP path was broken by an ABI return-value mismatch (Arc returns no data); the hotfix removes that return declaration and uses finality threshold `2000`.
 
 This proves the deposit → vault → CCTP burn → attestation loop. It does **not** replace an audit or
-adversarial testing. The mainnet stack includes the zero-share guard and was rehearsed on a mainnet
-fork, but no live mainnet deposit has run yet. The destination Sepolia mint is pending gas; see
-`scripts/complete-cctp.ts`.
+adversarial testing.
+
+## Mainnet E2E evidence (October 21, 2026)
+
+Real USDC on Arc mainnet, signed by the owner wallet through the app:
+
+- Approve (unlimited, one-time pattern): [`0xce4676…e375`](https://explorer.arc.io/tx/0xce4676932a01655966cccadb6aaa430ae617dac02dde65acab380f04c19de375).
+- Deposit 5 USDC: [`0xf48c28…0225`](https://explorer.arc.io/tx/0xf48c28d10b8c1d4c25b0b27fb19f6ce0df3c02abbea4f88551dc6b353fc50225) → `DepositRecorded` with `5,000,000`, domain `26`, vault `1`, `4,996,584,486,017,754,953` shares.
+- `withdrawLocal` 1 USDC: [`0x5caf81…76b0`](https://explorer.arc.io/tx/0x5caf815a39ea83f9c7b77a6933183bedaf7417c5397f6c9c7506acf314d276b0) → `WithdrawalToWallet` with `999,999` and `999,316,858,421,847,964` shares burned.
+- Post-state: principal `4.000001`, shares `3,997,267,627,595,906,989`, `getTotalBalance` `4` USDC,
+  wallet `9.286509` USDC. The 1-unit difference is ERC-4626 share-price rounding, not a loss.
+
+The mainnet stack includes the zero-share guard and was rehearsed on a mainnet fork. A live mainnet
+CCTP burn → Iris attestation → destination mint is still untested. The testnet destination Sepolia
+mint is pending gas; see `scripts/complete-cctp.ts`.
 
 ## Invariants
 
@@ -75,7 +88,8 @@ fork, but no live mainnet deposit has run yet. The destination Sepolia mint is p
 - [x] Mainnet deployment with guarded wiring and on-chain verification.
 - [x] Mainnet fork rehearsal of the exact deploy sequence.
 - [x] Zero-share guard in the mainnet adapter.
-- [ ] Live mainnet deposit / local withdrawal proof (pending funding above 5 USDC).
+- [x] Live mainnet deposit / local withdrawal proof (5 USDC in, 1 USDC out, October 21, 2026).
+- [ ] Live mainnet CCTP withdrawal + destination mint proof.
 - [ ] Independent review / audit of `AgentTreasury`, `MorphoVaultAdapter`, `CCTPReceiver`.
 - [ ] Owner-bounded spending limits.
 - [ ] Multisig/timelock owner and a dedicated keeper key.

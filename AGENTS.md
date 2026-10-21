@@ -50,8 +50,11 @@ available by building with `VITE_ARC_NETWORK=testnet`.
   5,761,118 gas (~0.12 USDC) for the full 10-tx sequence.
 - Deployment was driven by the user's MetaMask from `scripts/mainnet-deploy/` (template + artifact
   injector). No private key ever touched this repo or the chat.
-- **No mainnet deposit has run yet**: the deployer held 3.47 USDC and had ~3.32 USDC after gas,
-  below the 5 USDC vault minimum. Fund it before the live E2E.
+- **Live mainnet E2E passed (Oct 21, 2026)**: 5 USDC deposited into Galaxy USDC and 1 USDC
+  withdrawn locally. Approve `0xce4676…e375`, deposit `0xf48c28…0225` (minted
+  `4,996,584,486,017,754,953` shares), withdraw `0x5caf81…76b0` (resolved `0.999999`, burned
+  `999,316,858,421,847,964` shares). After: principal `4.000001`, shares `3,997,267,627,595,906,989`,
+  `getTotalBalance` = `4` USDC, wallet `9.286509` USDC. The 1-unit gap is ERC-4626 rounding.
 - Full record: `deployments/arc-mainnet.json`. Audit: not done (owner chose "ship with guardrails":
   low caps, small live test, external audit before raising limits).
 
@@ -222,9 +225,8 @@ where `vaultShareDecimals` is read live from `vault.decimals()`. USDC amounts re
 ### Remaining TODOs
 1. ✅ Mainnet deployed + verified (Oct 21, 2026) — see the mainnet section above.
 2. ✅ Mainnet `minDeposit` set to **5 USDC**; zero-share guard shipped in the mainnet adapter.
-3. **Live mainnet E2E pending funding:** the owner wallet has ~3.32 USDC, below the 5 USDC minimum.
-   Fund it with ≥5 USDC plus gas, then run one deposit → `withdrawLocal` → small CCTP withdrawal and
-   record the hashes in `deployments/arc-mainnet.json`.
+3. ✅ Mainnet deposit → Galaxy USDC vault → `withdrawLocal` proven live (Oct 21, 2026), hashes in
+   `deployments/arc-mainnet.json`. Still to do: one small mainnet CCTP withdrawal + destination mint.
 4. Rotate the keeper role from the owner EOA to a dedicated hot key before scaling volume.
 5. Book an external audit before raising the 25/50 USDC spending limits or onboarding third-party agents.
 6. Verify contract source on the Arc mainnet explorer.

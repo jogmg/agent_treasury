@@ -47,8 +47,13 @@ The entire project was built in Arc Studio: contracts, Foundry tests, deployment
   50 USDC/week**, keeper = owner EOA for launch.
 - **Deploy rehearsal:** the exact 10-tx sequence passed on a live Arc mainnet fork
   (`MainnetDeploy.t.sol`, 5,761,118 gas).
-- **Remaining proof step:** a live mainnet deposit. The deployer held ~3.32 USDC after gas, below the
-  5 USDC minimum. Funding + a small deposit/withdraw will close this.
+- **Live mainnet E2E:** 5 USDC deposited into Galaxy USDC (tx
+  `0xf48c28d10b8c1d4c25b0b27fb19f6ce0df3c02abbea4f88551dc6b353fc50225`,
+  `4,996,584,486,017,754,953` shares), then 1 USDC withdrawn locally (tx
+  `0x5caf815a39ea83f9c7b77a6933183bedaf7417c5397f6c9c7506acf314d276b0`, resolved `0.999999`,
+  `999,316,858,421,847,964` shares burned). Post-state: principal `4.000001`, shares
+  `3,997,267,627,595,906,989`, `getTotalBalance` `4` USDC.
+- **Still open:** a live mainnet CCTP withdrawal + destination mint.
 - Full record: `deployments/arc-mainnet.json`.
 
 ### Arc testnet (E2E proven)
@@ -82,15 +87,15 @@ The entire project was built in Arc Studio: contracts, Foundry tests, deployment
 |---|---|
 | **Functionality (25%)** | Deposit → yield → withdraw loop; spending limits; pause; keeper separation; CCTP outbound; 81 contract tests. |
 | **Arc Studio usage (25%)** | Contracts, tests, deploy scripts, frontend, and docs all generated iteratively in one Arc Studio project; deployment records in `deployments/arc-mainnet.json` and `deployments/arc-testnet-fixed.json`. |
-| **Real USDC on Arc (30%)** | **Testnet E2E verified with real USDC**: 10 USDC deposited into the live Morpho vault, then 1 USDC withdrawn from yield through CCTP to destination domain 0; source burn and finalized Iris attestation confirmed. **Mainnet is deployed, wired, and independently verified**, running guardrails; a live mainnet deposit is pending wallet funding above the 5 USDC minimum. |
+| **Real USDC on Arc (30%)** | **Both networks proven with real USDC.** Mainnet: 5 USDC deposited into Galaxy USDC and 1 USDC withdrawn locally (hashes above). Testnet: 10 USDC deposited into the live Morpho vault, then 1 USDC withdrawn from yield through CCTP to domain 0; source burn and finalized Iris attestation confirmed, with a completed Sepolia destination mint. |
 | **Circle product depth (20%)** | CCTP v2 inbound/outbound on both networks; Earn Kit/Morpho vault; Gateway-ready receiver hook. |
 
 ## Honest limitations
 
 - Contracts are **unaudited**. Mainnet is live with deliberately low limits and only the owner's funds.
   Do not custody third-party funds before an audit.
-- **A live mainnet deposit is still pending.** Deployment and wiring are verified; the deployer wallet
-  needs ≥5 USDC plus gas to complete the final deposit/withdraw proof.
+- **Mainnet CCTP withdrawal is still pending.** The mainnet deposit → vault → local withdraw path is
+  proven; the cross-chain burn → Iris attestation → destination mint has only been exercised on testnet.
 - **Spending limits are not owner-bounded**: an agent can raise its own limit. This is documented in
   `docs/SECURITY.md` and is the first post-hackathon fix.
 - **Destination mints still need destination-chain gas.** The app polls Iris and submits the mint, but
