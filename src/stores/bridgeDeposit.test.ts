@@ -10,7 +10,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  vi.unstubAllGlobals()
+  vi.restoreAllMocks()
 })
 
 describe('cross-chain deposit flow', () => {
@@ -113,11 +113,19 @@ describe('cross-chain deposit flow', () => {
 
   it('writes the active burn and recent list to localStorage', () => {
     const backing = new Map<string, string>()
-    vi.stubGlobal('localStorage', {
-      getItem: (key: string) => backing.get(key) ?? null,
-      setItem: (key: string, value: string) => backing.set(key, value),
-      removeItem: (key: string) => backing.delete(key),
-      clear: () => backing.clear(),
+    const origStorage = globalThis.localStorage
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: {
+        getItem: (key: string) => backing.get(key) ?? null,
+        setItem: (key: string, value: string) => backing.set(key, value),
+        removeItem: (key: string) => backing.delete(key),
+        clear: () => backing.clear(),
+      },
+      writable: true, configurable: true,
+    })
+    // restore after test
+    afterEach(() => {
+      Object.defineProperty(globalThis, 'localStorage', { value: origStorage, writable: true, configurable: true })
     })
 
     useBridgeDepositStore.getState().setBridgeDeposit({

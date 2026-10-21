@@ -68,6 +68,10 @@ Cross-chain USDC treasury for AI agents. Accepts USDC from any CCTP-supported ch
 - src/stores/flow.test.ts (12 tests) — flow steps + persisted outbound CCTP transfer history
 - src/stores/bridgeDeposit.test.ts (5 tests) — inbound CCTP deposit state + recent source burns
 
+Tests use `vi.restoreAllMocks()` + `Object.defineProperty` for the
+`localStorage` stub instead of `vi.stubGlobal`/`vi.unstubAllGlobals` — the Arc
+Studio sandbox runs Vitest 5, where the stubGlobal API was removed.
+
 ### Deploy scripts
 - `contracts/script/Deploy.s.sol` - Deploys all 3 contracts; reads addresses from ArcConfig + env
 - `contracts/script/Configure.s.sol` - Wires references, sets keeper, registers vaults, initiates Ownable2Step transfer

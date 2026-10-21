@@ -18,7 +18,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  vi.unstubAllGlobals()
+  vi.restoreAllMocks()
 })
 
 describe('deposit flow', () => {
@@ -138,11 +138,19 @@ describe('cctp transfer history', () => {
 
   it('persists the history to localStorage', () => {
     const backing = new Map<string, string>()
-    vi.stubGlobal('localStorage', {
-      getItem: (key: string) => backing.get(key) ?? null,
-      setItem: (key: string, value: string) => backing.set(key, value),
-      removeItem: (key: string) => backing.delete(key),
-      clear: () => backing.clear(),
+    const origStorage = globalThis.localStorage
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: {
+        getItem: (key: string) => backing.get(key) ?? null,
+        setItem: (key: string, value: string) => backing.set(key, value),
+        removeItem: (key: string) => backing.delete(key),
+        clear: () => backing.clear(),
+      },
+      writable: true, configurable: true,
+    })
+    // restore after test
+    afterEach(() => {
+      Object.defineProperty(globalThis, 'localStorage', { value: origStorage, writable: true, configurable: true })
     })
 
     confirmBurn()
