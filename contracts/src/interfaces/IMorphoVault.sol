@@ -18,6 +18,12 @@ interface IMorphoVault {
     /// @notice Preview how many shares `assets` would mint (without fees).
     function convertToShares(uint256 assets) external view returns (uint256 shares);
 
+    /// @notice ERC-4626 preview of shares minted for `assets` (includes fees/rounding).
+    function previewDeposit(uint256 assets) external view returns (uint256 shares);
+
+    /// @notice ERC-4626 preview of assets needed to mint `shares`.
+    function previewMint(uint256 shares) external view returns (uint256 assets);
+
     /// @notice Preview how many assets `shares` would redeem to.
     function convertToAssets(uint256 shares) external view returns (uint256 assets);
 

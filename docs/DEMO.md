@@ -3,7 +3,7 @@
 ## Before you record
 
 - [ ] Hotfix wiring complete (`morphoAdapter()` non-zero, `vaultAPY(1) == 4.2e16`, `paused() == false`, `CCTP_MIN_FINALITY_THRESHOLD() == 2000`).
-- [ ] Demo wallet has 10–20 testnet USDC on Arc.
+- [ ] Demo wallet has ≥6 USDC on Arc mainnet (5 USDC minimum + gas), or 10–20 testnet USDC for the testnet build.
 - [ ] App running (`bun run dev`) or the Arc Studio preview open.
 - [ ] Explorer tabs pre-opened for treasury `0x5e2e…d489` and adapter `0x333d…7b71`.
 - [ ] Optional: a funded Sepolia wallet if you want to show the destination mint.
@@ -67,7 +67,7 @@ On-chain proof if asked: deposit `0xbab58770…04c4`, CCTP withdraw `0x3f0f2568�
 
 ## 2:30 — Close
 
-> "Three Circle products: CCTP v2 for cross-chain USDC, Earn Kit/Morpho for yield, and a Gateway-ready hook. Built end-to-end in Arc Studio, 80 Foundry tests and 36 frontend tests green, with a verified deposit and a live CCTP burn from yield to domain 0 plus a finalized Circle attestation. Testnet today; mainnet is gated on a funded deployer and an audit."
+> "Three Circle products: CCTP v2 for cross-chain USDC, Earn Kit/Morpho for yield, and a Gateway-ready hook. Built end-to-end in Arc Studio, 81 Foundry tests and 52 frontend tests green, with a verified testnet deposit and a live CCTP burn from yield to domain 0 plus a finalized Circle attestation. The same stack is deployed and wired on Arc mainnet with guardrails; the first live mainnet deposit is the next proof step."
 
 ## Fallbacks
 

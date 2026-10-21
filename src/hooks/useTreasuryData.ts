@@ -5,12 +5,12 @@
 import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useAccount, useReadContracts } from 'wagmi'
-import { ARC_TESTNET_CHAIN_ID, ADDRESSES, TREASURY_ABI, ADAPTER_ABI, ERC20_ABI, VAULT_ABI, VAULT_1_ID } from '../lib/contracts'
+import { ARC_CHAIN_ID, ADDRESSES, TREASURY_ABI, ADAPTER_ABI, ERC20_ABI, VAULT_ABI, VAULT_1_ID } from '../lib/contracts'
 import { useTreasuryStore, type TreasuryState } from '../stores/treasury'
 import { useUiStore } from '../stores/ui'
 import { fetchActivityEvents } from '../lib/activity'
 
-const CHAIN = ARC_TESTNET_CHAIN_ID
+const CHAIN = ARC_CHAIN_ID
 
 export function useTreasuryData() {
   const { address } = useAccount()

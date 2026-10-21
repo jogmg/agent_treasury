@@ -8,21 +8,36 @@
  */
 import { parseAbi, type Chain } from 'viem'
 import {
+  arbitrum,
   arbitrumSepolia,
+  avalanche,
   avalancheFuji,
+  base,
   baseSepolia,
+  mainnet,
+  optimism,
   optimismSepolia,
+  polygon,
   polygonAmoy,
   sepolia,
 } from 'viem/chains'
+import { ARC_CCTP_DOMAIN, IS_ARC_MAINNET } from './contracts'
 
-export const IRIS_SANDBOX_API = 'https://iris-api-sandbox.circle.com'
-export const ARC_CCTP_DOMAIN = 26
+export { ARC_CCTP_DOMAIN }
 
-// CCTP v2 testnet contracts use the same deterministic addresses on every EVM
-// testnet. Keep the source of truth in one place.
-export const TOKEN_MESSENGER_V2 = '0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA' as const
-export const MESSAGE_TRANSMITTER_V2 = '0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275' as const
+// Circle's production Iris API attests mainnet burns; sandbox attests testnets.
+export const IRIS_API = IS_ARC_MAINNET
+  ? 'https://iris-api.circle.com'
+  : 'https://iris-api-sandbox.circle.com'
+
+// CCTP v2 mainnet and testnet use different deterministic deployments.
+export const TOKEN_MESSENGER_V2 = (IS_ARC_MAINNET
+  ? '0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d'
+  : '0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA') as `0x${string}`
+
+export const MESSAGE_TRANSMITTER_V2 = (IS_ARC_MAINNET
+  ? '0x81D40F21F12A8F0E3252Bccb954D722d4c464B64'
+  : '0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275') as `0x${string}`
 
 export const MESSAGE_TRANSMITTER_V2_ABI = parseAbi([
   'function receiveMessage(bytes message, bytes attestation) external returns (bool)',
@@ -59,7 +74,7 @@ export interface CctpDestination {
   faucet?: string
 }
 
-export const CCTP_DESTINATIONS: Record<number, CctpDestination> = {
+const TESTNET_DESTINATIONS: Record<number, CctpDestination> = {
   0: {
     domain: 0,
     name: 'Ethereum Sepolia',
@@ -116,6 +131,59 @@ export const CCTP_DESTINATIONS: Record<number, CctpDestination> = {
   },
 }
 
+const MAINNET_DESTINATIONS: Record<number, CctpDestination> = {
+  0: {
+    domain: 0,
+    name: 'Ethereum',
+    chain: mainnet,
+    usdc: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+    transmitter: MESSAGE_TRANSMITTER_V2,
+    explorer: 'https://etherscan.io',
+  },
+  1: {
+    domain: 1,
+    name: 'Avalanche',
+    chain: avalanche,
+    usdc: '0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E',
+    transmitter: MESSAGE_TRANSMITTER_V2,
+    explorer: 'https://snowtrace.io',
+  },
+  2: {
+    domain: 2,
+    name: 'Optimism',
+    chain: optimism,
+    usdc: '0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85',
+    transmitter: MESSAGE_TRANSMITTER_V2,
+    explorer: 'https://optimistic.etherscan.io',
+  },
+  3: {
+    domain: 3,
+    name: 'Arbitrum',
+    chain: arbitrum,
+    usdc: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
+    transmitter: MESSAGE_TRANSMITTER_V2,
+    explorer: 'https://arbiscan.io',
+  },
+  6: {
+    domain: 6,
+    name: 'Base',
+    chain: base,
+    usdc: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+    transmitter: MESSAGE_TRANSMITTER_V2,
+    explorer: 'https://basescan.org',
+  },
+  7: {
+    domain: 7,
+    name: 'Polygon',
+    chain: polygon,
+    usdc: '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359',
+    transmitter: MESSAGE_TRANSMITTER_V2,
+    explorer: 'https://polygonscan.com',
+  },
+}
+
+export const CCTP_DESTINATIONS = IS_ARC_MAINNET ? MAINNET_DESTINATIONS : TESTNET_DESTINATIONS
+
 export function getCctpDestination(domain: number): CctpDestination | undefined {
   return CCTP_DESTINATIONS[domain]
 }
@@ -168,7 +236,7 @@ export async function fetchCctpAttestation(
   burnTx: string,
   sourceDomain = ARC_CCTP_DOMAIN,
 ): Promise<CctpAttestation | null> {
-  const url = `${IRIS_SANDBOX_API}/v2/messages/${sourceDomain}?transactionHash=${encodeURIComponent(burnTx)}`
+  const url = `${IRIS_API}/v2/messages/${sourceDomain}?transactionHash=${encodeURIComponent(burnTx)}`
   const response = await fetch(url)
   if (response.status === 404) return null
   if (!response.ok) {

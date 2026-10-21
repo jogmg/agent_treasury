@@ -1,42 +1,83 @@
 /**
  * Contract addresses, ABIs, and chain config for Agent Treasury.
- * Hardcoded fallbacks; overrideable via VITE_ env vars.
+ *
+ * Network is selected at build time: `VITE_ARC_NETWORK=mainnet` (default) or
+ * `testnet`. Addresses fall back to the verified deployments below and can be
+ * overridden with VITE_* env vars.
  */
-import { parseAbi } from 'viem'
+import { defineChain, parseAbi } from 'viem'
 
-export const ARC_TESTNET_CHAIN_ID = 5042002
-export const ARC_TESTNET_RPC      = 'https://rpc.testnet.arc.io'
-export const ARC_EXPLORER         = 'https://explorer.testnet.arc.io'
-export const ARC_CCTP_DOMAIN      = 26
+export type ArcNetwork = 'mainnet' | 'testnet'
 
-// Arc's public RPC rate-limits aggressively. Fail over across the four
-// endpoints published in viem's arcTestnet chain definition.
-export const ARC_RPC_URLS = [
-  ARC_TESTNET_RPC,
-  'https://rpc.blockdaemon.testnet.arc.io',
-  'https://rpc.drpc.testnet.arc.io',
-  'https://rpc.quicknode.testnet.arc.io',
-] as const
+const ENV_NETWORK = (import.meta.env.VITE_ARC_NETWORK as string | undefined)?.toLowerCase()
+export const ARC_NETWORK: ArcNetwork = ENV_NETWORK === 'testnet' ? 'testnet' : 'mainnet'
+export const IS_ARC_MAINNET = ARC_NETWORK === 'mainnet'
+export const ARC_NETWORK_LABEL = IS_ARC_MAINNET ? 'Arc Mainnet' : 'Arc Testnet'
+
+export const ARC_CHAIN_ID = IS_ARC_MAINNET ? 5042 : 5042002
+export const ARC_EXPLORER = IS_ARC_MAINNET ? 'https://explorer.arc.io' : 'https://explorer.testnet.arc.io'
+export const ARC_CCTP_DOMAIN = 26
+
+// Arc's public RPC rate-limits aggressively. Fail over across the endpoints
+// published in the Arc docs for the selected network.
+export const ARC_RPC_URLS = (IS_ARC_MAINNET
+  ? [
+      'https://rpc.mainnet.arc.io',
+      'https://rpc.blockdaemon.mainnet.arc.io',
+      'https://rpc.drpc.mainnet.arc.io',
+      'https://rpc.quicknode.mainnet.arc.io',
+    ]
+  : [
+      'https://rpc.testnet.arc.io',
+      'https://rpc.blockdaemon.testnet.arc.io',
+      'https://rpc.drpc.testnet.arc.io',
+      'https://rpc.quicknode.testnet.arc.io',
+    ]) as readonly string[]
+
+export const ARC_CHAIN = defineChain({
+  id: ARC_CHAIN_ID,
+  name: IS_ARC_MAINNET ? 'Arc' : 'Arc Testnet',
+  nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
+  rpcUrls: { default: { http: [...ARC_RPC_URLS] } },
+  blockExplorers: { default: { name: 'Arc Explorer', url: ARC_EXPLORER } },
+})
+
+const MAINNET_ADDRESSES = {
+  usdc:     '0x3600000000000000000000000000000000000000',
+  treasury: '0xf71b5d1a19d72b98675785123fae811698be6f63',
+  adapter:  '0x5102057330f5bb5f3e4eb0925b7d1eac8a563c23',
+  receiver: '0x91f1eb97a40fdab05d150c10566cf9aa3546a375',
+  vault1:   '0x8E357432CC12ff425c36432F312968aEb16112AF', // Galaxy USDC
+} as const
+
+const TESTNET_ADDRESSES = {
+  usdc:     '0x3600000000000000000000000000000000000000',
+  treasury: '0x5e2e3da19533ebf85bc916612eff5cdc7bf4d489',
+  adapter:  '0x333deccbf9091540e849b7af80f2f10b72197b71',
+  receiver: '0x8066bcf8e6b17e2d84082179a89f0972cc6e31c1',
+  vault1:   '0xAabbeF1D3971c710276ed41eC791BbE14CdB8E88',
+} as const
+
+const BASE_ADDRESSES = IS_ARC_MAINNET ? MAINNET_ADDRESSES : TESTNET_ADDRESSES
+
+export const ADDRESSES = {
+  usdc:     (import.meta.env.VITE_USDC_ADDRESS     || BASE_ADDRESSES.usdc) as `0x${string}`,
+  treasury: (import.meta.env.VITE_TREASURY_ADDRESS || BASE_ADDRESSES.treasury) as `0x${string}`,
+  adapter:  (import.meta.env.VITE_ADAPTER_ADDRESS  || BASE_ADDRESSES.adapter) as `0x${string}`,
+  receiver: (import.meta.env.VITE_RECEIVER_ADDRESS || BASE_ADDRESSES.receiver) as `0x${string}`,
+  vault1:   (import.meta.env.VITE_VAULT_ADDRESS    || BASE_ADDRESSES.vault1) as `0x${string}`,
+}
 
 // AgentTreasury deployment block. Starting the activity scan here avoids
 // rescanning Arc's entire history (and hitting eth_getLogs range limits).
-// Current deployment (CCTP hotfix): all three contracts were created at block
-// 68193025. Keep this in sync with deployments/arc-testnet-fixed.json.
+// Mainnet: adapter deployed at 27153175. Testnet: hotfix stack at 68193025.
 export const ARC_TREASURY_DEPLOY_BLOCK = BigInt(
-  (import.meta.env.VITE_TREASURY_DEPLOY_BLOCK as string | undefined) || '68193025',
+  (import.meta.env.VITE_TREASURY_DEPLOY_BLOCK as string | undefined) ||
+    (IS_ARC_MAINNET ? '27153175' : '68193025'),
 )
 
-export const ADDRESSES = {
-  usdc:     (import.meta.env.VITE_USDC_ADDRESS     || '0x3600000000000000000000000000000000000000') as `0x${string}`,
-  treasury: (import.meta.env.VITE_TREASURY_ADDRESS  || '0x5e2e3da19533ebf85bc916612eff5cdc7bf4d489') as `0x${string}`,
-  adapter:  (import.meta.env.VITE_ADAPTER_ADDRESS   || '0x333deccbf9091540e849b7af80f2f10b72197b71') as `0x${string}`,
-  receiver: (import.meta.env.VITE_RECEIVER_ADDRESS  || '0x8066bcf8e6b17e2d84082179a89f0972cc6e31c1') as `0x${string}`,
-  vault1:   '0xAabbeF1D3971c710276ed41eC791BbE14CdB8E88' as `0x${string}`,
-}
-
-// The pre-hotfix stack still holds testnet USDC for the owner and one agent.
-// `withdrawLocal` on the old treasury works, so the UI exposes a recovery card
-// instead of stranding those funds after the address switch.
+// The pre-hotfix stack only exists on testnet. Kept for historical reference;
+// no mainnet funds were ever held by it.
 export const LEGACY_ADDRESSES = {
   treasury: '0x9b390bb10bd30a25b5a07dfb9e0a058d7993ae0d' as `0x${string}`,
   adapter:  '0xe1dafeef6762c672bb5e4a8ff62c3812e111b2e3' as `0x${string}`,
@@ -46,8 +87,10 @@ export const LEGACY_ADDRESSES = {
 export const LEGACY_TREASURY_DEPLOY_BLOCK = 68109314n
 
 export const VAULT_1_ID = 1n
-export const VAULT_1_NAME = 'USDC Core'
-export const VAULT_1_APY_DISPLAY = '~4.2%'
+export const VAULT_1_NAME = IS_ARC_MAINNET ? 'Galaxy USDC' : 'USDC Core'
+export const VAULT_1_TIER = IS_ARC_MAINNET ? 'Galaxy curated · 0 fees' : 'Conservative'
+export const VAULT_1_APY_DISPLAY = IS_ARC_MAINNET ? '~2.65%' : '~4.2%'
+
 
 // ── ABIs ────────────────────────────────────────────────────────────────────
 

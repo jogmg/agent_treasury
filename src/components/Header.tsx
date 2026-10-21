@@ -1,5 +1,6 @@
 import { ConnectKitButton } from 'connectkit'
 import { Vault } from 'lucide-react'
+import { ARC_NETWORK_LABEL } from '../lib/contracts'
 
 export function Header() {
   return (
@@ -15,7 +16,7 @@ export function Header() {
             </span>
           </div>
           <span className="hidden rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-emerald-400 sm:inline-block">
-            Arc Testnet
+            {ARC_NETWORK_LABEL}
           </span>
         </div>
         <ConnectKitButton />

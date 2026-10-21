@@ -6,7 +6,7 @@ Agent Treasury is a **single-tenant-per-agent** treasury primitive plus a client
 
 ```
 ┌─────────────────────────────┐        ┌──────────────────────────────────────────┐
-│  Vite / React / wagmi       │        │  Arc Testnet                             │
+│  Vite / React / wagmi       │        │  Arc                                     │
 │                             │        │                                          │
 │  TanStack Query ──reads────►│───────►│  AgentTreasury ──► MorphoVaultAdapter ──►│──► Morpho ERC-4626 vault
 │        │                    │        │        ▲                                 │
@@ -57,7 +57,7 @@ All state-changing paths are `nonReentrant`. Where funds move, effects are writt
 
 ### MorphoVaultAdapter
 
-Allowlisted ERC-4626 vaults. The owner registers a vault with `addVault(id, vault, name, symbol, minDeposit)`; only the treasury or owner can `deposit`/`withdraw`. The adapter holds shares, never user funds between transactions. `vaultAPY(id)` is an owner-set cache used by the UI (testnet: `4.2e16` = 4.2%). `previewRedeem(shares, id)` and `pricePerShare(id)` come from the vault.
+Allowlisted ERC-4626 vaults. The owner registers a vault with `addVault(id, vault, name, symbol, minDeposit)`; only the treasury or owner can `deposit`/`withdraw`. The adapter holds shares, never user funds between transactions. `vaultAPY(id)` is an owner-set cache used by the UI (mainnet: `2.65%`, testnet: `4.2%`). `previewRedeem(shares, id)` and `pricePerShare(id)` come from the vault.
 
 ### CCTPReceiver
 

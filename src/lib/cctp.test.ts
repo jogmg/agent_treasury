@@ -1,12 +1,19 @@
 import { describe, expect, it } from 'vitest'
 import { getCctpDestination, getCctpMessageNonce, CCTP_DESTINATIONS } from './cctp'
+import { IS_ARC_MAINNET } from './contracts'
 
 describe('CCTP destinations', () => {
-  it('maps Ethereum Sepolia (domain 0)', () => {
+  it('maps domain 0 to the selected network', () => {
     const destination = getCctpDestination(0)
-    expect(destination?.chain.id).toBe(11155111)
-    expect(destination?.transmitter).toBe('0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275')
-    expect(destination?.usdc).toBe('0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238')
+    if (IS_ARC_MAINNET) {
+      expect(destination?.chain.id).toBe(1)
+      expect(destination?.transmitter).toBe('0x81D40F21F12A8F0E3252Bccb954D722d4c464B64')
+      expect(destination?.usdc).toBe('0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48')
+    } else {
+      expect(destination?.chain.id).toBe(11155111)
+      expect(destination?.transmitter).toBe('0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275')
+      expect(destination?.usdc).toBe('0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238')
+    }
   })
 
   it('has a source USDC address for every chain', () => {

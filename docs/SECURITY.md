@@ -1,6 +1,7 @@
 # Security notes
 
-> **Status: unaudited, testnet-only.** Do not custody real funds with this build.
+> **Status: unaudited, live on Arc mainnet with guardrails.** Do not custody third-party funds or raise
+> the launch caps until an external audit is complete.
 
 ## Trust model
 
@@ -14,6 +15,23 @@
 
 The keeper separation is enforced and covered by regression tests: a keeper cannot call `requestWithdrawal` or `setSpendingLimit` for another agent.
 
+## Mainnet deployment (October 21, 2026)
+
+Deployed and independently verified on Arc mainnet (`5042`):
+
+| Contract | Address |
+|---|---|
+| AgentTreasury | `0xf71b5d1a19d72b98675785123fae811698be6f63` |
+| MorphoVaultAdapter | `0x5102057330f5bb5f3e4eb0925b7d1eac8a563c23` |
+| CCTPReceiver | `0x91f1eb97a40fdab05d150c10566cf9aa3546a375` |
+
+Verified: bytecode, owner/keeper, adapter/receiver links, mainnet CCTP and domain `26`, default vault
+`1`, unpaused, vault asset USDC, active with `minDeposit = 5 USDC`, APY `2.65%`, and positive previews.
+
+Launch guardrails: **5 USDC minimum**, **25 USDC/day and 50 USDC/week** spending limit, owner EOA as
+keeper. A live mainnet deposit is pending wallet funding above the 5 USDC minimum. The exact deploy
+sequence passed on a mainnet fork first. Full record: `deployments/arc-mainnet.json`.
+
 ## Testnet E2E evidence
 
 The hotfix contracts moved real testnet USDC through the live Morpho Earn Kit vault and outbound CCTP:
@@ -24,7 +42,10 @@ The hotfix contracts moved real testnet USDC through the live Morpho Earn Kit va
 
 The earlier 10 USDC deposit / 1 USDC local withdrawal proof is preserved in `deployments/arc-testnet.json`. The original CCTP path was broken by an ABI return-value mismatch (Arc returns no data); the hotfix removes that return declaration and uses finality threshold `2000`.
 
-This proves the deposit → vault → CCTP burn → attestation loop, but it does **not** replace an audit, mainnet rehearsal, or adversarial testing. The destination Sepolia mint is pending gas; see `scripts/complete-cctp.ts`.
+This proves the deposit → vault → CCTP burn → attestation loop. It does **not** replace an audit or
+adversarial testing. The mainnet stack includes the zero-share guard and was rehearsed on a mainnet
+fork, but no live mainnet deposit has run yet. The destination Sepolia mint is pending gas; see
+`scripts/complete-cctp.ts`.
 
 ## Invariants
 
@@ -43,19 +64,23 @@ This proves the deposit → vault → CCTP burn → attestation loop, but it doe
 3. **CCTP body layout assumptions.** The receiver tolerates versioned (228-byte fixed fields) and unversioned (224-byte) `BurnMessageV2` layouts and reads `hookData` with a bounds-checked length word. This matches Circle's documented layout at the time of writing but has not been fuzz-tested against live mainnet messages.
 4. **No automatic Iris relay.** Outbound withdrawals burn on Arc; the destination mint requires a relayer or manual `receiveMessage` with the attestation. The UI surfaces the attestation path but does not run a relayer.
 5. **Circle Gateway is not live.** The treasury has a `gatewayReceiver` hook and the UI is honest about it, but unified Gateway balances require a server-side API key and are not implemented. No fake Gateway numbers are shown.
-6. **APY is an owner-set cache.** `vaultAPY(1) = 4.2e16` is a display value, not an on-chain oracle. The UI labels projections as estimates.
-7. **Event history is bounded.** The activity scanner reads the last 90,000 blocks in 9,000-block chunks and silently skips RPC-limited chunks. Older history is not indexed.
+6. **APY is an owner-set cache.** `vaultAPY(1)` is a display value (mainnet `2.65%`, testnet `4.2%`), not an on-chain oracle. The UI labels projections as estimates.
+7. **Event history is bounded.** The activity scanner starts at the configured deployment block and reads 9,000-block chunks; it skips RPC-limited chunks, so very old history is not indexed.
 8. **CSV export is not sanitized for spreadsheet formula injection.** Only export events you trust; args are JSON-encoded.
-9. **No formal verification or fuzzing of the full state machine.** Foundry unit/invariant tests cover the main paths (80 tests) but not all adversarial sequences.
+9. **No formal verification or fuzzing of the full state machine.** Foundry unit/invariant tests cover the main paths (81 tests, including a mainnet fork rehearsal) but not all adversarial sequences.
 10. **Frontend has no backend and no secrets.** All writes are user-signed. A compromised RPC can lie about reads; verify critical transactions on the explorer.
 
-## Pre-mainnet checklist
+## Post-mainnet hardening checklist
 
+- [x] Mainnet deployment with guarded wiring and on-chain verification.
+- [x] Mainnet fork rehearsal of the exact deploy sequence.
+- [x] Zero-share guard in the mainnet adapter.
+- [ ] Live mainnet deposit / local withdrawal proof (pending funding above 5 USDC).
 - [ ] Independent review / audit of `AgentTreasury`, `MorphoVaultAdapter`, `CCTPReceiver`.
 - [ ] Owner-bounded spending limits.
-- [ ] Multisig/timelock owner.
+- [ ] Multisig/timelock owner and a dedicated keeper key.
 - [ ] Live CCTP message decoding tests against mainnet messages.
 - [ ] Iris relay service (or documented manual runbook).
 - [ ] Gateway integration with a server-side key, or remove the hook from the UI copy.
-- [ ] Mainnet vault allowlist and per-vault caps.
+- [ ] Per-vault caps and a reviewed mainnet vault allowlist.
 - [ ] Incident runbook: pause, ownership recovery, user communication.

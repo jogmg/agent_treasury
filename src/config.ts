@@ -5,48 +5,33 @@
 
 import { createConfig } from 'wagmi'
 import { fallback, http } from 'viem'
-import {
-  arbitrumSepolia,
-  arcTestnet,
-  avalancheFuji,
-  baseSepolia,
-  mainnet,
-  optimismSepolia,
-  polygonAmoy,
-  sepolia,
-} from 'viem/chains'
+import { mainnet } from 'viem/chains'
 import { injected } from 'wagmi/connectors'
 import { registerChain } from './tracing'
-import { ARC_RPC_URLS } from './lib/contracts'
+import { ARC_CHAIN, ARC_RPC_URLS } from './lib/contracts'
+import { CCTP_DESTINATION_CHAINS } from './lib/cctp'
 
-// Pre-register chain RPC URLs so trace events show correct chain names immediately
-registerChain(arcTestnet.id, arcTestnet.rpcUrls.default.http[0])
+// Pre-register the chain RPC URL so trace events show the correct chain name immediately.
+registerChain(ARC_CHAIN.id, ARC_CHAIN.rpcUrls.default.http[0])
+
+// CCTP destination chains. The app switches to one of these only when it is
+// time to submit a destination mint (withdrawals) or a source burn (deposits).
+// Ethereum mainnet is always included for ENS resolution.
+const destinationChains = Array.from(
+  new Map([...CCTP_DESTINATION_CHAINS, mainnet].map((chain) => [chain.id, chain])).values(),
+)
+
+const destinationTransports = Object.fromEntries(
+  destinationChains.map((chain) => [chain.id, http()]),
+)
+
+const chains = [ARC_CHAIN, ...destinationChains] as const
 
 export const config = createConfig({
-  chains: [
-    arcTestnet,
-    // CCTP destination chains. The app switches to one of these only when it
-    // is time to submit the destination mint.
-    sepolia,
-    baseSepolia,
-    arbitrumSepolia,
-    avalancheFuji,
-    optimismSepolia,
-    polygonAmoy,
-    mainnet, // mainnet needed for ENS resolution
-  ],
+  chains,
   connectors: [injected()],
   transports: {
-    [arcTestnet.id]: fallback(ARC_RPC_URLS.map((url) => http(url))),
-    [sepolia.id]: fallback([
-      http('https://ethereum-sepolia-rpc.publicnode.com'),
-      http('https://rpc.sepolia.org'),
-    ]),
-    [baseSepolia.id]: http('https://sepolia.base.org'),
-    [arbitrumSepolia.id]: http('https://sepolia-rollup.arbitrum.io/rpc'),
-    [avalancheFuji.id]: http('https://api.avax-test.network/ext/bc/C/rpc'),
-    [optimismSepolia.id]: http('https://sepolia.optimism.io'),
-    [polygonAmoy.id]: http('https://polygon-amoy.drpc.org'),
-    [mainnet.id]: http(), // ENS resolution uses mainnet
+    ...destinationTransports,
+    [ARC_CHAIN.id]: fallback(ARC_RPC_URLS.map((url) => http(url))),
   },
 })

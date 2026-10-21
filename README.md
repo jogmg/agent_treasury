@@ -2,7 +2,7 @@
 
 **Cross-chain USDC treasury for AI agents, with automated Morpho yield on Arc.**
 
-Built with [Arc Studio](https://studio.arc.io) · Arc Testnet (chain ID `5042002`)
+Built with [Arc Studio](https://studio.arc.io) · Arc Mainnet (chain ID `5042`)
 
 ---
 
@@ -11,17 +11,56 @@ Built with [Arc Studio](https://studio.arc.io) · Arc Testnet (chain ID `5042002
 AI agents are becoming economic actors, but they have nowhere safe to keep working capital. Agent Treasury gives each agent a non-custodial USDC account on Arc that:
 
 1. **Receives USDC from any CCTP-supported chain** via CCTP v2.
-2. **Automatically deploys idle USDC into a Morpho vault** through Circle's Earn Kit rails, earning ~4.2% APY on testnet.
+2. **Automatically deploys idle USDC into a Morpho vault** through Circle's Earn Kit rails, earning ~2.65% net APY on Arc mainnet.
 3. **Withdraws to any destination chain** by burning USDC on Arc and minting it on the destination domain.
 4. **Enforces per-agent spending limits, pausing, and a two-step owner model** so an agent can operate autonomously without unlimited custody.
 
 The app is a single-page dashboard: Overview, Deposit, Yield, Withdraw, Activity, Settings.
 
-> Testnet-first. Mainnet deployment is intentionally gated on a funded deployer; see [Mainnet status](#mainnet-status).
+> **Live on Arc mainnet, with guardrails.** The contracts are unaudited, so the launch caps are deliberately
+> small: a 5 USDC vault minimum and a 25 USDC/day, 50 USDC/week spending limit for the owner agent.
+> The same codebase builds for testnet with `VITE_ARC_NETWORK=testnet`.
 
 ---
 
-## Live contracts (Arc Testnet)
+## Live contracts (Arc Mainnet)
+
+| Contract | Address |
+|---|---|
+| AgentTreasury | [`0xf71b5d1a19d72b98675785123fae811698be6f63`](https://explorer.arc.io/address/0xf71b5d1a19d72b98675785123fae811698be6f63) |
+| MorphoVaultAdapter | [`0x5102057330f5bb5f3e4eb0925b7d1eac8a563c23`](https://explorer.arc.io/address/0x5102057330f5bb5f3e4eb0925b7d1eac8a563c23) |
+| CCTPReceiver | [`0x91f1eb97a40fdab05d150c10566cf9aa3546a375`](https://explorer.arc.io/address/0x91f1eb97a40fdab05d150c10566cf9aa3546a375) |
+
+Vault 1 is **Galaxy USDC** [`0x8E357432CC12ff425c36432F312968aEb16112AF`](https://explorer.arc.io/address/0x8E357432CC12ff425c36432F312968aEb16112AF)
+(`arcUSDC`, 18-dec shares, ~2.65% net APY, 0 fees, ~12.2M USDC instant liquidity). Fallback:
+Steakhouse Prime `0xbeef0016cb2Fd5C352ea7CA08a9f54739DFa7298` (~1.97% APY).
+
+Deployment blocks: adapter `27153175`, treasury `27153209`. Owner and keeper:
+`0xD00fD0B006c01342522cAf4FA04D5f8910aB268c`. Full record: `deployments/arc-mainnet.json`.
+
+**Launch guardrails (unaudited):**
+
+- Vault minimum **5 USDC** (enforced on-chain; derived from share price and gas-versus-yield economics).
+- Spending limit **25 USDC/day, 50 USDC/week** for the owner agent.
+- Keeper is the owner EOA for launch; rotate to a dedicated key before scaling.
+- External audit before raising caps or onboarding third-party agents.
+- A live mainnet deposit is still pending: the deployer wallet held ~3.32 USDC after gas, below the
+  5 USDC minimum. The deployment itself, wiring, and config are verified on-chain.
+
+Protocol constants (the CCTP deployments differ between networks):
+
+| Item | Arc Mainnet | Arc Testnet |
+|---|---|---|
+| USDC (ERC-20, 6 decimals) | `0x3600000000000000000000000000000000000000` | same |
+| TokenMessengerV2 | `0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d` | `0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA` |
+| MessageTransmitterV2 | `0x81D40F21F12A8F0E3252Bccb954D722d4c464B64` | `0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275` |
+| CCTP domain | `26` | `26` |
+| RPC / Explorer | `https://rpc.mainnet.arc.io` / `https://explorer.arc.io` | `https://rpc.testnet.arc.io` / `https://explorer.testnet.arc.io` |
+
+The app selects network at build time (`VITE_ARC_NETWORK`, default `mainnet`), including the CCTP
+destination map, Iris endpoint, explorer, and RPC list.
+
+### Testnet deployment (still live)
 
 | Contract | Address |
 |---|---|
@@ -29,24 +68,13 @@ The app is a single-page dashboard: Overview, Deposit, Yield, Withdraw, Activity
 | MorphoVaultAdapter | [`0x333deccbf9091540e849b7af80f2f10b72197b71`](https://explorer.testnet.arc.io/address/0x333deccbf9091540e849b7af80f2f10b72197b71) |
 | CCTPReceiver | [`0x8066bcf8e6b17e2d84082179a89f0972cc6e31c1`](https://explorer.testnet.arc.io/address/0x8066bcf8e6b17e2d84082179a89f0972cc6e31c1) |
 
-Deployment block: `68193025`. Owner and keeper: `0xD00fD0B006c01342522cAf4FA04D5f8910aB268c`. Full record: `deployments/arc-testnet-fixed.json`.
+Deployment block `68193025`. Full record and E2E proof: `deployments/arc-testnet-fixed.json`.
+Build it with `VITE_ARC_NETWORK=testnet`; it keeps the 1 USDC demo minimum and the ~4.2% APY vault
+`0xAabbeF1D3971c710276ed41eC791BbE14CdB8E88`.
 
-Protocol constants (testnet and mainnet share the same CCTP contracts and domain):
+### CCTP hotfix (testnet history)
 
-| Item | Value |
-|---|---|
-| USDC (ERC-20, 6 decimals) | `0x3600000000000000000000000000000000000000` |
-| TokenMessengerV2 | `0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA` |
-| MessageTransmitterV2 | `0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275` |
-| CCTP domain | `26` |
-| Morpho Earn Kit USDC vault | `0xAabbeF1D3971c710276ed41eC791BbE14CdB8E88` |
-| RPC / Explorer | `https://rpc.testnet.arc.io` / `https://explorer.testnet.arc.io` |
-
-> **Status: CCTP hotfix deployed and E2E verified on testnet.** The new stack is fully wired: adapter, receiver, vault 1, keeper, and default vault are live. A real 10 USDC deposit and real CCTP withdrawals from yield have succeeded. The burn produced a finalized Circle attestation for destination domain `0` (Ethereum Sepolia). The app now polls Iris automatically, shows the attestation, and submits the destination mint after the user switches networks and approves the transaction. That final mint still needs a little destination-chain gas. Full record: `deployments/arc-testnet-fixed.json`.
-
-### CCTP hotfix
-
-The original treasury (`0x9b390bb10bd30a25b5a07dfb9e0a058d7993ae0d`) burned successfully but reverted while ABI-decoding the return value of `depositForBurnWithHook`. Arc's TokenMessengerV2 returns **no data**, while the original interface declared `returns (uint64)`. The whole withdrawal rolled back after the burn. The fixed interface returns nothing, and `CCTP_MIN_FINALITY_THRESHOLD` is `2000` for reliable Arc-origin attestations.
+The mainnet deployment uses the fixed no-return interface from day one. This is the testnet incident that produced it: the original treasury (`0x9b390bb10bd30a25b5a07dfb9e0a058d7993ae0d`) burned successfully but reverted while ABI-decoding the return value of `depositForBurnWithHook`. Arc's TokenMessengerV2 returns **no data**, while the original interface declared `returns (uint64)`. The whole withdrawal rolled back after the burn. The fixed interface returns nothing, and `CCTP_MIN_FINALITY_THRESHOLD` is `2000` for reliable Arc-origin attestations.
 
 ### On-chain proof (Arc Testnet)
 
@@ -84,7 +112,7 @@ SEPOLIA_RPC_URL=... PRIVATE_KEY=... npx tsx scripts/complete-cctp.ts 0x3f0f... -
 ## Architecture
 
 ```
-Source chain                         Arc Testnet                              Destination chain
+Source chain                         Arc                                      Destination chain
 ────────────                         ───────────                              ─────────────────
 User / agent ── approve ──┐
                           ▼
@@ -116,7 +144,7 @@ User / agent ── approve ──┐
 ### Contracts
 
 - **`AgentTreasury.sol`** — per-agent accounts. Holds principal, deployed principal, vault shares, per-domain deposits, daily/weekly spending windows, pending CCTP withdrawals, keeper role, pause, two-step ownership. `getTotalBalance()` is non-reverting: it falls back to principal if the vault preview fails.
-- **`MorphoVaultAdapter.sol`** — allowlisted ERC-4626 vault registry with per-vault min deposits, APY cache, and `previewRedeem`. Only the treasury (or owner) can move funds.
+- **`MorphoVaultAdapter.sol`** — allowlisted ERC-4626 vault registry with per-vault min deposits, APY cache, `previewRedeem`, and a `ZeroShares` guard. Only the treasury (or owner) can move funds.
 - **`CCTPReceiver.sol`** — relayer adapter for inbound CCTP. It decodes the agent from `hookData`, routes malformed hook data to a default beneficiary instead of reverting, and forwards USDC into the treasury. It is unit-tested but **not used by the current app**, because CCTP v2 hooks are opaque and require an integrator-run relayer. The direct app path mints to the user's Arc wallet and calls `deposit()`.
 - **`libraries/CCTPMessageLib.sol`** — hook data encode/decode.
 - **`libraries/Errors.sol`** — custom errors.
@@ -134,10 +162,12 @@ User / agent ── approve ──┐
 
 ```bash
 bun install
-bun run dev          # http://localhost:5173
-bun run build        # production build
+bun run dev          # http://localhost:5173 — Arc mainnet by default
+bun run build        # production build (mainnet)
 bun run test         # Vitest (52 tests)
 bun run check        # lint + typecheck
+
+VITE_ARC_NETWORK=testnet bun run dev   # testnet demo build
 ```
 
 Contracts (Foundry). The Solidity dependencies are not vendored, so install them once:
@@ -147,51 +177,54 @@ cd contracts
 forge install foundry-rs/forge-std --no-commit
 forge install OpenZeppelin/openzeppelin-contracts@v5.1.0 --no-commit
 forge build
-forge test           # 80 tests
+forge test           # 81 tests
 ```
 
-Environment overrides (optional; sensible testnet fallbacks are compiled in):
+The app selects its whole chain surface at build time. Optional overrides:
 
 ```bash
+VITE_ARC_NETWORK=mainnet        # or testnet; default mainnet
 VITE_TREASURY_ADDRESS=0x...
 VITE_ADAPTER_ADDRESS=0x...
 VITE_RECEIVER_ADDRESS=0x...
+VITE_VAULT_ADDRESS=0x...
 VITE_USDC_ADDRESS=0x...
-VITE_TREASURY_DEPLOY_BLOCK=68193025
+VITE_TREASURY_DEPLOY_BLOCK=27153175
 ```
 
-Fresh hotfix deployment (deploys and wires all three contracts, then starts the
-Ownable2Step handoff):
+Mainnet deployment uses the guarded Foundry script (refuses wrong chain, missing code, a
+non-USDC vault, or a minimum that would mint zero shares):
 
 ```bash
 cd contracts
-forge script script/DeployFixedTestnet.s.sol \
-  --rpc-url https://rpc.testnet.arc.io \
+DEPLOYER_ADDRESS=0x... FINAL_OWNER_ADDRESS=0x... \
+forge script script/DeployMainnet.s.sol \
+  --rpc-url https://rpc.mainnet.arc.io \
   --broadcast \
   --private-key "$DEPLOYER_PRIVATE_KEY" \
   -vv
 ```
 
-Required env: `DEPLOYER_ADDRESS`, `FINAL_OWNER_ADDRESS`, `ARC_USDC`,
-`ARC_TOKEN_MESSENGER`, `ARC_MESSAGE_TRANSMITTER`, `ARC_CCTP_DOMAIN`, and
-`VAULT_1_ADDRESS`. See `docs/RUNBOOK.md`.
+Default guardrails: `MIN_DEPOSIT=5000000` (5 USDC), `DAILY_LIMIT=25000000`,
+`WEEKLY_LIMIT=50000000`. The live deployment was signed by the owner's MetaMask through
+`scripts/mainnet-deploy/`; no key was stored in the repo. See `docs/RUNBOOK.md` for verification.
 
 See `docs/RUNBOOK.md` for the exact env vars and smoke tests.
 
 ---
 
-## Demo flow (testnet)
+## Demo flow
 
-1. Connect a wallet on Arc Testnet; get USDC from https://faucet.circle.com.
-2. **Deposit** 10+ USDC. The app approves USDC, calls `deposit()`, and the treasury deploys it into the Morpho vault; the dashboard shows shares, APY, and yield.
+1. Connect a wallet on Arc mainnet and fund it with USDC on Arc. For the testnet build, get USDC from https://faucet.circle.com (select **Arc Testnet**).
+2. **Deposit** at least **5 USDC on mainnet** (1 USDC on testnet). The app approves USDC, calls `deposit()`, and the treasury deploys it into the Morpho vault; the dashboard shows shares, APY, and yield.
 3. **Yield** tab: live APY/TVL from the adapter, compound projection, local growth chart with 24h/7d/30d/All time ranges.
 4. **Withdraw** 25/50/75/MAX via `withdrawLocal()`; USDC lands in the wallet.
 5. **Activity**: decoded `DepositRecorded`, `WithdrawalToWallet`, `YieldStrategyChanged`, etc., with explorer links and CSV export.
 6. **Settings**: set daily/weekly spending limits; inspect owner/keeper/pause.
 
-Cross-chain **inbound** deposits are in the Deposit tab. Pick a source chain, approve and burn USDC with CCTP v2, then the app polls Iris, switches to Arc, mints to the connected wallet, approves the treasury, and calls `deposit()`. Standard CCTP takes 15–30 minutes and needs a little Arc gas for the final transactions.
+Cross-chain **inbound** deposits are in the Deposit tab. Pick a source chain, approve and burn USDC with CCTP v2, then the app polls Iris, switches to Arc, mints to the connected wallet, approves the treasury, and calls `deposit()`. Standard CCTP takes 15–30 minutes and needs a little Arc gas for the final transactions. On mainnet the source list is Ethereum, Avalanche, Optimism, Arbitrum, Base, and Polygon, and Iris is Circle's production API.
 
-Cross-chain **outbound** (`requestWithdrawal`) is available in the Withdraw tab (Advanced: Cross-Chain Withdrawal). Destination is picked by **chain name in a dropdown** (Ethereum Sepolia, Base Sepolia, Arbitrum Sepolia, OP Sepolia, Avalanche Fuji, Polygon Amoy). It burns via CCTP v2 and then the app fetches the Circle attestation automatically. When the attestation is ready, the app switches to the destination chain and asks for one wallet confirmation to submit `receiveMessage`; the final mint needs destination-chain gas. There is no request list in this section (transfers live in the Activity tab); pasting an Arc burn tx hash resumes an older transfer. `scripts/complete-cctp.ts` is the headless fallback.
+Cross-chain **outbound** (`requestWithdrawal`) is available in the Withdraw tab (Advanced: Cross-Chain Withdrawal). Destination is picked by **chain name in a dropdown** (mainnet: Ethereum, Avalanche, Optimism, Arbitrum, Base, Polygon; testnet: the Sepolia/Fuji/Amoy equivalents). It burns via CCTP v2 and then the app fetches the Circle attestation automatically. When the attestation is ready, the app switches to the destination chain and asks for one wallet confirmation to submit `receiveMessage`; the final mint needs destination-chain gas. There is no request list in this section (transfers live in the Activity tab); pasting an Arc burn tx hash resumes an older transfer. `scripts/complete-cctp.ts` is the headless fallback.
 
 The Activity tab groups activity with **All / In flight / Deposits / Withdrawals / Yield** filters. Every row — chain event or in-flight transfer — renders through the same uniform row UI with a kind badge: **CCTP Deposit** (inbound cross-chain), **CCTP Withdrawal** (outbound burn), **Local Withdraw**, **Deposit**, **Yield**, etc. Row lists are sorted most-recent first: chain events are enriched with their block timestamps (cached and interpolated during log scans), and every row's expandable panel shows the date and time alongside the tx links (chain events additionally keep "Block N"). The **In flight** filter (with a live count) lists every cross-chain CCTP transfer still in progress, inbound and outbound, with the burn tx hash, chains, amount, status, and a Resume CTA (completed transfers show no CTA). In-flight transfers are persisted in the browser (`localStorage`), so a page reload never loses them — unlike chain events, they exist until the mint/deposit lands on Arc.
 
@@ -202,38 +235,52 @@ The Activity tab groups activity with **All / In flight / Deposits / Withdrawals
 | Capability | Status |
 |---|---|
 | Per-agent treasury, spending limits, pause, keeper separation | ✅ implemented + tested |
-| Morpho/Earn Kit vault deposit, redeem, strategy switch | ✅ implemented + tested (mock vaults) |
+| Morpho/Earn Kit vault deposit, redeem, strategy switch | ✅ implemented + tested; live testnet path verified, mainnet wired to Galaxy USDC |
 | CCTP v2 outbound burn with hook data | ✅ implemented, unit-tested, and verified live on Arc Testnet (domain 0 burn + finalized attestation) |
 | CCTP v2 **inbound deposit** (source burn → mint to Arc wallet → `deposit()`) | ✅ implemented in the app; requires source USDC + source gas + Arc gas |
 | CCTPReceiver relayer adapter + malformed-data fallback | ✅ unit-tested; ⚠️ not used by the app (CCTP v2 hooks are opaque; a relayer/forwarder is required) |
 | Arc-local fast path (`deposit`, `withdrawLocal`) | ✅ implemented + tested |
 | Dashboard, 6 tabs, event history, CSV export | ✅ built, lint/typecheck clean |
 | Testnet deployment | ✅ deployed, wired, and E2E verified with real testnet USDC |
+| Mainnet deployment | ✅ deployed and wired on Arc mainnet; ⏳ live deposit pending wallet funding above the 5 USDC minimum |
 | Circle Gateway unified balance | ⚠️ contract hook (`gatewayReceiver`) is present; live Gateway balances need a server-side API key and are intentionally not faked in the UI |
 | Automatic Iris attestation + in-app destination mint | ✅ implemented: poll Iris, switch chain, submit `receiveMessage`; destination gas required |
-| Mainnet deployment | ⛔ not done; needs a funded mainnet deployer (real USDC) |
 
 ---
 
 ## Mainnet status
 
-Mainnet is **not** deployed. The brief requires real USDC movement on Arc mainnet, which needs a deployer funded with real USDC for gas. The same `ArcConfig.sol` already contains mainnet RPC/chain ID/domain and the shared CCTP addresses; the only missing inputs are:
+Mainnet was deployed on **October 21, 2026** and is fully wired. Independent on-chain verification confirmed:
 
-- a funded mainnet deployer key,
-- a mainnet Morpho vault address (`TBD_MAINNET_VAULT` in `contracts/script/ArcConfig.sol`).
+- bytecode at all three contracts and at the vault,
+- owner/keeper, `morphoAdapter`, `gatewayReceiver`, adapter/receiver treasury links,
+- mainnet CCTP contracts and domain `26`,
+- `defaultVaultId == 1`, both contracts unpaused,
+- vault `asset() == USDC`, active, `minDeposit == 5_000_000`, APY `2.65%`,
+- `previewDeposit(5 USDC) > 0` and `previewMint(1 wei) >= 1` (no zero-share minimum).
 
-Do not point the app at mainnet until both are resolved and the testnet rehearsal has passed.
+A live mainnet deposit is the remaining proof step: the deployer had ~3.32 USDC after gas, below
+the 5 USDC minimum. Once funded, run a small deposit → `withdrawLocal` and record the hashes in
+`deployments/arc-mainnet.json`. The exact 10-transaction sequence was rehearsed first on a live
+Arc mainnet fork (`contracts/test/fork/MainnetDeploy.t.sol`).
+
+**Audit plan:** the contracts are unaudited, so mainnet runs with deliberately low caps and only the
+owner's funds. Before raising the limits or onboarding third-party agents: external review of
+`AgentTreasury`, `MorphoVaultAdapter`, and the CCTP accounting path, then a multisig/timelock owner
+and a dedicated keeper key.
 
 ---
 
 ## Security notes
 
-- Contracts are **unaudited**. Testnet only. Do not custody real funds.
+- Contracts are **unaudited**. Mainnet is live with guardrails (5 USDC vault minimum, 25 USDC/day,
+  50 USDC/week); do not custody third-party funds until an audit is complete.
+- The mainnet adapter includes the `ZeroShares` guard; the frontend also pre-checks previews.
 - Keeper can rebalance, execute withdrawal bookkeeping, and set message hashes — it **cannot** initiate withdrawals or change spending limits (agent/owner only).
 - Spending limits are enforced on the resolved withdrawal amount, including `type(uint256).max`.
 - `getTotalBalance()` never reverts; a failing vault preview falls back to principal.
 - Hook data is decoded tolerantly; malformed payloads route to the default beneficiary instead of bricking the mint.
-- Frontend has no backend and no secrets. Never commit a private key.
+- Frontend has no backend and no secrets. Never commit a private key; the live deploy was signed in MetaMask.
 
 See `docs/SECURITY.md` for the full threat model and known gaps.
 
@@ -245,14 +292,15 @@ See `docs/SECURITY.md` for the full threat model and known gaps.
 .
 ├── contracts/
 │   ├── src/                 # AgentTreasury, MorphoVaultAdapter, CCTPReceiver, interfaces, libraries
-│   ├── test/                # 80 Foundry tests + mocks
-│   └── script/              # ArcConfig, Deploy/Configure, testnet scripts
+│   ├── test/                # 81 Foundry tests + mocks + mainnet fork rehearsal
+│   └── script/              # ArcConfig, DeployMainnet, testnet scripts
 ├── src/
 │   ├── components/          # Header, StatCard, TxStep, EventRow, 6 tab panels
 │   ├── hooks/               # Query→Zustand bridge, activity
-│   ├── lib/                 # contracts/ABIs, decimals, activity, errors
+│   ├── lib/                 # contracts/ABIs, decimals, activity, errors, network-selected CCTP map
 │   └── stores/              # treasury, flow, ui
-├── deployments/             # arc-testnet.json (addresses, tx hashes, smoke tests)
+├── scripts/mainnet-deploy/  # local MetaMask deploy page (template + ABI/bytecode injector)
+├── deployments/             # arc-mainnet.json, arc-testnet-fixed.json
 ├── docs/                    # architecture, runbook, security, demo
 └── SUBMISSION.md            # hackathon submission copy
 ```

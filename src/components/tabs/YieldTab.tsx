@@ -7,7 +7,7 @@ import { useUiStore } from '../../stores/ui'
 import { useMinDeposit } from '../../hooks/useMinDeposit'
 import { StatCard } from '../StatCard'
 import { formatUsdcDollar, formatApy, formatUsdc, formatShares, projectYield } from '../../lib/decimals'
-import { VAULT_1_NAME, VAULT_1_APY_DISPLAY } from '../../lib/contracts'
+import { VAULT_1_NAME, VAULT_1_TIER, VAULT_1_APY_DISPLAY, ARC_CHAIN } from '../../lib/contracts'
 
 /** Compact axis label. Always includes the time, not just the calendar date. */
 function formatSnapshotTime(ts: number): string {
@@ -157,7 +157,7 @@ export function YieldTab() {
             <div>
               <p className="text-sm font-medium text-white">{VAULT_1_NAME}</p>
               <p className="text-xs text-slate-500">
-                Conservative — {minDeposit === undefined ? '...' : formatUsdcDollar(minDeposit)} min
+                {VAULT_1_TIER} — {minDeposit === undefined ? '...' : formatUsdcDollar(minDeposit)} min
               </p>
             </div>
             <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs text-emerald-400">Active</span>
@@ -169,7 +169,7 @@ export function YieldTab() {
                 <p className="flex items-center gap-1.5 text-sm font-medium text-slate-400">
                   <Lock className="h-3.5 w-3.5" /> {name}
                 </p>
-                <p className="text-xs text-slate-600">Not deployed on Arc Testnet</p>
+                <p className="text-xs text-slate-600">Not deployed on {ARC_CHAIN.name}</p>
               </div>
               <span className="rounded-full border border-slate-700 px-2 py-0.5 text-xs text-slate-600">Unavailable</span>
             </div>

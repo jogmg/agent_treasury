@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Agent Treasury — Arc Mainnet Deploy</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 32px 20px; background: #0a0b0d; color: #e7e9ee;
+    font: 14px/1.55 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  }
+  main { max-width: 860px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: -0.02em; }
+  .sub { color: #8b93a7; margin-bottom: 24px; }
+  .card { background: #12141a; border: 1px solid #232733; border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  button {
+    appearance: none; border: 1px solid #2c3242; background: #1a1e28; color: #e7e9ee;
+    padding: 10px 16px; border-radius: 10px; font-weight: 600; cursor: pointer; font-size: 13px;
+  }
+  button:hover:not(:disabled) { background: #222838; }
+  button.primary { background: #f5c542; border-color: #f5c542; color: #171204; }
+  button.primary:hover:not(:disabled) { background: #ffd75e; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  dl { display: grid; grid-template-columns: 190px 1fr; gap: 6px 14px; margin: 0; font-size: 13px; }
+  dt { color: #8b93a7; }
+  dd { margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-all; }
+  pre {
+    background: #0a0c10; border: 1px solid #1d2230; border-radius: 10px; padding: 14px;
+    max-height: 420px; overflow: auto; font-size: 12px; line-height: 1.5; white-space: pre-wrap;
+    word-break: break-word; margin: 0;
+  }
+  .ok { color: #4ade80; } .err { color: #fb7185; } .muted { color: #8b93a7; }
+  .badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: .04em; }
+  .badge.wait { background: #2a2410; color: #f5c542; }
+  .badge.live { background: #0f2b1c; color: #4ade80; }
+  .steps { display: grid; gap: 6px; margin-top: 14px; }
+  .step { display: flex; gap: 10px; align-items: baseline; font-size: 13px; }
+  .step .dot { width: 8px; height: 8px; border-radius: 50%; background: #2c3242; flex: 0 0 auto; margin-top: 6px; }
+  .step.active .dot { background: #f5c542; }
+  .step.done .dot { background: #4ade80; }
+  .step.error .dot { background: #fb7185; }
+  a { color: #7dd3fc; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .warn { border-color: #4a3a10; background: #1c1708; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Agent Treasury — Arc Mainnet</h1>
+  <div class="sub">Galaxy USDC vault · chain 5042 · USDC gas</div>
+
+  <div class="card warn">
+    <div class="row" style="justify-content:space-between">
+      <div>
+        <strong>1. Connect your wallet</strong>
+        <div class="muted">Owner / keeper: <span id="account">not connected</span></div>
+      </div>
+      <button id="connect" class="primary">Connect MetaMask</button>
+    </div>
+    <div id="balance" class="muted" style="margin-top:10px"></div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between">
+      <div>
+        <strong>2. Deploy + wire</strong>
+        <div class="muted">3 contract deployments + 7 configuration transactions. You approve each in MetaMask.</div>
+      </div>
+      <button id="deploy" disabled>Deploy to Arc mainnet</button>
+    </div>
+    <div class="steps" id="steps"></div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between; margin-bottom:10px">
+      <strong>3. Deployment record</strong>
+      <button id="copy" disabled>Copy JSON</button>
+    </div>
+    <pre id="log">Waiting for wallet connection…</pre>
+  </div>
+</main>
+
+<script type="module">
+import {
+  createWalletClient, createPublicClient, custom, defineChain,
+  parseAbi, formatUnits, isAddress,
+} from 'https://esm.sh/viem@2.56.3'
+
+const ARTIFACTS = __ARTIFACTS__
+
+// ── Verified Arc mainnet constants (Oct 21, 2026) ───────────────────────────
+const ARC = defineChain({
+  id: 5042,
+  name: 'Arc',
+  nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
+  rpcUrls: { default: { http: ['https://rpc.mainnet.arc.io'] } },
+  blockExplorers: { default: { name: 'Arc Explorer', url: 'https://explorer.arc.io' } },
+})
+
+const USDC               = '0x3600000000000000000000000000000000000000'
+const TOKEN_MESSENGER    = '0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d'
+const MSG_TRANSMITTER    = '0x81D40F21F12A8F0E3252Bccb954D722d4c464B64'
+const VAULT              = '0x8E357432CC12ff425c36432F312968aEb16112AF' // Galaxy USDC
+const ARC_DOMAIN         = 26
+const MIN_DEPOSIT        = 5_000_000n          // 5 USDC (mainnet economics floor)
+const VAULT_APY          = 26_500_000_000_000_000n // 2.65%
+const DAILY_LIMIT        = 25_000_000n         // 25 USDC/day guardrail
+const WEEKLY_LIMIT       = 50_000_000n         // 50 USDC/week guardrail
+const ZERO               = '0x0000000000000000000000000000000000000000'
+const EXPLORER           = 'https://explorer.arc.io'
+
+const erc4626 = parseAbi([
+  'function asset() view returns (address)',
+  'function previewDeposit(uint256 assets) view returns (uint256 shares)',
+  'function previewMint(uint256 shares) view returns (uint256 assets)',
+  'function decimals() view returns (uint8)',
+])
+
+const STEPS = [
+  'Deploy MorphoVaultAdapter',
+  'Deploy CCTPReceiver',
+  'Deploy AgentTreasury',
+  'adapter.setTreasury(treasury)',
+  'receiver.setTreasury(treasury)',
+  'adapter.addVault(1, Galaxy USDC, 5 USDC min)',
+  'adapter.setVaultAPY(1, 2.65%)',
+  'adapter.setKeeper(owner)',
+  'treasury.setKeeper(owner)',
+  'treasury.setSpendingLimit(25/day, 50/week)',
+]
+
+const el = (id) => document.getElementById(id)
+const stepsEl = el('steps')
+const logEl = el('log')
+
+STEPS.forEach((label) => {
+  const div = document.createElement('div')
+  div.className = 'step'
+  div.innerHTML = `<span class="dot"></span><span>${label}</span>`
+  stepsEl.appendChild(div)
+})
+
+let wallet, reader, account
+let running = false
+const record = { network: 'Arc Mainnet', chainId: 5042, vault: VAULT, txs: {}, contracts: {} }
+
+function log(line, cls = '') {
+  const time = new Date().toISOString().slice(11, 19)
+  const span = document.createElement('span')
+  if (cls) span.className = cls
+  span.textContent = `[${time}] ${line}\n`
+  logEl.appendChild(span)
+  logEl.scrollTop = logEl.scrollHeight
+}
+
+function setStep(index, state) {
+  const node = stepsEl.children[index]
+  if (node) node.className = `step ${state}`
+}
+
+function txLink(hash) {
+  return `${EXPLORER}/tx/${hash}`
+}
+
+function shortErr(e) {
+  return e?.shortMessage || e?.details || e?.message || String(e)
+}
+
+async function connect() {
+  if (!window.ethereum) throw new Error('MetaMask not found. Open this page in a browser with MetaMask installed.')
+  logEl.textContent = ''
+  const [addr] = await window.ethereum.request({ method: 'eth_requestAccounts' })
+  if (!isAddress(addr)) throw new Error('No wallet account returned')
+  account = addr
+
+  wallet = createWalletClient({ account, chain: ARC, transport: custom(window.ethereum) })
+  reader = createPublicClient({ chain: ARC, transport: custom(window.ethereum) })
+
+  try {
+    await wallet.switchChain({ id: ARC.id })
+  } catch (e) {
+    if (e?.code === 4902 || /Unrecognized chain|not added/i.test(shortErr(e))) {
+      await wallet.addChain({ chain: ARC })
+      await wallet.switchChain({ id: ARC.id })
+    } else {
+      throw e
+    }
+  }
+
+  const native = await reader.getBalance({ address: account })
+  el('account').textContent = account
+  el('balance').innerHTML = `Native USDC balance: <strong>${formatUnits(native, 18)}</strong> · ` +
+    `<a href="${EXPLORER}/address/${account}" target="_blank" rel="noreferrer">view on explorer</a>`
+
+  const chainId = await reader.getChainId()
+  if (chainId !== ARC.id) throw new Error(`Wallet is on chain ${chainId}, expected ${ARC.id}`)
+  if (native < 250_000_000_000_000_000n) {
+    throw new Error(`Need at least 0.25 USDC for gas, wallet has ${formatUnits(native, 18)}`)
+  }
+
+  el('deploy').disabled = false
+  log(`Connected ${account} on Arc mainnet.`)
+  log(`Gas balance ${formatUnits(native, 18)} USDC.`)
+}
+
+async function preflight() {
+  log('Preflight: checking USDC, CCTP contracts and Galaxy vault…')
+  for (const [label, address] of [['USDC', USDC], ['TokenMessengerV2', TOKEN_MESSENGER], ['MessageTransmitterV2', MSG_TRANSMITTER], ['vault', VAULT]]) {
+    const code = await reader.getCode({ address })
+    if (!code || code === '0x') throw new Error(`No code at ${label} ${address} on Arc mainnet`)
+  }
+  const asset = await reader.readContract({ address: VAULT, abi: erc4626, functionName: 'asset' })
+  if (asset.toLowerCase() !== USDC.toLowerCase()) throw new Error(`Vault asset ${asset} is not Arc USDC`)
+  const sharesPerMin = await reader.readContract({ address: VAULT, abi: erc4626, functionName: 'previewDeposit', args: [MIN_DEPOSIT] })
+  if (sharesPerMin === 0n) throw new Error('5 USDC would mint zero shares — aborting')
+  const oneShare = await reader.readContract({ address: VAULT, abi: erc4626, functionName: 'previewMint', args: [1n] })
+  log(`Preflight OK. Vault asset = USDC. previewDeposit(5 USDC) = ${sharesPerMin} shares. previewMint(1) = ${formatUnits(oneShare, 6)} USDC.`, 'ok')
+  record.vaultCheck = {
+    asset,
+    previewDeposit5Usdc: sharesPerMin.toString(),
+    previewMint1Usdc: oneShare.toString(),
+  }
+}
+
+async function deployArtifact(key, args, label) {
+  const art = ARTIFACTS[key]
+  if (!art?.bytecode || art.bytecode === '0x') throw new Error(`Missing bytecode for ${key}`)
+  const hash = await wallet.deployContract({ abi: art.abi, bytecode: art.bytecode, args })
+  log(`${label}: deploy tx ${hash}`)
+  log(`  ${txLink(hash)}`)
+  const receipt = await reader.waitForTransactionReceipt({ hash, timeout: 180_000 })
+  if (receipt.status !== 'success') throw new Error(`${label} deployment reverted (${hash})`)
+  const address = receipt.contractAddress
+  log(`${label} deployed at ${address} (block ${receipt.blockNumber})`, 'ok')
+  record.txs[key] = { hash, block: Number(receipt.blockNumber) }
+  record.contracts[key] = address
+  return address
+}
+
+async function write(label, params) {
+  const hash = await wallet.writeContract({ ...params, account, chain: ARC })
+  log(`${label}: tx ${hash}`)
+  log(`  ${txLink(hash)}`)
+  const receipt = await reader.waitForTransactionReceipt({ hash, timeout: 180_000 })
+  if (receipt.status !== 'success') throw new Error(`${label} reverted (${hash})`)
+  log(`${label}: confirmed in block ${receipt.blockNumber}`, 'ok')
+  record.txs[label] = { hash, block: Number(receipt.blockNumber) }
+  return receipt
+}
+
+async function deployAll() {
+  if (running) return
+  running = true
+  el('deploy').disabled = true
+  el('copy').disabled = true
+  STEPS.forEach((_, i) => setStep(i, ''))
+  logEl.textContent = ''
+  log('Starting Arc mainnet deployment. Keep this tab open and approve each MetaMask prompt.')
+  try {
+    await preflight()
+
+    setStep(0, 'active')
+    const adapter = await deployArtifact('MorphoVaultAdapter', [account], 'MorphoVaultAdapter')
+    setStep(0, 'done')
+
+    setStep(1, 'active')
+    const receiver = await deployArtifact(
+      'CCTPReceiver',
+      [MSG_TRANSMITTER, USDC, account, ZERO, account],
+      'CCTPReceiver',
+    )
+    setStep(1, 'done')
+
+    setStep(2, 'active')
+    const treasury = await deployArtifact(
+      'AgentTreasury',
+      [USDC, TOKEN_MESSENGER, MSG_TRANSMITTER, adapter, receiver, ARC_DOMAIN, 24, 1, 0, account],
+      'AgentTreasury',
+    )
+    setStep(2, 'done')
+
+    record.contracts.owner = account
+    record.deployBlock = record.txs.AgentTreasury?.block
+
+    const adapterAbi = ARTIFACTS.MorphoVaultAdapter.abi
+    const receiverAbi = ARTIFACTS.CCTPReceiver.abi
+    const treasuryAbi = ARTIFACTS.AgentTreasury.abi
+
+    setStep(3, 'active')
+    await write('adapter.setTreasury', {
+      address: adapter, abi: adapterAbi, functionName: 'setTreasury', args: [treasury],
+    })
+    setStep(3, 'done')
+
+    setStep(4, 'active')
+    await write('receiver.setTreasury', {
+      address: receiver, abi: receiverAbi, functionName: 'setTreasury', args: [treasury],
+    })
+    setStep(4, 'done')
+
+    setStep(5, 'active')
+    await write('adapter.addVault', {
+      address: adapter, abi: adapterAbi, functionName: 'addVault',
+      args: [1n, VAULT, 'Galaxy USDC', 'arcUSDC', MIN_DEPOSIT],
+    })
+    setStep(5, 'done')
+
+    setStep(6, 'active')
+    await write('adapter.setVaultAPY', {
+      address: adapter, abi: adapterAbi, functionName: 'setVaultAPY', args: [1n, VAULT_APY],
+    })
+    setStep(6, 'done')
+
+    setStep(7, 'active')
+    await write('adapter.setKeeper', {
+      address: adapter, abi: adapterAbi, functionName: 'setKeeper', args: [account],
+    })
+    setStep(7, 'done')
+
+    setStep(8, 'active')
+    await write('treasury.setKeeper', {
+      address: treasury, abi: treasuryAbi, functionName: 'setKeeper', args: [account],
+    })
+    setStep(8, 'done')
+
+    setStep(9, 'active')
+    await write('treasury.setSpendingLimit', {
+      address: treasury, abi: treasuryAbi, functionName: 'setSpendingLimit',
+      args: [account, DAILY_LIMIT, WEEKLY_LIMIT],
+    })
+    setStep(9, 'done')
+
+    // ── Post-deploy verification ─────────────────────────────────────────────
+    log('Verifying wiring…')
+    const [wiredAdapter, wiredReceiver, keeper, defaultVault, paused] = await Promise.all([
+      reader.readContract({ address: treasury, abi: treasuryAbi, functionName: 'morphoAdapter' }),
+      reader.readContract({ address: treasury, abi: treasuryAbi, functionName: 'gatewayReceiver' }),
+      reader.readContract({ address: treasury, abi: treasuryAbi, functionName: 'keeper' }),
+      reader.readContract({ address: treasury, abi: treasuryAbi, functionName: 'defaultVaultId' }),
+      reader.readContract({ address: treasury, abi: treasuryAbi, functionName: 'paused' }).catch(() => null),
+    ])
+    const [adapterTreasury, receiverTreasury, vaultCfg] = await Promise.all([
+      reader.readContract({ address: adapter, abi: adapterAbi, functionName: 'treasury' }),
+      reader.readContract({ address: receiver, abi: receiverAbi, functionName: 'treasury' }),
+      reader.readContract({ address: adapter, abi: adapterAbi, functionName: 'getVaultConfig', args: [1n] }),
+    ])
+    if (wiredAdapter.toLowerCase() !== adapter.toLowerCase()) throw new Error('treasury.morphoAdapter mismatch')
+    if (wiredReceiver.toLowerCase() !== receiver.toLowerCase()) throw new Error('treasury.gatewayReceiver mismatch')
+    if (adapterTreasury.toLowerCase() !== treasury.toLowerCase()) throw new Error('adapter.treasury mismatch')
+    if (receiverTreasury.toLowerCase() !== treasury.toLowerCase()) throw new Error('receiver.treasury mismatch')
+    if (vaultCfg.vaultAddress.toLowerCase() !== VAULT.toLowerCase()) throw new Error('vault config mismatch')
+    if (!vaultCfg.isActive) throw new Error('vault is not active')
+
+    record.verification = {
+      treasury_morphoAdapter: wiredAdapter,
+      treasury_gatewayReceiver: wiredReceiver,
+      treasury_keeper: keeper,
+      defaultVaultId: defaultVault.toString(),
+      treasury_paused: paused === null ? 'n/a' : paused,
+      adapter_treasury: adapterTreasury,
+      receiver_treasury: receiverTreasury,
+      vaultConfig: {
+        id: vaultCfg.id.toString(),
+        vaultAddress: vaultCfg.vaultAddress,
+        name: vaultCfg.name,
+        symbol: vaultCfg.symbol,
+        minDeposit: vaultCfg.minDeposit.toString(),
+        isActive: vaultCfg.isActive,
+      },
+    }
+
+    log('ALL DONE. Wiring verified on-chain.', 'ok')
+    log(`Treasury: ${treasury}`)
+    log(`Adapter:  ${adapter}`)
+    log(`Receiver: ${receiver}`)
+    log(`Deploy block: ${record.deployBlock}`)
+    log('Copy the JSON record below into deployments/arc-mainnet.json (or send it to the agent).', 'ok')
+
+    logEl.appendChild(document.createTextNode('\n' + JSON.stringify(record, null, 2)))
+    localStorage.setItem('agent-treasury-mainnet-deploy', JSON.stringify(record))
+    el('copy').disabled = false
+    el('deploy').textContent = 'Deployment complete'
+  } catch (e) {
+    const msg = shortErr(e)
+    log(`ERROR: ${msg}`, 'err')
+    const active = [...stepsEl.children].findIndex((n) => n.classList.contains('active'))
+    if (active >= 0) setStep(active, 'error')
+    el('deploy').disabled = false
+    el('deploy').textContent = 'Retry deployment'
+    console.error(e)
+  } finally {
+    running = false
+  }
+}
+
+el('connect').addEventListener('click', async () => {
+  el('connect').disabled = true
+  try {
+    await connect()
+    el('connect').textContent = 'Connected'
+  } catch (e) {
+    log(`CONNECT ERROR: ${shortErr(e)}`, 'err')
+    el('connect').disabled = false
+  }
+})
+
+el('deploy').addEventListener('click', deployAll)
+
+el('copy').addEventListener('click', async () => {
+  const json = JSON.stringify(record, null, 2)
+  try {
+    await navigator.clipboard.writeText(json)
+    el('copy').textContent = 'Copied'
+    setTimeout(() => { el('copy').textContent = 'Copy JSON' }, 1500)
+  } catch {
+    log('Clipboard blocked — select the JSON manually.', 'err')
+  }
+})
+
+if (window.ethereum) {
+  window.ethereum.on?.('accountsChanged', () => window.location.reload())
+  window.ethereum.on?.('chainChanged', () => window.location.reload())
+}
+</script>
+</body>
+</html>

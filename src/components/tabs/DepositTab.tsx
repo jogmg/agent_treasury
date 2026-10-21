@@ -3,7 +3,7 @@ import { useAccount, usePublicClient, useSwitchChain, useWriteContract } from 'w
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { ExternalLink, Info, ArrowRight } from 'lucide-react'
-import { ADDRESSES, TREASURY_ABI, ERC20_ABI, ARC_TESTNET_CHAIN_ID } from '../../lib/contracts'
+import { ADDRESSES, TREASURY_ABI, ERC20_ABI, ARC_CHAIN_ID, ARC_CHAIN, ARC_EXPLORER, IS_ARC_MAINNET } from '../../lib/contracts'
 import { parseUsdc, formatUsdcDollar, formatUsdc } from '../../lib/decimals'
 import { parseOnchainError } from '../../lib/errors'
 import { useTreasuryStore } from '../../stores/treasury'
@@ -18,7 +18,7 @@ const MAX_U256 = BigInt('0xfffffffffffffffffffffffffffffffffffffffffffffffffffff
 export function DepositTab() {
   const { address, chainId } = useAccount()
   const { switchChain } = useSwitchChain()
-  const publicClient = usePublicClient({ chainId: ARC_TESTNET_CHAIN_ID })
+  const publicClient = usePublicClient({ chainId: ARC_CHAIN_ID })
   const queryClient = useQueryClient()
 
   const [amount, setAmount] = useState('')
@@ -33,7 +33,7 @@ export function DepositTab() {
 
   const parsedAmount = amount ? parseUsdc(amount) : 0n
   const needsApprove = parsedAmount > 0n && usdcAllowance < parsedAmount
-  const isWrongChain = !!address && chainId !== ARC_TESTNET_CHAIN_ID
+  const isWrongChain = !!address && chainId !== ARC_CHAIN_ID
   // The treasury enforces the adapter's on-chain minimum; mirror it exactly.
   const minDeposit = useMinDeposit()
   // Block deposits the vault would accept but mint zero shares for.
@@ -56,7 +56,7 @@ export function DepositTab() {
 
   async function handleDeposit() {
     if (isWrongChain) {
-      switchChain({ chainId: ARC_TESTNET_CHAIN_ID })
+      switchChain({ chainId: ARC_CHAIN_ID })
       return
     }
     if (validationMsg || !address || !publicClient) return
@@ -72,7 +72,7 @@ export function DepositTab() {
           abi: ERC20_ABI,
           functionName: 'approve',
           args: [ADDRESSES.treasury, MAX_U256],
-          chainId: ARC_TESTNET_CHAIN_ID,
+          chainId: ARC_CHAIN_ID,
         })
         setDeposit({ approveHash: approveTx })
 
@@ -88,7 +88,7 @@ export function DepositTab() {
         abi: TREASURY_ABI,
         functionName: 'deposit',
         args: [parsedAmount],
-        chainId: ARC_TESTNET_CHAIN_ID,
+        chainId: ARC_CHAIN_ID,
       })
       setDeposit({ depositStep: 'confirming', depositHash: depositTx })
 
@@ -102,7 +102,7 @@ export function DepositTab() {
         description: `${amount} USDC → treasury`,
         action: {
           label: 'Explorer',
-          onClick: () => window.open(`https://explorer.testnet.arc.io/tx/${depositTx}`),
+          onClick: () => window.open(`${ARC_EXPLORER}/tx/${depositTx}`),
         },
       })
       await queryClient.invalidateQueries()
@@ -139,16 +139,22 @@ export function DepositTab() {
         <div className="flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-300">
           <Info className="mt-0.5 h-4 w-4 shrink-0" />
           <span>
-            No USDC in wallet.{' '}
-            <a
-              href="https://faucet.circle.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 underline"
-            >
-              Get test USDC <ExternalLink className="h-3 w-3" />
-            </a>
-            {' '}(select Arc Testnet)
+            {IS_ARC_MAINNET ? (
+              'No USDC in this wallet on Arc. Send USDC on Arc mainnet to this address, then refresh.'
+            ) : (
+              <>
+                No USDC in wallet.{' '}
+                <a
+                  href="https://faucet.circle.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 underline"
+                >
+                  Get test USDC <ExternalLink className="h-3 w-3" />
+                </a>
+                {' '}(select Arc Testnet)
+              </>
+            )}
           </span>
         </div>
       )}
@@ -198,10 +204,10 @@ export function DepositTab() {
       {/* Action button */}
       {isWrongChain ? (
         <button
-          onClick={() => switchChain({ chainId: ARC_TESTNET_CHAIN_ID })}
+          onClick={() => switchChain({ chainId: ARC_CHAIN_ID })}
           className="w-full rounded-xl bg-amber-500 py-3.5 text-sm font-semibold text-black transition hover:bg-amber-400"
         >
-          Switch to Arc Testnet
+          Switch to {ARC_CHAIN.name}
         </button>
       ) : (
         <button

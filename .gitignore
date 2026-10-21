@@ -20,8 +20,9 @@ contracts/lib/
 
 # scratch / local verification
 .tmp-*
+scripts/mainnet-deploy/index.html
 
-# env / secrets — never commit keys
+# env / secrets - never commit keys
 .env
 .env.*
 !.env.example

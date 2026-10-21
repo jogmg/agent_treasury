@@ -17,6 +17,7 @@ import {
   waitForCctpAttestation,
 } from '../lib/cctp'
 import { formatUsdcDollar, shortAddr } from '../lib/decimals'
+import { ARC_EXPLORER } from '../lib/contracts'
 import { parseOnchainError } from '../lib/errors'
 import { useFlowStore } from '../stores/flow'
 
@@ -195,7 +196,7 @@ export function CctpCompletionCard({ burnTx }: Props) {
           Destination mint
         </p>
         <a
-          href={`https://explorer.testnet.arc.io/tx/${burnTx}`}
+          href={`${ARC_EXPLORER}/tx/${burnTx}`}
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-300"

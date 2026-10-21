@@ -5,7 +5,7 @@ import { useAccount } from 'wagmi'
 import { StatCard } from '../StatCard'
 import { EventRow } from '../EventRow'
 import { formatUsdcDollar, formatApy, formatShares } from '../../lib/decimals'
-import { VAULT_1_NAME } from '../../lib/contracts'
+import { VAULT_1_NAME, ARC_CHAIN } from '../../lib/contracts'
 
 export function OverviewTab() {
   const { address } = useAccount()
@@ -38,7 +38,7 @@ export function OverviewTab() {
         <p className="mt-2 font-mono text-4xl font-bold tabular-nums text-white">
           {isFetching && totalBalance === 0n ? '—' : formatUsdcDollar(totalBalance)}
         </p>
-        <p className="mt-1 text-sm text-slate-500">Arc Testnet</p>
+        <p className="mt-1 text-sm text-slate-500">{ARC_CHAIN.name}</p>
       </div>
 
       {/* Stat grid */}
@@ -75,7 +75,7 @@ export function OverviewTab() {
         <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-white">Arc Testnet</p>
+              <p className="text-sm font-medium text-white">{ARC_CHAIN.name}</p>
               <p className="text-xs text-slate-500">Local deposits via deposit()</p>
             </div>
             <p className="font-mono text-sm tabular-nums text-emerald-300">

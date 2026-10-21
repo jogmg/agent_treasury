@@ -21,6 +21,40 @@ This project is being built for a hackathon on a metered Arc Studio AI quota. Ev
 
 Cross-chain USDC treasury for AI agents. Accepts USDC from any CCTP-supported chain via CCTP v2, auto-deploys into a Morpho yield vault on Arc, and allows withdrawals to any destination chain. Three Circle products: CCTP v2 + Circle Gateway + Earn Kit (Morpho). Outbound burns use standard finality (2000) for reliable Arc-origin attestations.
 
+## Arc Mainnet Deployment (LIVE, Oct 21, 2026) — UNAUDITED, GUARDRAILED
+
+The app defaults to **Arc mainnet** (`VITE_ARC_NETWORK=mainnet`, chain `5042`). Testnet remains
+available by building with `VITE_ARC_NETWORK=testnet`.
+
+| Contract | Address | Explorer |
+|---|---|---|
+| AgentTreasury | `0xf71b5d1a19d72b98675785123fae811698be6f63` | [link](https://explorer.arc.io/address/0xf71b5d1a19d72b98675785123fae811698be6f63) |
+| MorphoVaultAdapter | `0x5102057330f5bb5f3e4eb0925b7d1eac8a563c23` | [link](https://explorer.arc.io/address/0x5102057330f5bb5f3e4eb0925b7d1eac8a563c23) |
+| CCTPReceiver | `0x91f1eb97a40fdab05d150c10566cf9aa3546a375` | [link](https://explorer.arc.io/address/0x91f1eb97a40fdab05d150c10566cf9aa3546a375) |
+
+- Deploy block `27153175` (adapter), treasury `27153209`. Owner/keeper:
+  `0xD00fD0B006c01342522cAf4FA04D5f8910aB268c`.
+- Vault 1: **Galaxy USDC** `0x8E357432CC12ff425c36432F312968aEb16112AF` (`arcUSDC`), 18-dec shares,
+  ~2.65% net APY, 0 fees, ~12.2M USDC instant liquidity. Fallback: Steakhouse Prime
+  `0xbeef0016cb2Fd5C352ea7CA08a9f54739DFa7298` (~1.97% APY).
+- **Mainnet minimum deposit is 5 USDC** (`5_000_000`), economics-based. It is far above the
+  zero-share threshold; `previewDeposit(5 USDC)` > 0 and `previewMint(1 wei)` = 1 wei.
+- Spending limit for the owner agent: **25 USDC/day, 50 USDC/week**. Keeper = owner EOA for launch.
+- Mainnet CCTP differs from testnet: TokenMessengerV2 `0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d`,
+  MessageTransmitterV2 `0x81D40F21F12A8F0E3252Bccb954D722d4c464B64`, domain `26`.
+  The testnet CCTP addresses have **no code** on mainnet.
+- Independently verified after deploy: bytecode at all three contracts + vault, all owner/keeper
+  wiring, `morphoAdapter`/`gatewayReceiver`, `ARC_DOMAIN == 26`, `defaultVaultId == 1`, both
+  `paused == false`, vault active with `minDeposit == 5_000_000`, `asset() == USDC`.
+- Rehearsed first on a live Arc mainnet fork: `contracts/test/fork/MainnetDeploy.t.sol` PASS,
+  5,761,118 gas (~0.12 USDC) for the full 10-tx sequence.
+- Deployment was driven by the user's MetaMask from `scripts/mainnet-deploy/` (template + artifact
+  injector). No private key ever touched this repo or the chat.
+- **No mainnet deposit has run yet**: the deployer held 3.47 USDC and had ~3.32 USDC after gas,
+  below the 5 USDC vault minimum. Fund it before the live E2E.
+- Full record: `deployments/arc-mainnet.json`. Audit: not done (owner chose "ship with guardrails":
+  low caps, small live test, external audit before raising limits).
+
 ## Stage 2 + Hardening Pass Contract Summary
 
 ### Contract files (contracts/src/)
@@ -82,11 +116,16 @@ Studio sandbox runs Vitest 5, where the stubGlobal API was removed.
 - Arc testnet chain ID: 5042002 / mainnet: 5042
 - CCTP domain (both networks): 26
 - USDC (both networks): 0x3600000000000000000000000000000000000000 (ERC-20, 6 dec)
-- TokenMessengerV2: 0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA
-- MessageTransmitterV2: 0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275
-- Morpho vault testnet (conservative, ~4.2% APY): 0xAabbeF1D3971c710276ed41eC791BbE14CdB8E88
+- TokenMessengerV2 testnet: `0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA`
+- MessageTransmitterV2 testnet: `0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275`
+- TokenMessengerV2 mainnet: `0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d`
+- MessageTransmitterV2 mainnet: `0x81D40F21F12A8F0E3252Bccb954D722d4c464B64`
+- Morpho vault testnet (conservative, ~4.2% APY): `0xAabbeF1D3971c710276ed41eC791BbE14CdB8E88`
+- Morpho vault mainnet: Galaxy USDC `0x8E357432CC12ff425c36432F312968aEb16112AF` (`minDeposit` 5 USDC)
+- Mainnet deploy script: `contracts/script/DeployMainnet.s.sol` (chain-id, code, vault-asset, and
+  min-deposit guards). Requires `ARC_MAINNET_RPC` only for the fork test, not for the script.
 
-## CCTP Hotfix Deployment (current, Oct 2026) — WIRED + E2E VERIFIED
+## CCTP Hotfix Deployment (testnet, Oct 2026) — WIRED + E2E VERIFIED
 
 | Contract | Address | Explorer |
 |---|---|---|
@@ -125,9 +164,11 @@ whole withdrawal. Fix: no return values; `CCTP_MIN_FINALITY_THRESHOLD = 2000`.
 - `OwnershipCard` in Settings accepts the Ownable2Step handoff on all three contracts.
 - `CctpCompletionCard` polls Circle Iris after a burn, switches to the destination chain, and submits `receiveMessage`. It also lists recent CCTP requests and accepts a pasted Arc burn tx hash. The destination mint still needs destination-chain gas.
 - `CrossChainDepositCard` implements inbound CCTP in the Deposit tab as a **collapsible `<details>` panel** (summary shows a live status badge and auto-opens while in flight): source-chain `depositForBurn` → Iris poll → Arc `receiveMessage` (mints to the connected wallet) → Arc `approve` + `treasury.deposit()`. It requires source USDC, source gas, and a little Arc gas. `CCTPReceiver` is not on this path. It has a **Track a source transaction** recovery form (validates destination domain, mintRecipient, and destinationCaller) and the Activity tab shows a pending bridge banner with the source tx link, since source-chain burns do not appear in Arc logs until the mint/deposit.
-- **Zero-share deposit guard:** `MorphoVaultAdapter.deposit()` reverts `Errors.ZeroShares()` if the vault mints 0 shares (test: `test_deposit_zero_shares_reverts`). The live testnet adapter predates this guard, so a redeploy + rewire is needed to enforce it on-chain. The frontend covers the app meanwhile: `useDepositShares` calls `previewDeposit(amount)` + `previewMint(1)` and blocks zero-share deposits in the Deposit tab and cross-chain card (the card re-checks just before `treasury.deposit()`). Mainnet policy: derive `minDeposit` from the live share price/economics via `updateVault` instead of hardcoding 1 USDC.
+- **Zero-share deposit guard:** `MorphoVaultAdapter.deposit()` reverts `Errors.ZeroShares()` if the vault mints 0 shares (test: `test_deposit_zero_shares_reverts`). The **mainnet adapter includes this guard**; the live testnet adapter predates it. The frontend still covers both: `useDepositShares` calls `previewDeposit(amount)` + `previewMint(1)` and blocks zero-share deposits in the Deposit tab and cross-chain card (the card re-checks just before `treasury.deposit()`). Mainnet `minDeposit` was set to **5 USDC** from share price + unit economics (gas vs. yield), not a hardcoded guess, and is adjustable with `updateVault` as the share price moves. Testnet remains at 1 USDC for demos.
 - The in-flight flow and its burn hash survive a reload: the active bridge-deposit state and a recent-burns list are persisted (`agent-treasury-bridge-deposit-v1`), and outbound CCTP withdrawals are persisted in `flow.ts` (`agent-treasury-cctp-outbound-v1`) once the burn receipt confirms. Activity rows render through one uniform `ActivityRow` UI (`EventRow.tsx`): `eventRowData` maps chain events, `pendingRowData` (PendingCctpRow.tsx) maps transfers with explicit **CCTP Deposit** / **CCTP Withdrawal** kind badges, status, chains, amount, burn/mint tx links in the expandable panel, timestamp, and a Resume CTA that restores the active flow and switches tabs (completed transfers render no CTA). Rows are merged and sorted most-recent first: `fetchActivityEvents` enriches each event with its block timestamp (`getBlocks` cached per block, linear interpolation when a fetch fails); if any timestamp is missing the UI falls back to block order with pending rows first. Expanded chain panels show `Block N · date time`. Filters are **All / In flight / Deposits / Withdrawals / Yield** (the old Pending value was renamed to `inflight`); chain-event rows are relabeled (`WithdrawalRequested` → "CCTP Withdrawal", local → "Local Withdraw", `DepositRecorded` shows the source chain). The Withdraw tab has **no** recent-request list (transfers live in the Activity tab) — only the paste-hash recovery remains. The growth chart has 24h/7d/30d/All range buttons. `resetCctp`/`resetBridgeDeposit` intentionally keep the history lists. The Withdraw tab's destination selector is a chain-name dropdown built from `CCTP_DESTINATIONS`.
-- `ADDRESSES` / `ARC_TREASURY_DEPLOY_BLOCK` now point at the hotfix stack; `LEGACY_ADDRESSES` keep the old stack for recovery.
+- `ADDRESSES` / `ARC_TREASURY_DEPLOY_BLOCK` are selected at build time: mainnet defaults are the
+  Galaxy stack above; `VITE_ARC_NETWORK=testnet` switches to the hotfix stack. `LEGACY_ADDRESSES`
+  keep the pre-hotfix testnet stack for recovery.
 - **`getVaultConfig` ABI quirk:** the deployed adapter returns `VaultConfig` as a SINGLE struct (one tuple output). `ADAPTER_ABI` must declare `returns ((uint256 id, address vaultAddress, string name, string symbol, uint256 minDeposit, bool isActive))` and callers read `data.minDeposit`. Declaring six flat outputs makes viem decode `name` from the vault address and throw `IntegerOutOfRangeError`, silently killing the live min-deposit read.
 
 ## Pre-hotfix Deployment (legacy — do not use for new CCTP tests)
@@ -179,13 +220,19 @@ The real Morpho/Earn Kit vault issues shares with 18 decimals (not USDC's 6).
 where `vaultShareDecimals` is read live from `vault.decimals()`. USDC amounts remain 6-dec throughout.
 
 ### Remaining TODOs
-1. Arc mainnet Morpho vault addresses (`VAULT_MAINNET_*` in ArcConfig.sol)
-2. ✅ Vault minimum deposit: lowered from 10 USDC to **1 USDC** on-chain on Oct 21, 2026 — keeper tx `0xd2eba836dce60dfea39fa1af21902ed4e18597c25b0395b99ce35653900574fc` (block `68380870`), config-only via `adapter.updateVault(1, 1_000_000, true)`; `getVaultConfig(1)` now reports `minDeposit = 1000000`, `isActive = true`. The UI reads it live (`useMinDeposit`) and blocks deposits while that read is unresolved. Zero-share risk on tiny deposits + pre-mainnet guard recommendations are in `docs/RUNBOOK.md`.
-2. Validate BurnMessageV2 Layout A/B byte offsets against live Arc MessageTransmitterV2, and add the v2 `IMessageHandlerV2` entrypoints if using `CCTPReceiver`
-3. Fork tests (`contracts/test/fork/`) — deferred until Arc testnet RPC is stable
-4. Contract source verification on-chain for the hotfix deployment
-5. Source-domain accounting for inbound deposits: the current app path mints to the wallet and calls `deposit()`, so `chainDeposits` records Arc domain. A relayer/forwarder (or owner-signed `recordDeposit`) is required to record the source domain.
-6. Redeploy the adapter (with the new `ZeroShares` guard) before mainnet, then set `minDeposit` from the vault's live share price/economics rather than a fixed 1 USDC.
+1. ✅ Mainnet deployed + verified (Oct 21, 2026) — see the mainnet section above.
+2. ✅ Mainnet `minDeposit` set to **5 USDC**; zero-share guard shipped in the mainnet adapter.
+3. **Live mainnet E2E pending funding:** the owner wallet has ~3.32 USDC, below the 5 USDC minimum.
+   Fund it with ≥5 USDC plus gas, then run one deposit → `withdrawLocal` → small CCTP withdrawal and
+   record the hashes in `deployments/arc-mainnet.json`.
+4. Rotate the keeper role from the owner EOA to a dedicated hot key before scaling volume.
+5. Book an external audit before raising the 25/50 USDC spending limits or onboarding third-party agents.
+6. Verify contract source on the Arc mainnet explorer.
+7. Validate BurnMessageV2 Layout A/B offsets against the live Arc MessageTransmitterV2; `CCTPReceiver`
+   is deployed and wired but unused by the current app path.
+8. Source-domain accounting for inbound deposits: the app mints to the wallet and calls `deposit()`, so
+   `chainDeposits` records Arc domain. A relayer/forwarder (or owner-signed `recordDeposit`) is needed.
+9. Confirm a production Iris attestation end-to-end on mainnet (the testnet path used the sandbox API).
 
 ## Tech Stack
 
@@ -193,8 +240,11 @@ where `vaultShareDecimals` is read live from `vault.decimals()`. USDC amounts re
 - Web3: wagmi v2, viem v2, ConnectKit
 - Contracts: Solidity 0.8.28 + Foundry. Sources in `contracts/`, unit tests in `contracts/test/*.t.sol`. Build with `bun run contracts:build` (`forge build`), test with `bun run contracts:test` (`forge test`).
 - Wallet: injected (MetaMask, etc.)
-- Chain: Arc Testnet (Chain ID: 5042002, imported from `viem/chains`)
-- Token: USDC (6 decimals) (Address: 0x3600000000000000000000000000000000000000, Chain: Arc Testnet)
+- Chain: selected at build time by `VITE_ARC_NETWORK` — **mainnet** (Arc, `5042`) by default,
+  `testnet` (`5042002`) for the demo build. Mainnet RPC `https://rpc.mainnet.arc.io`, explorer
+  `https://explorer.arc.io`.
+- Token: USDC (6 decimals) at `0x3600000000000000000000000000000000000000` on both networks. Arc's
+  native gas token is also USDC but with 18 decimals; never mix the two.
 - Toasts: Sonner
 
 ## Key Files

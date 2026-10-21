@@ -6,7 +6,7 @@
  * (never substitute a permissive default here; that allowed reverting tx).
  */
 import { useReadContract } from 'wagmi'
-import { ADAPTER_ABI, ADDRESSES, ARC_TESTNET_CHAIN_ID, VAULT_1_ID } from '../lib/contracts'
+import { ADAPTER_ABI, ADDRESSES, ARC_CHAIN_ID, VAULT_1_ID } from '../lib/contracts'
 
 export const FLOOR_MIN_DEPOSIT = 1_000_000n // sanity floor: 1 USDC in 6 decimals
 
@@ -16,7 +16,7 @@ export function useMinDeposit(): bigint | undefined {
     abi: ADAPTER_ABI,
     functionName: 'getVaultConfig',
     args: [VAULT_1_ID],
-    chainId: ARC_TESTNET_CHAIN_ID,
+    chainId: ARC_CHAIN_ID,
     query: { staleTime: 60_000 },
   })
 

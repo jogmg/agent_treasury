@@ -3,8 +3,7 @@
  * Scans backwards from latest in <=9,000-block chunks to tolerate RPC limits.
  */
 import { createPublicClient, fallback, http, parseAbiItem, type Log, type AbiEvent } from 'viem'
-import { arcTestnet } from 'viem/chains'
-import { ARC_RPC_URLS, ARC_TREASURY_DEPLOY_BLOCK, ADDRESSES } from './contracts'
+import { ARC_CHAIN, ARC_RPC_URLS, ARC_TREASURY_DEPLOY_BLOCK, ADDRESSES } from './contracts'
 
 export type ActivityEventType =
   | 'DepositRecorded'
@@ -119,7 +118,7 @@ export async function fetchActivityEvents(
   fromBlock = ARC_TREASURY_DEPLOY_BLOCK,
 ): Promise<ActivityEvent[]> {
   const client = createPublicClient({
-    chain: arcTestnet,
+    chain: ARC_CHAIN,
     transport: fallback(ARC_RPC_URLS.map((url) => http(url))),
   })
 

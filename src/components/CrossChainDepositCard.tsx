@@ -35,8 +35,9 @@ import {
 import {
   ADDRESSES,
   ARC_EXPLORER,
-  ARC_TESTNET_CHAIN_ID,
+  ARC_CHAIN_ID,
   ERC20_ABI,
+  IS_ARC_MAINNET,
   TREASURY_ABI,
   VAULT_ABI,
 } from '../lib/contracts'
@@ -101,7 +102,7 @@ export function CrossChainDepositCard() {
   const activeSource = getCctpDestination(activeSourceDomain) ?? CCTP_DESTINATIONS[0]
 
   const sourceClient = usePublicClient({ chainId: source.chain.id })
-  const arcClient = usePublicClient({ chainId: ARC_TESTNET_CHAIN_ID })
+  const arcClient = usePublicClient({ chainId: ARC_CHAIN_ID })
 
   const { data: sourceBalance, refetch: refetchSourceBalance } = useReadContract({
     address: source.usdc,
@@ -129,7 +130,7 @@ export function CrossChainDepositCard() {
 
   const { data: arcGas, refetch: refetchArcGas } = useBalance({
     address,
-    chainId: ARC_TESTNET_CHAIN_ID,
+    chainId: ARC_CHAIN_ID,
     query: { enabled: Boolean(address) },
   })
 
@@ -396,8 +397,8 @@ export function CrossChainDepositCard() {
 
     setBridgeDeposit({ status: 'minting', error: '', mintHash: '', arcApproveHash: '', depositHash: '' })
     try {
-      if (chainId !== ARC_TESTNET_CHAIN_ID) {
-        await switchChainAsync({ chainId: ARC_TESTNET_CHAIN_ID })
+      if (chainId !== ARC_CHAIN_ID) {
+        await switchChainAsync({ chainId: ARC_CHAIN_ID })
       }
 
       const gasBalance = await arcClient.getBalance({ address })
@@ -430,7 +431,7 @@ export function CrossChainDepositCard() {
           abi: MESSAGE_TRANSMITTER_V2_ABI,
           functionName: 'receiveMessage',
           args: [message as `0x${string}`, attestation as `0x${string}`],
-          chainId: ARC_TESTNET_CHAIN_ID,
+          chainId: ARC_CHAIN_ID,
         })
         setBridgeDeposit({ mintHash: hash })
 
@@ -471,7 +472,7 @@ export function CrossChainDepositCard() {
           abi: ERC20_ABI,
           functionName: 'approve',
           args: [ADDRESSES.treasury, amountToDeposit],
-          chainId: ARC_TESTNET_CHAIN_ID,
+          chainId: ARC_CHAIN_ID,
         })
         setBridgeDeposit({ arcApproveHash: approveTx })
 
@@ -500,7 +501,7 @@ export function CrossChainDepositCard() {
         abi: TREASURY_ABI,
         functionName: 'deposit',
         args: [amountToDeposit],
-        chainId: ARC_TESTNET_CHAIN_ID,
+        chainId: ARC_CHAIN_ID,
       })
       setBridgeDeposit({ depositHash: depositTx })
 
@@ -625,16 +626,22 @@ export function CrossChainDepositCard() {
             <div className="flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-300">
               <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               <span>
-                No USDC on {source.name}.{' '}
-                <a
-                  href="https://faucet.circle.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 underline"
-                >
-                  Get test USDC <ExternalLink className="h-3 w-3" />
-                </a>{' '}
-                (select {source.name}).
+                {IS_ARC_MAINNET ? (
+                  <>No USDC on {source.name}. Send or bridge USDC to this wallet on that chain.</>
+                ) : (
+                  <>
+                    No USDC on {source.name}.{' '}
+                    <a
+                      href="https://faucet.circle.com"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 underline"
+                    >
+                      Get test USDC <ExternalLink className="h-3 w-3" />
+                    </a>{' '}
+                    (select {source.name}).
+                  </>
+                )}
               </span>
             </div>
           )}
@@ -689,8 +696,8 @@ export function CrossChainDepositCard() {
           )}
 
           <p className="text-[11px] leading-relaxed text-slate-500">
-            Standard CCTP, no protocol fee. The source-chain attestation can take 15–30 minutes
-            (15–19 minutes from Ethereum Sepolia). The Arc mint delivers USDC to your connected
+            Standard CCTP, no protocol fee. The source-chain attestation can take 15–30 minutes.
+            The Arc mint delivers USDC to your connected
             wallet; the app then approves the treasury and deposits it into your agent's vault. You
             need a little Arc {ARC_GAS_SYMBOL} for up to three Arc transactions.
           </p>
@@ -856,8 +863,8 @@ export function CrossChainDepositCard() {
               <div>
                 <p className="font-medium text-white">Waiting for Circle attestation…</p>
                 <p className="mt-1 text-xs text-slate-400">
-                  Standard CCTP from {activeSource.name} can take 15–30 minutes (15–19 minutes from
-                  Ethereum Sepolia). The source burn is confirmed; there is no Arc transaction yet.
+                  Standard CCTP from {activeSource.name} can take 15–30 minutes. The source burn is
+                  confirmed; there is no Arc transaction yet.
                   You can switch tabs and come back. This burn is saved in your browser, so a
                   reload restores the pending deposit automatically.
                 </p>
@@ -889,14 +896,16 @@ export function CrossChainDepositCard() {
                     deposited into that wallet's agent treasury.
                   </p>
                   <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-                    <a
-                      href="https://faucet.circle.com"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-emerald-400 underline hover:text-emerald-300"
-                    >
-                      Get Arc test USDC
-                    </a>
+                    {!IS_ARC_MAINNET && (
+                      <a
+                        href="https://faucet.circle.com"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-emerald-400 underline hover:text-emerald-300"
+                      >
+                        Get Arc test USDC
+                      </a>
+                    )}
                     <button
                       type="button"
                       onClick={() => void refetchArcGas()}

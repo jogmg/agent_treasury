@@ -11,7 +11,7 @@ import { useTreasuryData, useActivityEvents } from './hooks/useTreasuryData'
 import { useUiStore } from './stores/ui'
 import { useFlowStore } from './stores/flow'
 import { getCctpDestination } from './lib/cctp'
-import { ARC_TESTNET_CHAIN_ID } from './lib/contracts'
+import { ARC_CHAIN, ARC_CHAIN_ID } from './lib/contracts'
 
 // ── Global data bootstrap ────────────────────────────────────────────────────
 function DataBootstrap() {
@@ -26,7 +26,7 @@ function WrongNetworkBanner() {
   const { switchChain, isPending } = useSwitchChain()
   const completionStatus = useFlowStore((s) => s.cctpCompletionStatus)
   const destinationDomain = useFlowStore((s) => s.cctpDestinationDomain)
-  if (!isConnected || chainId === ARC_TESTNET_CHAIN_ID) return null
+  if (!isConnected || chainId === ARC_CHAIN_ID) return null
 
   const destination = getCctpDestination(destinationDomain)
   const isCompletingMint = completionStatus === 'ready' ||
@@ -38,11 +38,11 @@ function WrongNetworkBanner() {
       <div className="border-b border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-center text-xs text-emerald-300">
         Completing the CCTP mint on {destination?.name ?? 'the destination chain'}.{' '}
         <button
-          onClick={() => switchChain({ chainId: ARC_TESTNET_CHAIN_ID })}
+          onClick={() => switchChain({ chainId: ARC_CHAIN_ID })}
           disabled={isPending}
           className="font-semibold underline hover:text-emerald-200"
         >
-          {isPending ? 'Switching…' : 'Back to Arc Testnet'}
+          {isPending ? 'Switching…' : `Back to ${ARC_CHAIN.name}`}
         </button>
       </div>
     )
@@ -52,11 +52,11 @@ function WrongNetworkBanner() {
     <div className="border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-center text-xs text-amber-300">
       Wrong network.{' '}
       <button
-        onClick={() => switchChain({ chainId: ARC_TESTNET_CHAIN_ID })}
+        onClick={() => switchChain({ chainId: ARC_CHAIN_ID })}
         disabled={isPending}
         className="font-semibold underline hover:text-amber-200"
       >
-        {isPending ? 'Switching…' : 'Switch to Arc Testnet'}
+        {isPending ? 'Switching…' : `Switch to ${ARC_CHAIN.name}`}
       </button>
     </div>
   )

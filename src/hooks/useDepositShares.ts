@@ -6,7 +6,7 @@
  * share. The adapter enforces the same rule on-chain.
  */
 import { useReadContract } from 'wagmi'
-import { ADDRESSES, ARC_TESTNET_CHAIN_ID, VAULT_ABI } from '../lib/contracts'
+import { ADDRESSES, ARC_CHAIN_ID, VAULT_ABI } from '../lib/contracts'
 
 export interface DepositShareCheck {
   /** Shares the vault would mint for this amount; undefined until resolved. */
@@ -23,7 +23,7 @@ export function useDepositShares(amount: bigint): DepositShareCheck {
     abi: VAULT_ABI,
     functionName: 'previewDeposit',
     args: [amount],
-    chainId: ARC_TESTNET_CHAIN_ID,
+    chainId: ARC_CHAIN_ID,
     query: { enabled: amount > 0n },
   })
 
@@ -32,7 +32,7 @@ export function useDepositShares(amount: bigint): DepositShareCheck {
     abi: VAULT_ABI,
     functionName: 'previewMint',
     args: [1n],
-    chainId: ARC_TESTNET_CHAIN_ID,
+    chainId: ARC_CHAIN_ID,
     query: { staleTime: 60_000 },
   })
 

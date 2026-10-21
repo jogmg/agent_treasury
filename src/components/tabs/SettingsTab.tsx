@@ -2,8 +2,8 @@ import { useState } from 'react'
 import { useAccount, usePublicClient, useSwitchChain, useWriteContract } from 'wagmi'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Copy, Check, ShieldOff } from 'lucide-react'
-import { ADDRESSES, TREASURY_ABI, ARC_TESTNET_CHAIN_ID, explorerAddr } from '../../lib/contracts'
+import { Copy, Check, ShieldAlert, ShieldOff } from 'lucide-react'
+import { ADDRESSES, TREASURY_ABI, ARC_CHAIN, ARC_CHAIN_ID, IS_ARC_MAINNET, explorerAddr } from '../../lib/contracts'
 import { parseUsdc } from '../../lib/decimals'
 import { parseOnchainError } from '../../lib/errors'
 import { useTreasuryStore } from '../../stores/treasury'
@@ -50,7 +50,7 @@ function AddrRow({ label, value }: { label: string; value: string }) {
 export function SettingsTab() {
   const { address, chainId } = useAccount()
   const { switchChain } = useSwitchChain()
-  const publicClient = usePublicClient({ chainId: ARC_TESTNET_CHAIN_ID })
+  const publicClient = usePublicClient({ chainId: ARC_CHAIN_ID })
   const queryClient = useQueryClient()
   const [daily, setDaily]   = useState('')
   const [weekly, setWeekly] = useState('')
@@ -61,11 +61,11 @@ export function SettingsTab() {
 
   const { writeContractAsync: setLimit } = useWriteContract()
 
-  const isWrongChain = !!address && chainId !== ARC_TESTNET_CHAIN_ID
+  const isWrongChain = !!address && chainId !== ARC_CHAIN_ID
 
   async function handleSetLimit() {
     if (!address || !publicClient) return
-    if (isWrongChain) { switchChain({ chainId: ARC_TESTNET_CHAIN_ID }); return }
+    if (isWrongChain) { switchChain({ chainId: ARC_CHAIN_ID }); return }
     const d = daily  ? parseUsdc(daily)  : 0n
     const w = weekly ? parseUsdc(weekly) : 0n
     setBusy(true)
@@ -76,7 +76,7 @@ export function SettingsTab() {
         abi: TREASURY_ABI,
         functionName: 'setSpendingLimit',
         args: [address, d, w],
-        chainId: ARC_TESTNET_CHAIN_ID,
+        chainId: ARC_CHAIN_ID,
       })
       setSettings({ settingsStep: 'confirming', settingsHash: tx })
 
@@ -108,6 +108,20 @@ export function SettingsTab() {
 
   return (
     <div className="mx-auto max-w-lg space-y-6">
+      {IS_ARC_MAINNET && (
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-5">
+          <div className="flex items-center gap-2">
+            <ShieldAlert className="h-4 w-4 text-amber-400" />
+            <h2 className="text-sm font-semibold text-amber-300">Mainnet guardrails</h2>
+          </div>
+          <p className="mt-2 text-xs leading-relaxed text-amber-200/80">
+            Contracts are unaudited. Vault minimum is 5 USDC; the launch spending limit is 25 USDC/day and
+            50 USDC/week. Keep deposits small, and do not custody third-party funds until the external
+            audit is complete.
+          </p>
+        </div>
+      )}
+
       {/* Spending limits */}
       <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-5">
         <h2 className="mb-4 text-sm font-semibold text-white">Spending Limits</h2>
@@ -139,10 +153,10 @@ export function SettingsTab() {
 
         {isWrongChain ? (
           <button
-            onClick={() => switchChain({ chainId: ARC_TESTNET_CHAIN_ID })}
+            onClick={() => switchChain({ chainId: ARC_CHAIN_ID })}
             className="mt-4 w-full rounded-xl bg-amber-500 py-3 text-sm font-semibold text-black"
           >
-            Switch to Arc Testnet
+            Switch to {ARC_CHAIN.name}
           </button>
         ) : (
           <button

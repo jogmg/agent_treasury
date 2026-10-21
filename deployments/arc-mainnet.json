@@ -1,0 +1,125 @@
+{
+  "_note": "Arc Mainnet deployment — Oct 21, 2026. Unaudited, deployed with guardrails (5 USDC vault minimum, 25 USDC/day + 50 USDC/week per-agent spending limit). Testnet stack remains separate in arc-testnet-fixed.json.",
+  "chainId": 5042,
+  "network": "Arc Mainnet",
+  "rpc": "https://rpc.mainnet.arc.io",
+  "explorer": "https://explorer.arc.io",
+  "deployedAt": "2026-10-21T18:09:17Z",
+  "deployBlock": 27153209,
+  "firstDeployBlock": 27153175,
+  "cctpDomain": 26,
+  "cctpMinFinalityThreshold": 2000,
+  "cctp": {
+    "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+    "messageTransmitterV2": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64",
+    "note": "Arc mainnet CCTP addresses differ from testnet. Verified on-chain: testnet addresses have no code on mainnet."
+  },
+  "owner": "0xD00fD0B006c01342522cAf4FA04D5f8910aB268c",
+  "keeper": "0xD00fD0B006c01342522cAf4FA04D5f8910aB268c",
+  "contracts": {
+    "MorphoVaultAdapter": {
+      "address": "0x5102057330f5bb5f3e4eb0925b7d1eac8a563c23",
+      "deployTxHash": "0xcf28d862bf74c4b27a1afde9fbda8d45422a025b5b84abe429b63a984a475fef",
+      "deployBlock": 27153175
+    },
+    "CCTPReceiver": {
+      "address": "0x91f1eb97a40fdab05d150c10566cf9aa3546a375",
+      "deployTxHash": "0x6dfd7168175d643cb6447f9f4c29c5005e6deacbd42815bfe9bb29e6a8ecafe1",
+      "deployBlock": 27153192
+    },
+    "AgentTreasury": {
+      "address": "0xf71b5d1a19d72b98675785123fae811698be6f63",
+      "deployTxHash": "0xb57016bde4ec8bc63be2e158125cd2e1b8442954d2051bd9ac2e141629105780",
+      "deployBlock": 27153209
+    }
+  },
+  "wiringTxs": {
+    "adapter.setTreasury": "0x66f773a32f9f0e7fe12e77e2e375196677df9cc8af2ab72649f786382a34b0c9",
+    "receiver.setTreasury": "0x7d4cd5defd1b91f985f75143398cf24444a6f6e4fe992c73e64e5568f4cac3a9",
+    "adapter.addVault": "0x567d0564883103a76bdfe540af3a3066716edb9269526023c161ebed29f2d628",
+    "adapter.setVaultAPY": "0x188ba30adb6a6edb23dc0468236b81e36c65befdebce4b96ae1650004209b0a4",
+    "adapter.setKeeper": "0xd7136effc952bc1d6e8eae6c660fd795d0ff614f19186f03bc91402f497cfa95",
+    "treasury.setKeeper": "0xeb56281ba7c3627271721ed2713ac30f7ad8f5f32cee7c1ebcb4a0fe6bbc8cb6",
+    "treasury.setSpendingLimit": "0xcc21b2c35eb261ba3e864840d53423612db13805126237514978f58890538d4d"
+  },
+  "vault": {
+    "id": 1,
+    "address": "0x8E357432CC12ff425c36432F312968aEb16112AF",
+    "name": "Galaxy USDC",
+    "symbol": "arcUSDC",
+    "asset": "0x3600000000000000000000000000000000000000",
+    "assetSymbol": "USDC",
+    "shareDecimals": 18,
+    "minDeposit": "5000000",
+    "minDepositUsdc": "5.00",
+    "vaultAPY": "26500000000000000",
+    "vaultAPYPercent": "2.65",
+    "previewDeposit5Usdc": "4996624744762302564",
+    "note": "Morpho Vault V2. 0% performance / 0% management fee. 96.3% allocated to the avatar cirBTC/USDC 86% LLTV market; ~12.2M USDC instant liquidity. Researched 2026-10-21 against app.morpho.org/arc."
+  },
+  "guardrails": {
+    "minDeposit": "5 USDC (economics-based; also enforced >= previewMint(1))",
+    "spendingLimit": "25 USDC/day, 50 USDC/week for the owner agent",
+    "keeper": "same EOA as owner for launch; rotate to a dedicated keeper key before scaling",
+    "audit": "Unaudited. Owner accepted shipping with guardrails; external audit planned."
+  },
+  "verification": {
+    "date": "2026-10-21",
+    "allChecksPassed": true,
+    "allReceiptsSuccess": true,
+    "decodedWiring": {
+      "adapter.addVault": ["1", "0x8E357432CC12ff425c36432F312968aEb16112AF", "Galaxy USDC", "arcUSDC", "5000000"],
+      "adapter.setVaultAPY": ["1", "26500000000000000"],
+      "adapter.setKeeper": "0xD00fD0B006c01342522cAf4FA04D5f8910aB268c",
+      "treasury.setKeeper": "0xD00fD0B006c01342522cAf4FA04D5f8910aB268c",
+      "treasury.setSpendingLimit": ["0xD00fD0B006c01342522cAf4FA04D5f8910aB268c", "25000000", "50000000"]
+    },
+    "codePresent": {
+      "adapter": true,
+      "receiver": true,
+      "treasury": true,
+      "vault": true
+    },
+    "wiring": {
+      "treasury.morphoAdapter": "0x5102057330f5bb5f3e4eb0925b7D1EaC8A563c23",
+      "treasury.gatewayReceiver": "0x91F1eb97a40fdAB05d150c10566cF9aa3546a375",
+      "adapter.treasury": "0xF71B5D1A19d72B98675785123fAE811698bE6F63",
+      "receiver.treasury": "0xF71B5D1A19d72B98675785123fAE811698bE6F63",
+      "adapter.owner": "0xD00fD0B006c01342522cAf4FA04D5f8910aB268c",
+      "receiver.owner": "0xD00fD0B006c01342522cAf4FA04D5f8910aB268c",
+      "treasury.owner": "0xD00fD0B006c01342522cAf4FA04D5f8910aB268c",
+      "treasury.keeper": "0xD00fD0B006c01342522cAf4FA04D5f8910aB268c",
+      "adapter.keeper": "0xD00fD0B006c01342522cAf4FA04D5f8910aB268c",
+      "treasury.tokenMessenger": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+      "treasury.messageTransmitter": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64",
+      "receiver.trustedTransmitter": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64",
+      "treasury.ARC_DOMAIN": 26,
+      "treasury.defaultVaultId": 1,
+      "treasury.paused": false,
+      "adapter.paused": false
+    },
+    "vaultConfig": {
+      "id": 1,
+      "vaultAddress": "0x8E357432CC12ff425c36432F312968aEb16112AF",
+      "name": "Galaxy USDC",
+      "symbol": "arcUSDC",
+      "minDeposit": "5000000",
+      "isActive": true
+    }
+  },
+  "balancesAtDeploy": {
+    "ownerNativeUsdc18": "3.323327212292452634",
+    "ownerErc20Usdc6": "3.323327"
+  },
+  "pendingActions": [
+    "Live E2E deposit requires topping the owner wallet above the 5 USDC vault minimum.",
+    "Rotate the keeper role to a dedicated hot key before scaling real volume.",
+    "External audit before raising caps or onboarding third-party agents."
+  ],
+  "related": {
+    "testnet": "deployments/arc-testnet-fixed.json",
+    "deployScript": "contracts/script/DeployMainnet.s.sol",
+    "forkTest": "contracts/test/fork/MainnetDeploy.t.sol",
+    "deployPage": "scripts/mainnet-deploy/template.html"
+  }
+}

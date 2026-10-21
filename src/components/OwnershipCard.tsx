@@ -11,7 +11,7 @@ import { toast } from 'sonner'
 import { KeyRound } from 'lucide-react'
 import {
   ADDRESSES,
-  ARC_TESTNET_CHAIN_ID,
+  ARC_CHAIN_ID,
   OWNABLE_ABI,
 } from '../lib/contracts'
 import { parseOnchainError } from '../lib/errors'
@@ -31,7 +31,7 @@ const CONTRACTS = [
 export function OwnershipCard() {
   const { address, chainId } = useAccount()
   const { switchChain } = useSwitchChain()
-  const publicClient = usePublicClient({ chainId: ARC_TESTNET_CHAIN_ID })
+  const publicClient = usePublicClient({ chainId: ARC_CHAIN_ID })
   const queryClient = useQueryClient()
   const [busy, setBusy] = useState(false)
   const [step, setStep] = useState<FlowStep>('idle')
@@ -43,13 +43,13 @@ export function OwnershipCard() {
       address: c.address,
       abi: OWNABLE_ABI,
       functionName: 'pendingOwner' as const,
-      chainId: ARC_TESTNET_CHAIN_ID,
+      chainId: ARC_CHAIN_ID,
     })),
     query: { enabled: !!address },
   })
 
   const { writeContractAsync } = useWriteContract()
-  const isWrongChain = !!address && chainId !== ARC_TESTNET_CHAIN_ID
+  const isWrongChain = !!address && chainId !== ARC_CHAIN_ID
 
   const pending = CONTRACTS.filter((_, i) => {
     const result = data?.[i]
@@ -62,7 +62,7 @@ export function OwnershipCard() {
   async function handleAccept(contractAddress: `0x${string}`, name: string) {
     if (!publicClient) return
     if (isWrongChain) {
-      switchChain({ chainId: ARC_TESTNET_CHAIN_ID })
+      switchChain({ chainId: ARC_CHAIN_ID })
       return
     }
 
@@ -74,7 +74,7 @@ export function OwnershipCard() {
         address: contractAddress,
         abi: OWNABLE_ABI,
         functionName: 'acceptOwnership',
-        chainId: ARC_TESTNET_CHAIN_ID,
+        chainId: ARC_CHAIN_ID,
       })
       setHash(tx)
       setStep('confirming')

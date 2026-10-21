@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { isAddress } from 'viem'
 import { toast } from 'sonner'
 import { AlertTriangle } from 'lucide-react'
-import { ADDRESSES, TREASURY_ABI, ARC_TESTNET_CHAIN_ID, ARC_CCTP_DOMAIN } from '../../lib/contracts'
+import { ADDRESSES, TREASURY_ABI, ARC_CHAIN_ID, ARC_CHAIN, ARC_EXPLORER, ARC_CCTP_DOMAIN } from '../../lib/contracts'
 import { parseUsdc, formatUsdcDollar, formatUsdc, addrToBytes32 } from '../../lib/decimals'
 import { CCTP_DESTINATIONS } from '../../lib/cctp'
 import { parseOnchainError } from '../../lib/errors'
@@ -18,7 +18,7 @@ const MAX_U256 = BigInt('0xfffffffffffffffffffffffffffffffffffffffffffffffffffff
 export function WithdrawTab() {
   const { address, chainId } = useAccount()
   const { switchChain } = useSwitchChain()
-  const publicClient = usePublicClient({ chainId: ARC_TESTNET_CHAIN_ID })
+  const publicClient = usePublicClient({ chainId: ARC_CHAIN_ID })
   const queryClient = useQueryClient()
 
   const [amount, setAmount] = useState('')
@@ -38,7 +38,7 @@ export function WithdrawTab() {
   const { writeContractAsync: withdraw } = useWriteContract()
   const { writeContractAsync: requestWithdrawal } = useWriteContract()
 
-  const isWrongChain = !!address && chainId !== ARC_TESTNET_CHAIN_ID
+  const isWrongChain = !!address && chainId !== ARC_CHAIN_ID
   const parsedAmount  = amount ? parseUsdc(amount) : 0n
 
   function loadCctpTransfer(txHash: string, rawAmount?: unknown, destinationDomain?: unknown) {
@@ -66,7 +66,7 @@ export function WithdrawTab() {
   }
 
   async function handleWithdraw(isMax = false) {
-    if (isWrongChain) { switchChain({ chainId: ARC_TESTNET_CHAIN_ID }); return }
+    if (isWrongChain) { switchChain({ chainId: ARC_CHAIN_ID }); return }
     if (!address || !publicClient) return
     if (!isMax && parsedAmount === 0n) return
     if (!isMax && parsedAmount > totalBalance) { toast.error('Amount exceeds balance'); return }
@@ -81,7 +81,7 @@ export function WithdrawTab() {
         abi: TREASURY_ABI,
         functionName: 'withdrawLocal',
         args,
-        chainId: ARC_TESTNET_CHAIN_ID,
+        chainId: ARC_CHAIN_ID,
       })
       setWithdraw({ withdrawStep: 'confirming', withdrawHash: tx })
 
@@ -91,7 +91,7 @@ export function WithdrawTab() {
       setWithdraw({ withdrawStep: 'success' })
       setAmount('')
       toast.success('Withdrawal confirmed', {
-        action: { label: 'Explorer', onClick: () => window.open(`https://explorer.testnet.arc.io/tx/${tx}`) },
+        action: { label: 'Explorer', onClick: () => window.open(`${ARC_EXPLORER}/tx/${tx}`) },
       })
       await queryClient.invalidateQueries()
     } catch (e) {
@@ -106,7 +106,7 @@ export function WithdrawTab() {
   }
 
   async function handleCctp() {
-    if (isWrongChain) { switchChain({ chainId: ARC_TESTNET_CHAIN_ID }); return }
+    if (isWrongChain) { switchChain({ chainId: ARC_CHAIN_ID }); return }
     if (!address || !publicClient) return
 
     const parsed = cctpAmount ? parseUsdc(cctpAmount) : 0n
@@ -130,7 +130,7 @@ export function WithdrawTab() {
         abi: TREASURY_ABI,
         functionName: 'requestWithdrawal',
         args: [address, parsed, domain, addrToBytes32(mintRecipient)],
-        chainId: ARC_TESTNET_CHAIN_ID,
+        chainId: ARC_CHAIN_ID,
       })
       setCctp({ cctpStep: 'confirming', cctpHash: tx })
 
@@ -214,10 +214,10 @@ export function WithdrawTab() {
 
         {isWrongChain ? (
           <button
-            onClick={() => switchChain({ chainId: ARC_TESTNET_CHAIN_ID })}
+            onClick={() => switchChain({ chainId: ARC_CHAIN_ID })}
             className="w-full rounded-xl bg-amber-500 py-3.5 text-sm font-semibold text-black transition hover:bg-amber-400"
           >
-            Switch to Arc Testnet
+            Switch to {ARC_CHAIN.name}
           </button>
         ) : (
           <div className="flex gap-3">
