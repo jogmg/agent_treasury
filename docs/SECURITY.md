@@ -56,9 +56,18 @@ Real USDC on Arc mainnet, signed by the owner wallet through the app:
 - Post-state: principal `4.000001`, shares `3,997,267,627,595,906,989`, `getTotalBalance` `4` USDC,
   wallet `9.286509` USDC. The 1-unit difference is ERC-4626 share-price rounding, not a loss.
 
-The mainnet stack includes the zero-share guard and was rehearsed on a mainnet fork. A live mainnet
-CCTP burn → Iris attestation → destination mint is still untested. The testnet destination Sepolia
-mint is pending gas; see `scripts/complete-cctp.ts`.
+**Mainnet CCTP round trip (same day):**
+
+- Arc→Base withdrawal 1: burn [`0xbfcdbe…5ccd`](https://explorer.arc.io/tx/0xbfcdbe75479246d4b6e3ad51d076618e5450d98899c5aa76ee0ce12dddff5ccd) for `1,999,999`; production Iris attestation `complete`; Base mint [`0x58c3eb…59fa`](https://basescan.org/tx/0x58c3eb306e7e03bf77b1e38637df4b9ef39f5b159276d842fd2c97d77edd59fa).
+- Arc→Base withdrawal 2: burn [`0x971d10…ad76`](https://explorer.arc.io/tx/0x971d1064e78b4e30154174e618c37735d9cf326d2e8d60da9d546942d92aad76) for `4,999,999`; Iris `complete`; Base mint [`0x68045f…7609`](https://basescan.org/tx/0x68045fe2f25c2c03b0dd84ba871e6adc35ca8abfbe7552f9378988b648017609).
+- Both Base mints were submitted by relayer `0xecfe41…c717`, not the owner wallet, so relay is permissionless as designed.
+- Base→Arc deposit: Base burn [`0xadf19a…b280`](https://basescan.org/tx/0xadf19a348fcb122f1052e717870290db6cc351b13a5338f72c6ac288cf61b280) for 5 USDC; Arc `receiveMessage` [`0xb2a7ba…246c`](https://explorer.arc.io/tx/0xb2a7ba0096aefaed2dfd959162a66bca2c6f781909a3cd80a132581420ab246c); treasury `deposit` [`0xb1e34e…026b`](https://explorer.arc.io/tx/0xb1e34e0a075037523a8eb0bb48b9813d8e247f78da37b4cb7402fb2aa9ed026b) → `4,996,555,771,054,222,485` shares.
+- Post-state: principal `9.000003`, shares `8,993,822,921,076,662,356`, total `9.000028` USDC. Nonces are marked used on both Base and Arc.
+- Bookkeeping gap: withdrawal ids 1–2 remain `executed=false`; the app does not call `executeWithdrawal`. Funds are unaffected.
+
+The mainnet stack includes the zero-share guard and was rehearsed on a mainnet fork. The testnet
+destination Sepolia mint for the remaining 1 USDC transfer is pending gas; see
+`scripts/complete-cctp.ts`.
 
 ## Invariants
 
@@ -75,7 +84,7 @@ mint is pending gas; see `scripts/complete-cctp.ts`.
 1. **Spending limits are not owner-bounded.** `setSpendingLimit` is callable by the agent or owner, so an agent can raise or clear a limit the owner set. Limits are an agent-safety feature, not an owner-enforced custody control. A production version should add owner-set ceilings (`maxDailyLimit`, `maxWeeklyLimit`) and reset windows explicitly.
 2. **Owner is trusted.** A malicious/compromised owner can point the treasury at a malicious adapter or pause withdrawals. Ownership is `Ownable2Step`, so a mistaken transfer must be accepted; a compromised key is still a full compromise. A production version should use a multisig/timelock.
 3. **CCTP body layout assumptions.** The receiver tolerates versioned (228-byte fixed fields) and unversioned (224-byte) `BurnMessageV2` layouts and reads `hookData` with a bounds-checked length word. This matches Circle's documented layout at the time of writing but has not been fuzz-tested against live mainnet messages.
-4. **No automatic Iris relay.** Outbound withdrawals burn on Arc; the destination mint requires a relayer or manual `receiveMessage` with the attestation. The UI surfaces the attestation path but does not run a relayer.
+4. **No automatic Iris relay.** Outbound withdrawals burn on Arc; the destination mint requires a relayer or manual `receiveMessage` with the attestation. The UI surfaces the attestation path but does not run a relayer. In the live mainnet round trip an external relayer submitted both Base mints.
 5. **Circle Gateway is not live.** The treasury has a `gatewayReceiver` hook and the UI is honest about it, but unified Gateway balances require a server-side API key and are not implemented. No fake Gateway numbers are shown.
 6. **APY is an owner-set cache.** `vaultAPY(1)` is a display value (mainnet `2.65%`, testnet `4.2%`), not an on-chain oracle. The UI labels projections as estimates.
 7. **Event history is bounded.** The activity scanner starts at the configured deployment block and reads 9,000-block chunks; it skips RPC-limited chunks, so very old history is not indexed.
@@ -89,7 +98,8 @@ mint is pending gas; see `scripts/complete-cctp.ts`.
 - [x] Mainnet fork rehearsal of the exact deploy sequence.
 - [x] Zero-share guard in the mainnet adapter.
 - [x] Live mainnet deposit / local withdrawal proof (5 USDC in, 1 USDC out, October 21, 2026).
-- [ ] Live mainnet CCTP withdrawal + destination mint proof.
+- [x] Live mainnet CCTP proof: Arc→Base withdrawals 1–2 attested and minted, Base→Arc 5 USDC mint/deposit.
+- [ ] Clear completed withdrawal bookkeeping (`executeWithdrawal(1)`, `(2)`) and add an app action for it.
 - [ ] Independent review / audit of `AgentTreasury`, `MorphoVaultAdapter`, `CCTPReceiver`.
 - [ ] Owner-bounded spending limits.
 - [ ] Multisig/timelock owner and a dedicated keeper key.

@@ -306,5 +306,8 @@ Post-deploy policy:
 - Keep the 5 USDC minimum and 25/50 limits until the external audit is booked and passed.
 - Rotate the keeper from the owner EOA to a dedicated key before scaling volume.
 - Do not raise caps, accept third-party deposits, or add vaults without an audit.
-- Live E2E passed October 21, 2026 (5 USDC deposit → 1 USDC `withdrawLocal`); hashes and state are in
-  `deployments/arc-mainnet.json`. A mainnet CCTP withdrawal/mint is still the open proof.
+- Live E2E passed October 21, 2026: 5 USDC deposit → 1 USDC `withdrawLocal`, then a full CCTP round
+  trip (two Arc→Base withdrawals attested and minted; Base→Arc 5 USDC minted and deposited). Hashes,
+  nonces, and state are in `deployments/arc-mainnet.json` (`liveE2E`, `liveCctpE2E`).
+- Bookkeeping follow-up: withdrawal ids 1–2 are still `executed=false`. Call keeper
+  `executeWithdrawal(1)` and `executeWithdrawal(2)` to clear them; funds are unaffected.

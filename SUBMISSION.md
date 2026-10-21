@@ -53,7 +53,11 @@ The entire project was built in Arc Studio: contracts, Foundry tests, deployment
   `0x5caf815a39ea83f9c7b77a6933183bedaf7417c5397f6c9c7506acf314d276b0`, resolved `0.999999`,
   `999,316,858,421,847,964` shares burned). Post-state: principal `4.000001`, shares
   `3,997,267,627,595,906,989`, `getTotalBalance` `4` USDC.
-- **Still open:** a live mainnet CCTP withdrawal + destination mint.
+- **Live mainnet CCTP round trip:** two Arc→Base withdrawals (1.999999 and 4.999999 USDC) burned,
+  got complete production Iris attestations, and minted on Base (`0x58c3eb…59fa`, `0x68045f…7609`,
+  relayed by `0xecfe41…c717`). Then 5 USDC burned on Base (`0xadf19a…b280`), minted on Arc
+  (`0xb2a7ba…246c`), and deposited into Galaxy USDC (`0xb1e34e…026b`,
+  `4,996,555,771,054,222,485` shares). Post-state: principal `9.000003`, total `9.000028` USDC.
 - Full record: `deployments/arc-mainnet.json`.
 
 ### Arc testnet (E2E proven)
@@ -87,20 +91,22 @@ The entire project was built in Arc Studio: contracts, Foundry tests, deployment
 |---|---|
 | **Functionality (25%)** | Deposit → yield → withdraw loop; spending limits; pause; keeper separation; CCTP outbound; 81 contract tests. |
 | **Arc Studio usage (25%)** | Contracts, tests, deploy scripts, frontend, and docs all generated iteratively in one Arc Studio project; deployment records in `deployments/arc-mainnet.json` and `deployments/arc-testnet-fixed.json`. |
-| **Real USDC on Arc (30%)** | **Both networks proven with real USDC.** Mainnet: 5 USDC deposited into Galaxy USDC and 1 USDC withdrawn locally (hashes above). Testnet: 10 USDC deposited into the live Morpho vault, then 1 USDC withdrawn from yield through CCTP to domain 0; source burn and finalized Iris attestation confirmed, with a completed Sepolia destination mint. |
+| **Real USDC on Arc (30%)** | **Both networks proven with real USDC, including cross-chain.** Mainnet: local deposit/withdraw plus a full CCTP round trip — Arc→Base withdrawals attested and minted, Base→Arc 5 USDC burn/mint/deposit. Testnet: 10 USDC deposited into the live Morpho vault, then 1 USDC withdrawn from yield through CCTP to domain 0; source burn and finalized Iris attestation confirmed, with a completed Sepolia destination mint. |
 | **Circle product depth (20%)** | CCTP v2 inbound/outbound on both networks; Earn Kit/Morpho vault; Gateway-ready receiver hook. |
 
 ## Honest limitations
 
 - Contracts are **unaudited**. Mainnet is live with deliberately low limits and only the owner's funds.
   Do not custody third-party funds before an audit.
-- **Mainnet CCTP withdrawal is still pending.** The mainnet deposit → vault → local withdraw path is
-  proven; the cross-chain burn → Iris attestation → destination mint has only been exercised on testnet.
+- **Withdrawal bookkeeping is not automatic.** The two completed mainnet CCTP requests are still
+  `executed=false` on-chain because the app never calls `executeWithdrawal`; funds are unaffected, but
+  a keeper call is needed to clear pending ids 1–2. The app has no button for this yet.
+- **Destination mints still need destination-chain gas or a relayer.** The app polls Iris and can
+  submit `receiveMessage`, but cannot pay destination gas. In the live mainnet round trip an external
+  relayer submitted both Base mints. The 4.999999 USDC Sepolia mint is complete; the earlier testnet
+  1 USDC transfer is awaiting Sepolia gas. `scripts/complete-cctp.ts` is the headless fallback.
 - **Spending limits are not owner-bounded**: an agent can raise its own limit. This is documented in
   `docs/SECURITY.md` and is the first post-hackathon fix.
-- **Destination mints still need destination-chain gas.** The app polls Iris and submits the mint, but
-  it cannot pay gas on the destination chain. The 4.999999 USDC Sepolia mint is complete; the earlier
-  1 USDC transfer is awaiting Sepolia gas. `scripts/complete-cctp.ts` is the headless fallback.
 - **Cross-chain deposits are wallet-mediated.** CCTP v2 hooks are opaque metadata, so the app mints to
   the connected Arc wallet and then calls `deposit()`. On-chain `chainDeposits` records the deposit as
   Arc-local; source-domain accounting via `CCTPReceiver` needs a relayer/forwarder and is future work.

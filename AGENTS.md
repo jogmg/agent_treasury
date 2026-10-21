@@ -55,6 +55,15 @@ available by building with `VITE_ARC_NETWORK=testnet`.
   `4,996,584,486,017,754,953` shares), withdraw `0x5caf81…76b0` (resolved `0.999999`, burned
   `999,316,858,421,847,964` shares). After: principal `4.000001`, shares `3,997,267,627,595,906,989`,
   `getTotalBalance` = `4` USDC, wallet `9.286509` USDC. The 1-unit gap is ERC-4626 rounding.
+- **Live mainnet CCTP E2E passed (Oct 21, 2026)**: two outbound withdrawals (1.999999 and
+  4.999999 USDC, ids 1–2) burned on Arc to Base domain `6`; both Iris attestations are `complete`
+  and both mints landed on Base (`0x58c3eb…59fa`, `0x68045f…7609`, relayed by `0xecfe41…c717`).
+  Then 5 USDC was burned on Base (`0xadf19a…b280`) and minted on Arc via `receiveMessage`
+  (`0xb2a7ba…246c`), followed by `deposit()` (`0xb1e34e…026b`, `4,996,555,771,054,222,485` shares).
+  Post-state: principal `9.000003`, shares `8,993,822,921,076,662,356`, total `9.000028` USDC.
+  Note: `DepositRecorded` shows source domain `26` (the app deposits from the Arc wallet after mint);
+  source-domain accounting is still TODO #8. Withdrawal ids 1–2 are still `executed=false` on-chain —
+  run keeper `executeWithdrawal` to clear them.
 - Full record: `deployments/arc-mainnet.json`. Audit: not done (owner chose "ship with guardrails":
   low caps, small live test, external audit before raising limits).
 
@@ -225,16 +234,18 @@ where `vaultShareDecimals` is read live from `vault.decimals()`. USDC amounts re
 ### Remaining TODOs
 1. ✅ Mainnet deployed + verified (Oct 21, 2026) — see the mainnet section above.
 2. ✅ Mainnet `minDeposit` set to **5 USDC**; zero-share guard shipped in the mainnet adapter.
-3. ✅ Mainnet deposit → Galaxy USDC vault → `withdrawLocal` proven live (Oct 21, 2026), hashes in
-   `deployments/arc-mainnet.json`. Still to do: one small mainnet CCTP withdrawal + destination mint.
-4. Rotate the keeper role from the owner EOA to a dedicated hot key before scaling volume.
-5. Book an external audit before raising the 25/50 USDC spending limits or onboarding third-party agents.
-6. Verify contract source on the Arc mainnet explorer.
-7. Validate BurnMessageV2 Layout A/B offsets against the live Arc MessageTransmitterV2; `CCTPReceiver`
+3. ✅ Mainnet deposit → Galaxy USDC vault → `withdrawLocal` proven live (Oct 21, 2026).
+4. ✅ Mainnet CCTP proven live: Arc→Base burns (ids 1–2) with complete production Iris attestations and
+   Base mints, plus a Base→Arc 5 USDC burn/mint/deposit. Hashes in `deployments/arc-mainnet.json`.
+5. Clear the completed withdrawal bookkeeping with keeper `executeWithdrawal(1)` and `(2)` (ids are
+   still `executed=false`; funds are unaffected). The app has no button for this yet.
+6. Rotate the keeper role from the owner EOA to a dedicated hot key before scaling volume.
+7. Book an external audit before raising the 25/50 USDC spending limits or onboarding third-party agents.
+8. Verify contract source on the Arc mainnet explorer.
+9. Validate BurnMessageV2 Layout A/B offsets against the live Arc MessageTransmitterV2; `CCTPReceiver`
    is deployed and wired but unused by the current app path.
-8. Source-domain accounting for inbound deposits: the app mints to the wallet and calls `deposit()`, so
-   `chainDeposits` records Arc domain. A relayer/forwarder (or owner-signed `recordDeposit`) is needed.
-9. Confirm a production Iris attestation end-to-end on mainnet (the testnet path used the sandbox API).
+10. Source-domain accounting for inbound deposits: the app mints to the wallet and calls `deposit()`, so
+    `chainDeposits` records Arc domain. A relayer/forwarder (or owner-signed `recordDeposit`) is needed.
 
 ## Tech Stack
 

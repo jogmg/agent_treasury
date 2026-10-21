@@ -158,13 +158,114 @@
       "Deposit minted vault shares on-chain (not just an internal credit): adapter/vault share balance backs the treasury accounting.",
       "The 1 USDC withdrawal resolved to 0.999999 USDC because 18-decimal vault shares and the ~1.0007 USDC share price leave a 1-unit ERC-4626 rounding remainder. Spending-limit accounting uses the resolved amount.",
       "All receipts succeeded; getPrincipal + getVaultShares + getTotalBalance agree with the emitted events.",
-      "This proves the mainnet deposit -> Galaxy USDC vault -> local withdrawal path. A live mainnet CCTP withdrawal/mint is still untested."
+      "This proves the mainnet deposit -> Galaxy USDC vault -> local withdrawal path. The cross-chain legs are recorded in liveCctpE2E below."
+    ]
+  },
+  "liveCctpE2E": {
+    "date": "2026-10-21",
+    "verifiedAtBlock": 27182006,
+    "arcNetwork": "Arc Mainnet (5042)",
+    "baseNetwork": "Base (8453)",
+    "wallet": "0xD00fD0B006c01342522cAf4FA04D5f8910aB268c",
+    "summary": "Two outbound CCTP withdrawals from Arc to Base were attested and minted, then 5 USDC was burned on Base and minted + deposited back into the Arc treasury.",
+    "outboundWithdrawals": [
+      {
+        "withdrawalId": 1,
+        "amountUsdc": "1.999999",
+        "amountRaw": "1999999",
+        "burnedShares": "1998627760422014787",
+        "destinationDomain": 6,
+        "destination": "Base",
+        "mintRecipient": "0xD00fD0B006c01342522cAf4FA04D5f8910aB268c",
+        "requestedAt": "2026-10-21T21:17:46Z",
+        "burnTx": "0xbfcdbe75479246d4b6e3ad51d076618e5450d98899c5aa76ee0ce12dddff5ccd",
+        "burnBlock": 27175400,
+        "messageHash": "0xcca30b1821916aa906fa2305c651c7cac5919d4215a9eb669b6c56926bd7d847",
+        "nonce": "0xfaebec9a3e690a582862dae765241ed22f63fe36744b89c8355c57320501aaf2",
+        "irisStatus": "complete",
+        "destinationMintTx": "0x58c3eb306e7e03bf77b1e38637df4b9ef39f5b159276d842fd2c97d77edd59fa",
+        "destinationMintBlock": 52914097,
+        "destinationMintedAt": "2026-10-21T21:19:01Z",
+        "destinationMintAmountUsdc": "1.999999",
+        "destinationMintRelayer": "0xecfe41d83efbb0d22712e28e2bca20546277c717 (23-byte EIP-7702 delegation designator; not the owner wallet)"
+      },
+      {
+        "withdrawalId": 2,
+        "amountUsdc": "4.999999",
+        "amountRaw": "4999999",
+        "burnedShares": "4996567491596694743",
+        "destinationDomain": 6,
+        "destination": "Base",
+        "mintRecipient": "0xD00fD0B006c01342522cAf4FA04D5f8910aB268c",
+        "requestedAt": "2026-10-21T21:24:09Z",
+        "burnTx": "0x971d1064e78b4e30154174e618c37735d9cf326d2e8d60da9d546942d92aad76",
+        "burnBlock": 27176157,
+        "messageHash": "0x8b9d5b74cab40fefcf8f3f368529b9966e59c03c043d25ef9303306afe24bb0a",
+        "nonce": "0xe1d85d82715015c5da334a8eff8ec8227e8e2693dbc6552dd9b6614d25143529",
+        "irisStatus": "complete",
+        "destinationMintTx": "0x68045fe2f25c2c03b0dd84ba871e6adc35ca8abfbe7552f9378988b648017609",
+        "destinationMintBlock": 52914333,
+        "destinationMintedAt": "2026-10-21T21:26:53Z",
+        "destinationMintAmountUsdc": "4.999999",
+        "destinationMintRelayer": "0xecfe41d83efbb0d22712e28e2bca20546277c717 (same relayer as withdrawal 1)"
+      }
+    ],
+    "inboundDeposit": {
+      "sourceDomain": 6,
+      "source": "Base",
+      "sourceBurnTx": "0xadf19a348fcb122f1052e717870290db6cc351b13a5338f72c6ac288cf61b280",
+      "sourceBurnBlock": 52914380,
+      "sourceBurnedAt": "2026-10-21T21:28:27Z",
+      "amountUsdc": "5",
+      "amountRaw": "5000000",
+      "messageHash": "0x80353f5fb0be863098dd1e824db832197aef641039f7519b33fd2a0e05c1e69a",
+      "nonce": "0x1bc1938b3dfb9a639b2810d439616a7b7529be44174cf2e17ccc9b0f9cb3239d",
+      "irisStatus": "complete",
+      "arcReceiveMessageTx": "0xb2a7ba0096aefaed2dfd959162a66bca2c6f781909a3cd80a132581420ab246c",
+      "arcReceiveMessageBlock": 27180769,
+      "arcMintedAt": "2026-10-21T22:03:08Z",
+      "arcMintAmountUsdc": "5",
+      "arcDepositTx": "0xb1e34e0a075037523a8eb0bb48b9813d8e247f78da37b4cb7402fb2aa9ed026b",
+      "arcDepositBlock": 27180786,
+      "arcDepositAt": "2026-10-21T22:03:17Z",
+      "arcDepositShares": "4996555771054222485",
+      "depositEventSourceDomain": 26,
+      "note": "The app mints to the Arc wallet and then calls deposit(), so DepositRecorded shows Arc domain 26 even though the USDC originated on Base domain 6. Funds and balances are correct; source-domain accounting still needs a relayer/forwarder."
+    },
+    "supportingLocalDeposit": {
+      "tx": "0xb2b80d3320ba1be4631c041f2ec03434e6daf758fdff3032c0a2c3e50a5b78c2",
+      "block": 27176075,
+      "at": "2026-10-21T21:23:28Z",
+      "amountUsdc": "7",
+      "shares": "6995194774445242412",
+      "note": "Wallet deposit between the two withdrawals; funded the 5 USDC withdrawal."
+    },
+    "nonceChecks": {
+      "withdrawal1UsedOnBase": true,
+      "withdrawal2UsedOnBase": true,
+      "inboundUsedOnArc": true
+    },
+    "stateAfter": {
+      "verifiedAtBlock": 27182006,
+      "principalUsdc": "9.000003",
+      "vaultShares": "8993822921076662356",
+      "totalBalanceUsdc": "9.000028",
+      "previewRedeemSharesUsdc": "9.000028",
+      "walletErc20Usdc": "2.246716",
+      "walletNativeUsdc18": "2.246716343949721945"
+    },
+    "notes": [
+      "Both outbound mints were submitted by a relayer (0xecfe...) rather than the owner wallet, demonstrating permissionless relay of the attested message.",
+      "The treasury withdrawal requests are still unexecuted on-chain (executed=false) because the app does not call executeWithdrawal(). Funds are unaffected, but keeper bookkeeping should clear pending ids 1 and 2.",
+      "Base USDC balance after the round trip is 1.999998: 1.999999 + 4.999999 minted minus 5.000000 burned.",
+      "This closes the mainnet CCTP proof: Arc burn -> production Iris attestation -> Base mint, and Base burn -> Arc mint -> Galaxy USDC deposit."
     ]
   },
   "pendingActions": [
-    "Live mainnet CCTP withdrawal/mint end-to-end (local deposit/withdraw is proven).",
+    "Run keeper executeWithdrawal(1) and executeWithdrawal(2) to clear the two completed cross-chain requests (bookkeeping only).",
     "Rotate the keeper role to a dedicated hot key before scaling real volume.",
-    "External audit before raising caps or onboarding third-party agents."
+    "External audit before raising caps or onboarding third-party agents.",
+    "Verify contract source on the Arc mainnet explorer."
   ],
   "related": {
     "testnet": "deployments/arc-testnet-fixed.json",

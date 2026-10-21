@@ -45,7 +45,9 @@ Deployment blocks: adapter `27153175`, treasury `27153209`. Owner and keeper:
 - Keeper is the owner EOA for launch; rotate to a dedicated key before scaling.
 - External audit before raising caps or onboarding third-party agents.
 - A live mainnet **5 USDC deposit + 1 USDC local withdrawal** passed on October 21, 2026 (deposit
-  `0xf48c28…0225`, withdraw `0x5caf81…76b0`). Mainnet CCTP withdrawal/mint is still untested.
+  `0xf48c28…0225`, withdraw `0x5caf81…76b0`).
+- Mainnet **CCTP round trip** also passed: two Arc→Base withdrawals were attested and minted, then
+  5 USDC was burned on Base, minted on Arc, and deposited into Galaxy USDC.
 
 Protocol constants (the CCTP deployments differ between networks):
 
@@ -236,13 +238,13 @@ The Activity tab groups activity with **All / In flight / Deposits / Withdrawals
 |---|---|
 | Per-agent treasury, spending limits, pause, keeper separation | ✅ implemented + tested |
 | Morpho/Earn Kit vault deposit, redeem, strategy switch | ✅ implemented + tested; live on testnet and on mainnet with Galaxy USDC (5 USDC deposit, 1 USDC local withdrawal) |
-| CCTP v2 outbound burn with hook data | ✅ implemented, unit-tested, and verified live on Arc Testnet (domain 0 burn + finalized attestation) |
-| CCTP v2 **inbound deposit** (source burn → mint to Arc wallet → `deposit()`) | ✅ implemented in the app; requires source USDC + source gas + Arc gas |
+| CCTP v2 outbound burn with hook data | ✅ implemented, unit-tested, and verified live on both networks (mainnet Arc→Base burns ids 1–2, complete Iris attestations, Base mints) |
+| CCTP v2 **inbound deposit** (source burn → mint to Arc wallet → `deposit()`) | ✅ implemented and verified live (Base→Arc 5 USDC burn, Arc mint, Galaxy USDC deposit); requires source USDC + source gas + Arc gas |
 | CCTPReceiver relayer adapter + malformed-data fallback | ✅ unit-tested; ⚠️ not used by the app (CCTP v2 hooks are opaque; a relayer/forwarder is required) |
 | Arc-local fast path (`deposit`, `withdrawLocal`) | ✅ implemented + tested |
 | Dashboard, 6 tabs, event history, CSV export | ✅ built, lint/typecheck clean |
 | Testnet deployment | ✅ deployed, wired, and E2E verified with real testnet USDC |
-| Mainnet deployment | ✅ deployed, wired, and E2E verified: 5 USDC deposit → Galaxy USDC → 1 USDC local withdrawal. ⏳ mainnet CCTP withdrawal/mint not yet exercised |
+| Mainnet deployment | ✅ deployed, wired, and E2E verified: local deposit/withdraw plus a full CCTP round trip (Arc→Base withdrawals, Base→Arc deposit) |
 | Circle Gateway unified balance | ⚠️ contract hook (`gatewayReceiver`) is present; live Gateway balances need a server-side API key and are intentionally not faked in the UI |
 | Automatic Iris attestation + in-app destination mint | ✅ implemented: poll Iris, switch chain, submit `receiveMessage`; destination gas required |
 
@@ -261,11 +263,25 @@ Mainnet was deployed on **October 21, 2026** and is fully wired. Independent on-
 
 A live mainnet **5 USDC deposit → 1 USDC `withdrawLocal`** passed on October 21, 2026. The deposit
 minted `4,996,584,486,017,754,953` Galaxy USDC shares; the withdrawal resolved to `0.999999` USDC
-and burned `999,316,858,421,847,964` shares (ERC-4626 rounding). After the round trip:
-principal `4.000001`, shares `3,997,267,627,595,906,989`, `getTotalBalance` `4` USDC. Hashes and
-state are in `deployments/arc-mainnet.json`. The exact 10-transaction deploy sequence was rehearsed
-first on a live Arc mainnet fork (`contracts/test/fork/MainnetDeploy.t.sol`). A mainnet CCTP
-withdrawal/mint remains the last unproven path.
+and burned `999,316,858,421,847,964` shares (ERC-4626 rounding).
+
+A full mainnet **CCTP round trip** followed:
+
+- **Arc→Base withdrawal 1:** burn `0xbfcdbe…5ccd`, 1.999999 USDC, complete Iris attestation,
+  Base mint `0x58c3eb…59fa`.
+- **Arc→Base withdrawal 2:** burn `0x971d10…ad76`, 4.999999 USDC, complete Iris attestation,
+  Base mint `0x68045f…7609`.
+- **Base→Arc deposit:** burn `0xadf19a…b280` for 5 USDC; Arc `receiveMessage` `0xb2a7ba…246c`
+  minted it, then `deposit()` `0xb1e34e…026b` added `4,996,555,771,054,222,485` Galaxy USDC shares.
+
+Post-state: principal `9.000003`, shares `8,993,822,921,076,662,356`, `getTotalBalance` `9.000028`
+USDC. All hashes, nonces, and timestamps are in `deployments/arc-mainnet.json` (`liveCctpE2E`).
+The exact 10-transaction deploy sequence was rehearsed first on a live Arc mainnet fork
+(`contracts/test/fork/MainnetDeploy.t.sol`).
+
+One bookkeeping follow-up: the two completed withdrawal requests are still `executed=false`
+on-chain. The app has no execute action yet; a keeper call to `executeWithdrawal(1)` and
+`executeWithdrawal(2)` clears them (funds are unaffected).
 
 **Audit plan:** the contracts are unaudited, so mainnet runs with deliberately low caps and only the
 owner's funds. Before raising the limits or onboarding third-party agents: external review of

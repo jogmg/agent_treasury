@@ -67,11 +67,11 @@ On-chain proof if asked: deposit `0xbab58770…04c4`, CCTP withdraw `0x3f0f2568�
 
 ## 2:30 — Close
 
-> "Three Circle products: CCTP v2 for cross-chain USDC, Earn Kit/Morpho for yield, and a Gateway-ready hook. Built end-to-end in Arc Studio, 81 Foundry tests and 52 frontend tests green. Testnet: verified deposit plus a live CCTP burn from yield to domain 0 and a finalized Circle attestation. Mainnet: the same stack is deployed and wired with guardrails, and a real 5 USDC deposit → Galaxy USDC → 1 USDC local withdrawal has passed on-chain."
+> "Three Circle products: CCTP v2 for cross-chain USDC, Earn Kit/Morpho for yield, and a Gateway-ready hook. Built end-to-end in Arc Studio, 81 Foundry tests and 52 frontend tests green. Testnet: verified deposit plus a live CCTP burn from yield to domain 0 and a finalized Circle attestation. Mainnet: the same stack is live with guardrails, and real USDC has completed the full loop — local deposit/withdraw, two Arc→Base CCTP withdrawals with production Iris attestations and Base mints, and a Base→Arc 5 USDC burn that minted and deposited into Galaxy USDC."
 
 ## Fallbacks
 
-- **RPC/app unavailable:** show the verified deposit/CCTP-withdrawal tx hashes and Iris attestation in `deployments/arc-testnet-fixed.json`, and run `forge test -vv` as the proof. Do not fake a deposit.
+- **RPC/app unavailable:** show the verified mainnet and testnet tx hashes, Iris attestations, and state in `deployments/arc-mainnet.json` (`liveCctpE2E`) and `deployments/arc-testnet-fixed.json`, and run `forge test -vv` as the proof. Do not fake a deposit.
 - **No testnet USDC:** show the faucet step and the empty states; keep the recording honest.
 - **Destination mint not visible:** explain that the burn is attested but Sepolia gas is a separate step; show the Iris `complete` response and `scripts/complete-cctp.ts`. Never claim the destination mint already happened.
 - **RPC slow:** pre-load the tabs once before recording.
