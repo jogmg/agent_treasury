@@ -164,7 +164,7 @@ export function DepositTab() {
             MAX
           </button>
         </div>
-        <p className="mt-2 text-xs text-slate-600">Min deposit: 10 USDC</p>
+        <p className="mt-2 text-xs text-slate-600">Min deposit: {formatUsdcDollar(minDeposit)}</p>
       </div>
 
       {/* Progress steps */}

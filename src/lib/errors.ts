@@ -17,7 +17,7 @@ export function parseOnchainError(error: unknown): string {
   if (lower.includes('agentnotfound'))
     return 'No treasury account found. Make a deposit first.'
   if (lower.includes('belowmindeposit'))
-    return 'Amount is below the vault minimum deposit (10 USDC).'
+    return 'Amount is below the vault minimum deposit. Lower it in the adapter config or increase the amount.'
   if (lower.includes('reverted'))
     return `Transaction reverted${msg.includes(':') ? ': ' + msg.split(':').pop()?.trim() : '.'}`
   if (lower.includes('network') || lower.includes('timeout') || lower.includes('fetch'))
