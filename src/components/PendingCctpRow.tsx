@@ -19,6 +19,7 @@ export interface PendingCctpItem {
   statusLabel: string
   tone: 'info' | 'action' | 'error'
   timestamp: number
+  completed?: boolean          // finished transfer: no Resume CTA
 }
 
 const TONE_CLASSES: Record<PendingCctpItem['tone'], string> = {
@@ -92,13 +93,19 @@ export function PendingCctpRow({ item, onResume }: Props) {
           <MoveRight className="h-3 w-3 shrink-0 text-slate-600" />
           {destinationLabel}
         </span>
-        <button
-          type="button"
-          onClick={() => onResume(item)}
-          className="shrink-0 rounded-lg border border-slate-700 px-2.5 py-1 text-[11px] font-medium text-slate-300 hover:border-emerald-500/40 hover:text-emerald-400"
-        >
-          Resume
-        </button>
+        {item.completed ? (
+          <span className="shrink-0 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-300">
+            Completed
+          </span>
+        ) : (
+          <button
+            type="button"
+            onClick={() => onResume(item)}
+            className="shrink-0 rounded-lg border border-slate-700 px-2.5 py-1 text-[11px] font-medium text-slate-300 hover:border-emerald-500/40 hover:text-emerald-400"
+          >
+            Resume
+          </button>
+        )}
       </div>
       <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-slate-600">
         <span>{new Date(item.timestamp).toLocaleString()}</span>

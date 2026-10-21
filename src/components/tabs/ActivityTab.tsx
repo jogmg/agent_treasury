@@ -90,6 +90,7 @@ function buildPendingItems(
         statusLabel: BRIDGE_STATUS_LABEL[record.status],
         tone: bridgeStatusTone(record.status),
         timestamp: record.createdAt,
+        completed: record.status === 'done',
       })
     }
   }
@@ -112,6 +113,7 @@ function buildPendingItems(
         statusLabel: labeled.label,
         tone: labeled.tone,
         timestamp: record.updatedAt,
+        completed: false,
       })
     }
   }
