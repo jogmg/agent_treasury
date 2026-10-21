@@ -11,7 +11,7 @@ import { EventRow, ActivityRow } from '../EventRow'
 import { pendingRowData } from '../PendingCctpRow'
 import type { PendingCctpItem } from '../PendingCctpRow'
 import { exportCsv } from '../../lib/activity'
-import type { ActivityEventType } from '../../lib/activity'
+import type { ActivityEvent, ActivityEventType } from '../../lib/activity'
 import type { BridgeDepositStatus } from '../../stores/bridgeDeposit'
 
 /**
@@ -59,6 +59,19 @@ function bridgeAmount(amount: string): bigint {
   } catch {
     return 0n
   }
+}
+
+/** Chain rows carry an enriched block time (seconds); pending rows carry ms. */
+function eventTimeMs(event: ActivityEvent): number {
+  return typeof event.timestamp === 'number' && event.timestamp > 0
+    ? event.timestamp * 1000
+    : 0
+}
+
+interface DisplayRow {
+  key: string
+  item?: PendingCctpItem
+  event?: ActivityEvent
 }
 
 /**
@@ -136,6 +149,38 @@ export function ActivityTab() {
   const filtered = allowedTypes
     ? activityEvents.filter((e) => allowedTypes.includes(e.type))
     : activityEvents
+
+  // Chain events and in-flight rows are merged into one recency-sorted stream
+  // whenever every chain event has a real block timestamp. If enrichment
+  // failed, fall back to block-ordered chain rows after the pending ones.
+  const eventsTimed = filtered.length > 0
+    ? filtered.every((event) => event.timestamp !== undefined && event.timestamp > 0)
+    : false
+
+  let displayRows: DisplayRow[]
+  if (filter === 'inflight') {
+    displayRows = pendingItems.map((item) => ({ key: item.id, item }))
+  } else if (eventsTimed) {
+    displayRows = [
+      ...pendingItems.map((item): DisplayRow => ({ key: item.id, item })),
+      ...filtered.map((event): DisplayRow => ({ key: `ev-${event.id}`, event })),
+    ].sort((a, b) => {
+      const aTime = a.item ? a.item.timestamp : eventTimeMs(a.event!)
+      const bTime = b.item ? b.item.timestamp : eventTimeMs(b.event!)
+      if (aTime !== bTime) return bTime - aTime
+      // Ties: chain rows fall back to block order (newest first).
+      if (a.event && b.event) {
+        return a.event.blockNumber > b.event.blockNumber ? -1
+          : a.event.blockNumber < b.event.blockNumber ? 1 : 0
+      }
+      return 0
+    })
+  } else {
+    displayRows = [
+      ...pendingItems.map((item): DisplayRow => ({ key: item.id, item })),
+      ...filtered.map((event): DisplayRow => ({ key: `ev-${event.id}`, event })),
+    ]
+  }
 
   const bridgeSource = getCctpDestination(bridge.sourceDomain)
   const bridgeOwnerMatches = Boolean(
@@ -275,48 +320,38 @@ export function ActivityTab() {
         </div>
       </div>
 
-      {/* Table. Pending rows use the same ActivityRow UI as chain events and
-          render first, since a source burn does not exist in Arc logs until
-          the mint/deposit lands. */}
-      {filter === 'inflight' ? (
-        pendingItems.length === 0 ? (
-          <div className="flex h-40 flex-col items-center justify-center gap-2 text-center">
-            <p className="text-sm text-slate-500">No transfers in flight.</p>
-            <p className="text-xs text-slate-600">
-              Cross-chain CCTP deposits and withdrawals in progress appear here with their burn tx
-              hash.
-            </p>
-          </div>
-        ) : (
-          <div className="divide-y divide-slate-800 rounded-xl border border-slate-800 bg-slate-900/60">
-            {pendingItems.map((item) => (
-              <ActivityRow
-                key={item.id}
-                data={pendingRowData(item, resumePending)}
-              />
-            ))}
-          </div>
-        )
-      ) : activityLoading && filtered.length === 0 && pendingItems.length === 0 ? (
+      {/* Table. In-flight rows use the same ActivityRow UI as chain events.
+          Rows are merged and sorted most-recent first (by real block time for
+          chain rows, capture time for in-flight transfers). */}
+      {activityLoading && displayRows.length === 0 ? (
         <div className="flex h-40 items-center justify-center">
           <p className="text-sm text-slate-500">Scanning event logs…</p>
         </div>
-      ) : filtered.length === 0 && pendingItems.length === 0 ? (
+      ) : displayRows.length === 0 && filter === 'inflight' ? (
+        <div className="flex h-40 flex-col items-center justify-center gap-2 text-center">
+          <p className="text-sm text-slate-500">No transfers in flight.</p>
+          <p className="text-xs text-slate-600">
+            Cross-chain CCTP deposits and withdrawals in progress appear here with their burn tx
+            hash.
+          </p>
+        </div>
+      ) : displayRows.length === 0 ? (
         <div className="flex h-40 flex-col items-center justify-center gap-2 text-center">
           <p className="text-sm text-slate-500">No events found.</p>
           <p className="text-xs text-slate-600">Make a deposit to see activity here.</p>
         </div>
       ) : (
         <div className="divide-y divide-slate-800 rounded-xl border border-slate-800 bg-slate-900/60">
-          {pendingItems.map((item) => (
-            <ActivityRow
-              key={item.id}
-              data={pendingRowData(item, resumePending)}
-            />
-          ))}
-          {filtered.map((e) => (
-            <EventRow key={e.id} event={e} />
-          ))}
+          {displayRows.map((row) =>
+            row.item ? (
+              <ActivityRow
+                key={row.key}
+                data={pendingRowData(row.item, resumePending)}
+              />
+            ) : (
+              <EventRow key={row.key} event={row.event!} />
+            ),
+          )}
         </div>
       )}
     </div>

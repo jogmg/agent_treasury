@@ -13,6 +13,12 @@ import { getCctpDestination } from '../lib/cctp'
 
 type BadgeClass = Record<ActivityEventType, string>
 
+/** Date + time for expanded rows; events without an enriched time omit it. */
+function formatEventTime(event: ActivityEvent): string {
+  if (typeof event.timestamp !== 'number' || event.timestamp <= 0) return ''
+  return new Date(event.timestamp * 1000).toLocaleString()
+}
+
 export const TYPE_COLORS: BadgeClass = {
   DepositRecorded:      'bg-emerald-500/15 text-emerald-400 border-emerald-500/20',
   WithdrawalToWallet:   'bg-blue-500/15 text-blue-400 border-blue-500/20',
@@ -106,6 +112,7 @@ export interface ActivityRowData {
 
 /** Map a treasury chain event onto the shared row shape. */
 export function eventRowData(e: ActivityEvent): ActivityRowData {
+  const clock = formatEventTime(e)
   const prettyArgs = JSON.stringify(
     Object.fromEntries(
       Object.entries(e.args).map(([k, v]) => [k, typeof v === 'bigint' ? v.toString() : v]),
@@ -117,7 +124,7 @@ export function eventRowData(e: ActivityEvent): ActivityRowData {
     badgeLabel: TYPE_LABELS[e.type] ?? e.type,
     badgeClass: TYPE_COLORS[e.type] ?? 'bg-slate-700 text-slate-400 border-slate-700',
     title: describeEvent(e),
-    meta: `Block ${e.blockNumber.toString()}`,
+    meta: clock ? `Block ${e.blockNumber.toString()} · ${clock}` : `Block ${e.blockNumber.toString()}`,
     links: e.txHash
       ? [{
           href: explorerTx(e.txHash),

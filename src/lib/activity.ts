@@ -23,7 +23,7 @@ export interface ActivityEvent {
   blockNumber: bigint
   txHash: string
   logIndex: number
-  timestamp?: number   // filled in by enrichment pass when available
+  timestamp?: number   // block time in SECONDS (enriched; interpolated if an RPC hiccup)
   args: Record<string, unknown>
 }
 
@@ -55,6 +55,62 @@ function toActivityEvent(type: ActivityEventType, log: Log): ActivityEvent {
     txHash: log.transactionHash ?? '',
     logIndex: log.logIndex ?? 0,
     args: (log as { args?: Record<string, unknown> }).args ?? {},
+  }
+}
+
+// Block timestamp enrichment, cached across refreshes (chain-wide cache grows
+// one entry per event block, not per scan).
+const blockTimeCache = new Map<bigint, number>()
+const BLOCK_BATCH = 8
+
+/** Linear interpolation between the nearest enriched blocks. */
+function estimateBlockTime(block: bigint, anchors: [bigint, number][]): number {
+  if (anchors.length === 0) return 0
+  let low: [bigint, number] | undefined
+  let high: [bigint, number] | undefined
+  for (const anchor of anchors) {
+    if (anchor[0] < block) low = anchor
+    if (anchor[0] > block && !high) high = anchor
+  }
+  if (!low) return anchors[0][1]
+  if (!high) return low[1]
+  const blockDiff = Number(high[0] - low[0])
+  if (blockDiff <= 0) return low[1]
+  const ratio = Number(block - low[0]) / blockDiff
+  return Math.round(low[1] + ratio * (high[1] - low[1]))
+}
+
+async function enrichWithBlockTimes(
+  client: ReturnType<typeof createPublicClient>,
+  events: ActivityEvent[],
+): Promise<void> {
+  const missing = [...new Set(
+    events
+      .filter((e) => e.blockNumber > 0n && !blockTimeCache.has(e.blockNumber))
+      .map((e) => e.blockNumber),
+  )]
+
+  // Small sequential batches to stay friendly to the public RPC.
+  for (let i = 0; i < missing.length; i += BLOCK_BATCH) {
+    const slice = missing.slice(i, i + BLOCK_BATCH)
+    const results = await Promise.allSettled(
+      slice.map((block) => client.getBlock({ blockNumber: block })),
+    )
+    results.forEach((result, j) => {
+      if (result.status === 'fulfilled') {
+        blockTimeCache.set(slice[j], Number(result.value.timestamp))
+      }
+    })
+  }
+
+  const anchors: [bigint, number][] = [...blockTimeCache.entries()]
+    .filter(([block]) => events.some((e) => e.blockNumber === block))
+    .sort((a, b) => (a[0] > b[0] ? 1 : a[0] < b[0] ? -1 : 0))
+
+  for (const event of events) {
+    if (event.blockNumber === 0n) continue
+    const exact = blockTimeCache.get(event.blockNumber)
+    event.timestamp = exact ?? estimateBlockTime(event.blockNumber, anchors)
   }
 }
 
@@ -110,6 +166,14 @@ export async function fetchActivityEvents(
 
     if (start === fromBlock) break
     end = start - 1n
+  }
+
+  // Add block timestamps (cached; interpolated across the nearest blocks on
+  // RPC hiccups) so the Activity tab can sort by real date/time.
+  try {
+    await enrichWithBlockTimes(client, events)
+  } catch {
+    // Timestamps stay undefined; the UI falls back to block ordering.
   }
 
   // Sort newest first
