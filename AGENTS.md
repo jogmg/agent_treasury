@@ -245,7 +245,11 @@ where `vaultShareDecimals` is read live from `vault.decimals()`. USDC amounts re
 9. Validate BurnMessageV2 Layout A/B offsets against the live Arc MessageTransmitterV2; `CCTPReceiver`
    is deployed and wired but unused by the current app path.
 10. Source-domain accounting for inbound deposits: the app mints to the wallet and calls `deposit()`, so
-    `chainDeposits` records Arc domain. A relayer/forwarder (or owner-signed `recordDeposit`) is needed.
+    `chainDeposits` records Arc domain. Fix by routing inbound mints through `CCTPReceiver` (mintRecipient
+    = receiver, hookData = agent) so `recordDeposit` receives the real domain, or add a
+    `depositWithSource(amount, sourceDomain)` entrypoint with explicit trust rules. **Do not backfill
+    with owner-signed `recordDeposit`**: it is additive and would double-credit `principal`/`totalDeposited`
+    and try to deploy the same USDC again.
 
 ## Tech Stack
 
