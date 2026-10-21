@@ -101,30 +101,57 @@ npx tsx scripts/complete-cctp.ts 0x3f0f256843ee4e1498cafceea9978725397904899bb52
 The script fetches the attested message from Circle Iris and calls
 `receiveMessage(message, attestation)` on Sepolia's MessageTransmitterV2.
 
-### Lower the vault minimum deposit (one-time keeper tx)
+### Vault minimum deposit (DONE — 1 USDC since Oct 21, 2026)
 
-The 10 USDC minimum lives on-chain in the MorphoVaultAdapter's vault config
-(`getVaultConfig(1).minDeposit == 10e6`); `deposit()` reverts `BelowMinDeposit`
-below it. To allow 1 USDC deposits, the owner/keeper wallet sends one config
-tx (no redeploy, no contract change):
+**Status: done on-chain.** Keeper tx
+`0xd2eba836dce60dfea39fa1af21902ed4e18597c25b0395b99ce35653900574fc`
+(block `68380870`, gas `35,306`, sent by owner/keeper
+`0xD00fD0B006c01342522cAf4FA04D5f8910aB268c`) changed the adapter's vault 1
+config from a 10 USDC floor to **1 USDC**:
+`getVaultConfig(1)` now returns `minDeposit = 1000000`, `isActive = true`.
+No redeploy, no code change — config storage only, reversible with the same
+call using `10000000`.
+
+Background: the floor lives on-chain in the MorphoVaultAdapter's vault config;
+`deposit()` reverts `BelowMinDeposit` below it. The original reference command
+(keep for future config changes):
 
 ```bash
 cast send 0x333deccbf9091540e849b7af80f2f10b72197b71 \
   "updateVault(uint256,uint256,bool)" 1 1000000 true \
   --rpc-url https://rpc.testnet.arc.io --private-key $KEEPER_KEY
-# verify (expect minDeposit = 1000000)
+# verify (expect minDeposit = 1000000). NOTE: getVaultConfig returns ONE
+# struct, so the flat 6-value signature fails to decode — use the tuple:
 cast call 0x333deccbf9091540e849b7af80f2f10b72197b71 \
-  "getVaultConfig(uint256)(uint256,address,string,string,uint256,bool)" 1 \
+  "getVaultConfig(uint256)((uint256,address,string,string,uint256,bool))" 1 \
   --rpc-url https://rpc.testnet.arc.io
 ```
 
 The frontend reads this value live (`useMinDeposit`). While the read is
 unresolved the UI blocks submission ("Reading vault minimum."); it never
-substitutes a permissive default, because that allowed txs that revert with
-`BelowMinDeposit`. The Deposit tab, cross-chain deposit card, and vault tier
-label update automatically after the tx lands. Caveat: very small deposits can
-mint zero shares if the vault's pricePerShare rises far above 1e18 — safe now
-(testnet TVL is tiny), revisit after more deposits.
+substitutes a permissive default, because that allowed a 2 USDC tx that
+reverted `BelowMinDeposit` while the chain still enforced 10 USDC (Oct 21).
+The Deposit tab, cross-chain deposit card, and vault tier label update
+automatically after any config change.
+
+### Tiny deposits and zero-share risk (recommendation before mainnet)
+
+`deposit()` now accepts anything >= 1 USDC, but the vault mints 18-decimal
+shares against its `pricePerShare`. At today's ~1:1 price, 1 USDC mints
+~9.99e17 shares, so the 1 USDC floor is safe. If the vault ever appreciates far
+enough that `assets * 1e18 / pricePerShare < 1`, a deposit would mint **zero
+shares** — the USDC is still transferred but gives the depositor no vault
+claim. Recommended hardening, to fold into the mainnet/audit pass:
+
+1. **Adapter guard (authoritative):** in `deposit()`, require `shares > 0` and
+   revert with a dedicated error before/while forwarding assets, plus a unit
+   test using a vault whose price makes a tiny deposit round to zero.
+2. **Frontend pre-check (immediate, no redeploy):** before submitting, call the
+   vault's ERC-4626 `previewDeposit(amount)` (or derive it from
+   `adapter.pricePerShare(vaultId)`) and block when shares would be 0, showing
+   the smallest amount that mints 1 share.
+3. **Threshold policy:** on mainnet, set `minDeposit` from the live share price
+   rather than a fixed 1 USDC — adjust any time via `updateVault`, no redeploy.
 
 ### Recover the pre-hotfix treasury
 
