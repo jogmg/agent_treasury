@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { TrendingUp, Info, Lock } from 'lucide-react'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { useAccount } from 'wagmi'
@@ -18,11 +18,41 @@ function formatSnapshotTime(ts: number): string {
   })
 }
 
+/** Chart time windows; ms === null means "everything we have". */
+const GROWTH_RANGES = [
+  { label: '24h', ms: 24 * 60 * 60 * 1000 },
+  { label: '7d',  ms: 7 * 24 * 60 * 60 * 1000 },
+  { label: '30d', ms: 30 * 24 * 60 * 60 * 1000 },
+  { label: 'All', ms: null },
+] as const
+
 export function YieldTab() {
   const { address } = useAccount()
   const { totalBalance, principal, vaultShares, vaultApy, vaultTvl, pricePerShare, vaultShareDecimals } = useTreasuryStore()
   const { growthHistory } = useUiStore()
   const [projDays, setProjDays] = useState(30)
+  const [growthRangeIdx, setGrowthRangeIdx] = useState(GROWTH_RANGES.length - 1)
+
+  // Snapshot "now" outside of render so impure Date.now() never runs in JSX.
+  // Before the effect fires the cutoff is negative, i.e. everything shown.
+  const [growthNow, setGrowthNow] = useState(0)
+  useEffect(() => { setGrowthNow(Date.now()) }, [growthRangeIdx])
+
+  const growthRange = GROWTH_RANGES[growthRangeIdx]
+  const growthCutoff = growthRange.ms !== null ? growthNow - growthRange.ms : 0
+  const chartData = useMemo(
+    () => growthHistory
+      .filter((s) => s.ts >= growthCutoff)
+      .sort((a, b) => a.ts - b.ts)
+      .map((s) => ({
+        ts:    s.ts,
+        time:  formatSnapshotTime(s.ts),
+        value: Number(formatUsdc(s.value, 6)),
+      })),
+    // eslint comment not needed; deps cover the inputs
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [growthHistory, growthCutoff],
+  )
 
   if (!address) {
     return (
@@ -37,17 +67,6 @@ export function YieldTab() {
     : 0n
   const projected = projectYield(totalBalance, vaultApy, projDays)
   const projGain   = projected > totalBalance ? projected - totalBalance : 0n
-
-  // Growth chart data. Use the raw 6-decimal balance for the plotted value
-  // (rather than a rounded display string) and keep the timestamp alongside it
-  // so the tooltip can show the exact date and time for each point.
-  const chartData = [...growthHistory]
-    .sort((a, b) => a.ts - b.ts)
-    .map((s) => ({
-      ts:    s.ts,
-      time:  formatSnapshotTime(s.ts),
-      value: Number(formatUsdc(s.value, 6)),
-    }))
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -155,12 +174,31 @@ export function YieldTab() {
 
       {/* Portfolio growth chart */}
       <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-5">
-        <h2 className="mb-4 text-sm font-semibold text-white">Portfolio Growth</h2>
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold text-white">Portfolio Growth</h2>
+          <div className="flex gap-1.5">
+            {GROWTH_RANGES.map((range, i) => (
+              <button
+                key={range.label}
+                onClick={() => setGrowthRangeIdx(i)}
+                className={`rounded-lg px-2.5 py-1 text-xs font-medium transition ${
+                  growthRangeIdx === i
+                    ? 'bg-emerald-500 text-black'
+                    : 'border border-slate-700 text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                {range.label}
+              </button>
+            ))}
+          </div>
+        </div>
         {chartData.length < 2 ? (
           <div className="flex h-32 flex-col items-center justify-center gap-2 text-center">
             <Info className="h-5 w-5 text-slate-600" />
             <p className="text-xs text-slate-500">
-              Snapshots accumulate as you use the app. Come back after a few sessions to see your growth chart.
+              {growthRange.ms === null
+                ? 'Snapshots accumulate as you use the app. Come back after a few sessions to see your growth chart.'
+                : `No snapshots in the last ${growthRange.label} yet. Select All to see the full history.`}
             </p>
           </div>
         ) : (

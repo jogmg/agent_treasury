@@ -27,6 +27,16 @@ const TONE_CLASSES: Record<PendingCctpItem['tone'], string> = {
   error:  'bg-red-500/15 text-red-400 border-red-500/20',
 }
 
+const KIND_LABEL: Record<PendingCctpItem['direction'], string> = {
+  in: 'CCTP Deposit',
+  out: 'CCTP Withdrawal',
+}
+
+const KIND_CLASSES: Record<PendingCctpItem['direction'], string> = {
+  in:  'bg-blue-500/15 text-blue-400 border-blue-500/20',
+  out: 'bg-purple-500/15 text-purple-400 border-purple-500/20',
+}
+
 function hashLabel(hash: string): string {
   return `${hash.slice(0, 10)}…${hash.slice(-6)}`
 }
@@ -65,6 +75,11 @@ export function PendingCctpRow({ item, onResume }: Props) {
   return (
     <div className="px-4 py-3">
       <div className="flex flex-wrap items-center gap-3">
+        <span
+          className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider ${KIND_CLASSES[item.direction]}`}
+        >
+          {KIND_LABEL[item.direction]}
+        </span>
         <span
           className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider ${TONE_CLASSES[item.tone]}`}
         >

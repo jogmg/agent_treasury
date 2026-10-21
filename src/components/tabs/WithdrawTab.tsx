@@ -6,12 +6,12 @@ import { toast } from 'sonner'
 import { AlertTriangle } from 'lucide-react'
 import { ADDRESSES, TREASURY_ABI, ARC_TESTNET_CHAIN_ID, ARC_CCTP_DOMAIN } from '../../lib/contracts'
 import { parseUsdc, formatUsdcDollar, formatUsdc, addrToBytes32 } from '../../lib/decimals'
+import { CCTP_DESTINATIONS } from '../../lib/cctp'
 import { parseOnchainError } from '../../lib/errors'
 import { useTreasuryStore } from '../../stores/treasury'
 import { useFlowStore } from '../../stores/flow'
 import { useUiStore } from '../../stores/ui'
 import { TxStep } from '../TxStep'
-import { LegacyRecoveryCard } from '../LegacyRecoveryCard'
 import { CctpCompletionCard } from '../CctpCompletionCard'
 
 const MAX_U256 = BigInt('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff')
@@ -35,7 +35,7 @@ export function WithdrawTab() {
   const { totalBalance } = useTreasuryStore()
   const activityEvents = useUiStore((s) => s.activityEvents)
   const { withdrawStep, withdrawHash, withdrawError, setWithdraw, resetWithdraw,
-          cctpStep, cctpHash, cctpError, setCctp, resetCctp } = useFlowStore()
+          cctpStep, cctpHash, cctpError, setCctp, resetCctp, cctpHistory } = useFlowStore()
 
   const { writeContractAsync: withdraw } = useWriteContract()
   const { writeContractAsync: requestWithdrawal } = useWriteContract()
@@ -43,13 +43,20 @@ export function WithdrawTab() {
   const isWrongChain = !!address && chainId !== ARC_TESTNET_CHAIN_ID
   const parsedAmount  = amount ? parseUsdc(amount) : 0n
 
+  // Recent burns from Arc logs, minus transfers we know are already minted on
+  // the destination: those are finished (visible in the Activity tab), and the
+  // completion card would only redo the attestation dance for them.
+  const doneBurnHashes = new Set(
+    cctpHistory.filter((r) => r.status === 'done').map((r) => r.burnHash.toLowerCase()),
+  )
   const recentCctp = address
     ? activityEvents
         .filter((event) => {
           const agent = event.args.agent
           return event.type === 'WithdrawalRequested' &&
             typeof agent === 'string' &&
-            agent.toLowerCase() === address.toLowerCase()
+            agent.toLowerCase() === address.toLowerCase() &&
+            !doneBurnHashes.has(event.txHash.toLowerCase())
         })
         .slice(0, 3)
     : []
@@ -260,8 +267,6 @@ export function WithdrawTab() {
         />
       </div>
 
-      <LegacyRecoveryCard />
-
       {/* CCTP advanced */}
       <details className="rounded-xl border border-slate-800 bg-slate-900/40">
         <summary className="cursor-pointer px-5 py-4 text-sm font-medium text-slate-300 hover:text-white">
@@ -290,14 +295,21 @@ export function WithdrawTab() {
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-slate-500">Destination Domain (e.g. 0 = Eth, 6 = Base)</label>
-              <input
-                type="number"
+              <label className="mb-1 block text-xs text-slate-500">Destination Chain</label>
+              <select
                 value={destDomain}
                 onChange={(e) => setDestDomain(e.target.value)}
-                placeholder="6"
-                className="w-full rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2 font-mono text-sm text-white outline-none placeholder:text-slate-600 focus:border-emerald-500/50"
-              />
+                className="w-full rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500/50"
+              >
+                <option value="">Select chain…</option>
+                {Object.values(CCTP_DESTINATIONS)
+                  .sort((a, b) => a.name.localeCompare(b.name))
+                  .map((destination) => (
+                    <option key={destination.domain} value={String(destination.domain)}>
+                      {destination.name}
+                    </option>
+                  ))}
+              </select>
             </div>
             <div>
               <label className="mb-1 block text-xs text-slate-500">Recipient Address (0x... on destination)</label>

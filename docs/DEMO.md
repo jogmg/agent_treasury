@@ -31,7 +31,7 @@ On-chain proof if asked: deposit `0xbab58770…04c4`, CCTP withdraw `0x3f0f2568�
 1. Open **Yield**.
 2. Show live APY (4.2%), TVL, your shares and value.
 3. Change the projection to 90 days.
-4. Point out the growth chart and the honest empty state.
+4. Point out the growth chart and the honest empty state, then the 24h/7d/30d/All time-range buttons.
 
 > "Yield accrues in the vault; the dashboard reads the adapter and the vault, not a database."
 
@@ -40,9 +40,11 @@ On-chain proof if asked: deposit `0xbab58770…04c4`, CCTP withdraw `0x3f0f2568�
 1. Open **Withdraw**.
 2. Click **25%**, then **Withdraw**.
 3. Show the wallet balance increase and shares decrease.
-4. Open the advanced CCTP section; explain destination domain + bytes32 recipient and the manual Iris relay.
-5. Show the existing proof tx `0x3f0f2568…8a1c`: burn `999,999`, `MessageSent` finality `2000`, Iris status `complete`.
-6. Point out the **Legacy Treasury** card below; explain that it recovers the pre-hotfix stack via local withdrawal.
+4. Open the advanced CCTP section; explain the chain-name destination dropdown, bytes32 recipient, and the automatic Iris relay.
+
+5. Submit the burn; explain Activity → **In flight** with the burn tx hash, then Completion Card.
+
+6. Show the existing proof tx `0x3f0f2568…8a1c`: burn `999,999`, `MessageSent` finality `2000`, Iris status `complete`.
 
 > "Same-chain withdrawals are instant. Cross-chain withdrawals burn via CCTP v2 and produce a finalized attestation; the destination mint is a permissionless relay step. Our live test burned from yield to domain 0 and Circle attested it."
 

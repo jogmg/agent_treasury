@@ -20,6 +20,19 @@ export type BridgeDepositStatus =
   | 'done'
   | 'error'
 
+export const BRIDGE_STATUS_LABEL: Record<BridgeDepositStatus, string> = {
+  idle: 'Idle',
+  approving: 'Approving source',
+  burning: 'Burning source',
+  waiting: 'Waiting for Circle',
+  ready: 'Ready to mint',
+  minting: 'Minting on Arc',
+  'arc-approving': 'Approving on Arc',
+  depositing: 'Depositing',
+  done: 'Credited',
+  error: 'Needs attention',
+}
+
 export interface BridgeDepositCurrent {
   status:        BridgeDepositStatus
   owner:         string
@@ -46,6 +59,7 @@ export interface BridgeDepositRecord {
 
 export interface BridgeDepositState extends BridgeDepositCurrent {
   recent: BridgeDepositRecord[]
+
 
   setBridgeDeposit: (
     patch: Partial<Omit<BridgeDepositState, 'setBridgeDeposit' | 'resetBridgeDeposit' | 'restoreBridgeDeposit' | 'clearBridgeHistory' | 'recent'>>,

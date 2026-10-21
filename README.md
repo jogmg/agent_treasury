@@ -58,7 +58,7 @@ The original treasury (`0x9b390bb10bd30a25b5a07dfb9e0a058d7993ae0d`) burned succ
 
 Circle Iris returned `status: complete` with `finalityThresholdExecuted: 2000` and `mintRecipient` set to the connected wallet. The one-unit difference between the requested `1,000,000` and burned `999,999` is ERC-4626 share rounding; the withdrawal path uses the actual redeemed amount, so no dust is stranded.
 
-The pre-hotfix stack is still on-chain and holds testnet funds. The Withdraw tab exposes a **Legacy Treasury** card that calls its unaffected `withdrawLocal` path so those funds can be recovered without CCTP.
+The pre-hotfix stack is still on-chain, but the legacy recovery card has been retired from the UI (no user funds remain in it for this wallet). If funds ever appear there again, any wallet holding the owner key can call `withdrawLocal` on the legacy treasury directly (address in the table below).
 
 ### Completing a pending transfer
 
@@ -68,7 +68,7 @@ The Withdraw tab does this automatically after a burn:
 2. Shows **Attestation ready** with the destination chain and amount.
 3. Switches to the destination chain and submits `receiveMessage` from the connected wallet.
 
-The destination mint is a transaction on the destination chain, so its gas token is required there. If the app is opened later, use **Recent CCTP requests**, the Activity tab's **Pending** filter, or paste the Arc burn tx hash in the advanced CCTP section to resume.
+The destination mint is a transaction on the destination chain, so its gas token is required there. If the app is opened later, use **Recent CCTP requests**, the Activity tab's **In flight** filter, or paste the Arc burn tx hash in the advanced CCTP section to resume. Requests that already minted are hidden from Recent (they now live in the Activity tab).
 
 The script remains available for headless/CLI recovery:
 
@@ -184,16 +184,16 @@ See `docs/RUNBOOK.md` for the exact env vars and smoke tests.
 
 1. Connect a wallet on Arc Testnet; get USDC from https://faucet.circle.com.
 2. **Deposit** 10+ USDC. The app approves USDC, calls `deposit()`, and the treasury deploys it into the Morpho vault; the dashboard shows shares, APY, and yield.
-3. **Yield** tab: live APY/TVL from the adapter, compound projection, local growth chart.
+3. **Yield** tab: live APY/TVL from the adapter, compound projection, local growth chart with 24h/7d/30d/All time ranges.
 4. **Withdraw** 25/50/75/MAX via `withdrawLocal()`; USDC lands in the wallet.
 5. **Activity**: decoded `DepositRecorded`, `WithdrawalToWallet`, `YieldStrategyChanged`, etc., with explorer links and CSV export.
 6. **Settings**: set daily/weekly spending limits; inspect owner/keeper/pause.
 
 Cross-chain **inbound** deposits are in the Deposit tab. Pick a source chain, approve and burn USDC with CCTP v2, then the app polls Iris, switches to Arc, mints to the connected wallet, approves the treasury, and calls `deposit()`. Standard CCTP takes 15–30 minutes and needs a little Arc gas for the final transactions.
 
-Cross-chain **outbound** (`requestWithdrawal`) is available in the Withdraw tab. It burns via CCTP v2 and then the app fetches the Circle attestation automatically. When the attestation is ready, the app switches to the destination chain and asks for one wallet confirmation to submit `receiveMessage`; the final mint needs destination-chain gas. Recent CCTP requests are listed in the Withdraw tab, and pasting an Arc burn tx hash resumes an older transfer. `scripts/complete-cctp.ts` is the headless fallback. The Withdraw tab also shows a **Legacy Treasury** recovery card for funds left in the pre-hotfix deployment.
+Cross-chain **outbound** (`requestWithdrawal`) is available in the Withdraw tab (Advanced: Cross-Chain Withdrawal). Destination is picked by **chain name in a dropdown** (Ethereum Sepolia, Base Sepolia, Arbitrum Sepolia, OP Sepolia, Avalanche Fuji, Polygon Amoy). It burns via CCTP v2 and then the app fetches the Circle attestation automatically. When the attestation is ready, the app switches to the destination chain and asks for one wallet confirmation to submit `receiveMessage`; the final mint needs destination-chain gas. Recent CCTP requests are listed inside the same section — completed ones are hidden — and pasting an Arc burn tx hash resumes an older transfer. `scripts/complete-cctp.ts` is the headless fallback.
 
-The Activity tab has a **Pending** filter listing every cross-chain CCTP transfer still in flight, inbound and outbound, with the burn tx hash, chains, amount, status, and a Resume button. Pending transfers are persisted in the browser (`localStorage`), so a page reload never loses them — unlike chain events, they exist until the mint/deposit lands on Arc. They also appear at the top of the **All** view while in flight.
+The Activity tab groups activity with **All / In flight / Deposits / Withdrawals / Yield** filters. Rows are labeled by kind: **CCTP Deposit** (inbound cross-chain), **CCTP Withdrawal** (outbound burn), and **Local Withdraw**. The **In flight** filter (with a live count) lists every cross-chain CCTP transfer still in progress, inbound and outbound, with the burn tx hash, chains, amount, status, and a Resume button. In-flight transfers are persisted in the browser (`localStorage`), so a page reload never loses them — unlike chain events, they exist until the mint/deposit lands on Arc — and the unfinished ones also appear at the top of the **All** view.
 
 ---
 

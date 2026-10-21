@@ -104,8 +104,10 @@ The script fetches the attested message from Circle Iris and calls
 ### Recover the pre-hotfix treasury
 
 The old `0x9b390...` treasury still holds testnet USDC. Its `withdrawLocal` path
-is unaffected by the CCTP bug. Connect each wallet that used it, open
-**Withdraw → Legacy Treasury**, and click **Recover to Wallet**.
+is unaffected by the CCTP bug. The UI recovery card was removed (no recoverable
+funds remain for the tracked wallet); if funds reappear, connect each wallet
+that used the legacy stack and call `withdrawLocal(type(uint256).max)` on
+`0x9b390bb10bd30a25b5a07dfb9e0a058d7993ae0d` directly.
 
 ## End-to-end test (UI)
 

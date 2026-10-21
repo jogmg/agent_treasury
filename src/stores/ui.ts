@@ -16,14 +16,14 @@ interface StoredSnapshot {
 export interface UiState {
   activeTab:       TabId
   activityEvents:  ActivityEvent[]
-  activityFilter:  ActivityEventType | 'all' | 'pending'
+  activityFilter:  ActivityEventType | 'all' | 'inflight' | 'deposits' | 'withdrawals'
   activityLoading: boolean
   growthHistory:   GrowthSnapshot[]
   growthKey:       string
 
   setTab:    (tab: TabId) => void
   setEvents: (events: ActivityEvent[]) => void
-  setFilter: (f: ActivityEventType | 'all' | 'pending') => void
+  setFilter: (f: ActivityEventType | 'all' | 'inflight' | 'deposits' | 'withdrawals') => void
   setActivityLoading: (b: boolean) => void
   setGrowthContext: (agent?: string, treasury?: string) => void
   pushSnapshot: (value: bigint, agent?: string, treasury?: string) => void

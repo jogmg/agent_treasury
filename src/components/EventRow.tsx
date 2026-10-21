@@ -4,6 +4,7 @@ import { clsx } from 'clsx'
 import type { ActivityEvent, ActivityEventType } from '../lib/activity'
 import { explorerTx } from '../lib/contracts'
 import { formatUsdcDollar } from '../lib/decimals'
+import { getCctpDestination } from '../lib/cctp'
 
 const TYPE_COLORS: Record<ActivityEventType, string> = {
   DepositRecorded:      'bg-emerald-500/15 text-emerald-400 border-emerald-500/20',
@@ -19,10 +20,10 @@ const TYPE_COLORS: Record<ActivityEventType, string> = {
 
 const TYPE_LABELS: Record<ActivityEventType, string> = {
   DepositRecorded:      'Deposit',
-  WithdrawalToWallet:   'Withdraw',
-  WithdrawalRequested:  'CCTP Request',
-  WithdrawalExecuted:   'Executed',
-  WithdrawalCancelled:  'Cancelled',
+  WithdrawalToWallet:   'Local Withdraw',
+  WithdrawalRequested:  'CCTP Withdrawal',
+  WithdrawalExecuted:   'Withdrawal Executed',
+  WithdrawalCancelled:  'Withdrawal Cancelled',
   YieldStrategyChanged: 'Strategy',
   Rebalanced:           'Rebalance',
   YieldClaimed:         'Yield',
@@ -46,9 +47,19 @@ function argStr(a: Record<string, unknown>, key: string): string {
 function describeEvent(e: ActivityEvent): string {
   const a = e.args
   switch (e.type) {
-    case 'DepositRecorded':      return `${formatUsdcDollar(argBigInt(a, 'amount'))} deposited`
-    case 'WithdrawalToWallet':   return `${formatUsdcDollar(argBigInt(a, 'amount'))} withdrawn to wallet`
-    case 'WithdrawalRequested':  return `${formatUsdcDollar(argBigInt(a, 'amount'))} CCTP request #${argStr(a, 'id')}`
+    case 'DepositRecorded': {
+      const domain = Number(argStr(a, 'sourceDomain') || 0)
+      const source = domain > 0 ? getCctpDestination(domain) : undefined
+      return `${formatUsdcDollar(argBigInt(a, 'amount'))} deposited${source ? ` from ${source.name}` : ''}`
+    }
+    case 'WithdrawalToWallet':
+      return `${formatUsdcDollar(argBigInt(a, 'amount'))} withdrawn to wallet`
+    case 'WithdrawalRequested': {
+      const domain = Number(argStr(a, 'destinationDomain'))
+      const destination = Number.isFinite(domain) ? getCctpDestination(domain) : undefined
+      const to = destination?.name ?? `domain ${domain}`
+      return `${formatUsdcDollar(argBigInt(a, 'amount'))} burned via CCTP to ${to}`
+    }
     case 'WithdrawalExecuted':   return `Withdrawal #${argStr(a, 'id')} executed`
     case 'WithdrawalCancelled':  return `Withdrawal #${argStr(a, 'id')} cancelled`
     case 'YieldStrategyChanged': return `Strategy \u2192 vault ${argStr(a, 'newVaultId')}`

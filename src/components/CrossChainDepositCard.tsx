@@ -14,6 +14,7 @@ import {
   AlertTriangle,
   ArrowRight,
   CheckCircle2,
+  ChevronDown,
   ExternalLink,
   Fuel,
   Info,
@@ -46,7 +47,7 @@ import {
   shortAddr,
 } from '../lib/decimals'
 import { parseOnchainError } from '../lib/errors'
-import { useBridgeDepositStore } from '../stores/bridgeDeposit'
+import { BRIDGE_STATUS_LABEL, useBridgeDepositStore } from '../stores/bridgeDeposit'
 
 const MIN_DEPOSIT = 10_000_000n // 10 USDC in 6 decimals
 const ARC_GAS_SYMBOL = 'USDC'
@@ -515,19 +516,33 @@ export function CrossChainDepositCard() {
     }
   }
 
+  const isActivityView = status !== 'idle'
   return (
-    <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-5">
-      <div className="mb-3 flex items-center justify-between gap-3">
+    <details
+      open={isActivityView && status !== 'done' ? true : undefined}
+      className="group rounded-xl border border-slate-700 bg-slate-900/60"
+    >
+      <summary className="flex cursor-pointer list-none select-none items-center justify-between gap-3 px-5 py-4 hover:bg-slate-900/80 [&::-webkit-details-marker]:hidden">
         <div>
           <h2 className="text-sm font-semibold text-white">Cross-Chain Deposit</h2>
           <p className="mt-0.5 text-xs text-slate-500">
             Bring USDC from Ethereum, Base, Arbitrum, OP, Avalanche, or Polygon via CCTP v2.
           </p>
         </div>
-        <span className="shrink-0 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-300">
-          CCTP
-        </span>
-      </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {isActive && status !== 'done' && (
+            <span className="rounded-full border border-slate-700 bg-slate-800 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-300">
+              {BRIDGE_STATUS_LABEL[status]}
+            </span>
+          )}
+          <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-300">
+            CCTP
+          </span>
+          <ChevronDown className="h-4 w-4 text-slate-500 transition group-open:rotate-180" />
+        </div>
+      </summary>
+
+      <div className="border-t border-slate-800 p-5">
 
       {!isActive && (
         <div className="space-y-4">
@@ -1034,6 +1049,7 @@ export function CrossChainDepositCard() {
           )}
         </div>
       )}
-    </div>
+      </div>
+    </details>
   )
 }
