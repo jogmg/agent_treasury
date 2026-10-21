@@ -20,7 +20,7 @@ export function useMinDeposit(): bigint | undefined {
     query: { staleTime: 60_000 },
   })
 
-  const minDeposit = data?.[4]
+  const minDeposit = data?.minDeposit
   return typeof minDeposit === 'bigint' && minDeposit >= FLOOR_MIN_DEPOSIT
     ? minDeposit
     : undefined

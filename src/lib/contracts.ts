@@ -82,7 +82,10 @@ export const TREASURY_ABI = parseAbi([
 ])
 
 export const ADAPTER_ABI = parseAbi([
-  'function getVaultConfig(uint256 vaultId) view returns (uint256 id, address vaultAddress, string name, string symbol, uint256 minDeposit, bool isActive)',
+  // The deployed adapter returns VaultConfig as a SINGLE struct (one tuple
+  // output), not six flat values. Declaring six outputs makes viem decode
+  // `name` from the vault address and throw IntegerOutOfRangeError.
+  'function getVaultConfig(uint256 vaultId) view returns ((uint256 id, address vaultAddress, string name, string symbol, uint256 minDeposit, bool isActive))',
   'function vaultAPY(uint256 vaultId) view returns (uint256)',
   'function totalAssets(uint256 vaultId) view returns (uint256)',
   'function pricePerShare(uint256 vaultId) view returns (uint256)',
