@@ -39,10 +39,6 @@ const KIND_CLASS: Record<PendingCctpItem['direction'], string> = {
 /** Completed status badge: keeps the kind badge but flips it to a done tone. */
 const COMPLETED_CLASS = 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20'
 
-function shortHash(hash: string): string {
-  return `${hash.slice(0, 10)}…${hash.slice(-6)}`
-}
-
 /**
  * Build the shared-shape row for a pending transfer. `onResume` receives the
  * item (only invoked from the non-completed CTA).
@@ -76,9 +72,9 @@ export function pendingRowData(
     ? `${destination.explorer}/tx/${item.mintHash}`
     : ''
 
-  const links: ActivityLink[] = [{ href: burnHref, label: `Burn ${shortHash(item.burnHash)}` }]
+  const links: ActivityLink[] = [{ href: burnHref, label: 'Burn tx' }]
   if (item.mintHash && mintHref) {
-    links.push({ href: mintHref, label: `Mint ${shortHash(item.mintHash)}`, className: 'text-blue-400 hover:text-blue-300' })
+    links.push({ href: mintHref, label: 'Mint tx', className: 'text-blue-400 hover:text-blue-300' })
   }
 
   return {

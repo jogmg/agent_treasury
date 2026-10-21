@@ -4,7 +4,7 @@
  * through ActivityRow so the Activity table looks uniform.
  */
 import { useState } from 'react'
-import { ChevronDown, ChevronUp } from 'lucide-react'
+import { ChevronDown, ChevronUp, ExternalLink } from 'lucide-react'
 import { clsx } from 'clsx'
 import type { ActivityEvent, ActivityEventType } from '../lib/activity'
 import { explorerTx } from '../lib/contracts'
@@ -110,6 +110,19 @@ export interface ActivityRowData {
   action?: ActivityRowAction
 }
 
+/** What to call the tx on an explorer link, per kind of activity. */
+const TX_LINK_LABEL: Record<ActivityEventType, string> = {
+  DepositRecorded:      'Deposit tx',
+  WithdrawalToWallet:   'Withdraw tx',
+  WithdrawalRequested:  'Burn tx',
+  WithdrawalExecuted:   'Execute tx',
+  WithdrawalCancelled:  'Cancel tx',
+  YieldStrategyChanged: 'Strategy tx',
+  Rebalanced:           'Rebalance tx',
+  YieldClaimed:         'Claim tx',
+  SpendingLimitSet:     'Limits tx',
+}
+
 /** Map a treasury chain event onto the shared row shape. */
 export function eventRowData(e: ActivityEvent): ActivityRowData {
   const clock = formatEventTime(e)
@@ -128,7 +141,7 @@ export function eventRowData(e: ActivityEvent): ActivityRowData {
     links: e.txHash
       ? [{
           href: explorerTx(e.txHash),
-          label: `${e.txHash.slice(0, 10)}…${e.txHash.slice(-6)}`,
+          label: TX_LINK_LABEL[e.type] ?? 'View tx',
           className: 'text-emerald-400 hover:text-emerald-300',
         }]
       : [],
@@ -182,9 +195,9 @@ export function ActivityRow({ data, compact }: { data: ActivityRowData; compact?
                   href={link.href}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className={clsx('flex items-center gap-1 font-mono', link.className ?? 'text-emerald-400 hover:text-emerald-300')}
+                  className={clsx('flex items-center gap-1 font-medium', link.className ?? 'text-emerald-400 hover:text-emerald-300')}
                 >
-                  {link.label}
+                  {link.label} <ExternalLink className="h-3 w-3" />
                 </a>
               ))}
             </div>
