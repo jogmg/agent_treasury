@@ -116,6 +116,7 @@ export function ActivityTab() {
 
   const showPendingOnly = activityFilter === 'pending'
   const pendingItems = address ? buildPendingItems(address) : []
+  const showPendingUnderAll = activityFilter === 'all' && pendingItems.length > 0
 
   const bridgeSource = getCctpDestination(bridge.sourceDomain)
   const bridgeOwnerMatches = Boolean(
@@ -263,7 +264,9 @@ export function ActivityTab() {
         </div>
       </div>
 
-      {/* Pending cross-chain transfers (from persisted local state) */}
+      {/* Pending cross-chain transfers (from persisted local state).
+          They show under their own filter and under All, since in-flight
+          transfers are real activity even before Arc logs contain them. */}
       {showPendingOnly ? (
         pendingItems.length === 0 ? (
           <div className="flex h-40 flex-col items-center justify-center gap-2 text-center">
@@ -279,17 +282,25 @@ export function ActivityTab() {
             ))}
           </div>
         )
-      ) : activityLoading && filtered.length === 0 ? (
+      ) : activityLoading && filtered.length === 0 && !showPendingUnderAll ? (
         <div className="flex h-40 items-center justify-center">
           <p className="text-sm text-slate-500">Scanning event logs…</p>
         </div>
-      ) : filtered.length === 0 ? (
+      ) : filtered.length === 0 && !showPendingUnderAll ? (
         <div className="flex h-40 flex-col items-center justify-center gap-2 text-center">
           <p className="text-sm text-slate-500">No events found.</p>
           <p className="text-xs text-slate-600">Make a deposit to see activity here.</p>
         </div>
       ) : (
         <div className="divide-y divide-slate-800 rounded-xl border border-slate-800 bg-slate-900/60">
+          {showPendingUnderAll && pendingItems.map((item) => (
+            <PendingCctpRow key={item.id} item={item} onResume={resumePending} />
+          ))}
+          {showPendingUnderAll && filtered.length > 0 && (
+            <div className="bg-slate-950/60 px-4 py-1.5 text-[10px] uppercase tracking-wider text-slate-600">
+              On-chain events
+            </div>
+          )}
           {filtered.map((e) => (
             <EventRow key={e.id} event={e} />
           ))}

@@ -193,7 +193,7 @@ Cross-chain **inbound** deposits are in the Deposit tab. Pick a source chain, ap
 
 Cross-chain **outbound** (`requestWithdrawal`) is available in the Withdraw tab. It burns via CCTP v2 and then the app fetches the Circle attestation automatically. When the attestation is ready, the app switches to the destination chain and asks for one wallet confirmation to submit `receiveMessage`; the final mint needs destination-chain gas. Recent CCTP requests are listed in the Withdraw tab, and pasting an Arc burn tx hash resumes an older transfer. `scripts/complete-cctp.ts` is the headless fallback. The Withdraw tab also shows a **Legacy Treasury** recovery card for funds left in the pre-hotfix deployment.
 
-The Activity tab has a **Pending** filter listing every cross-chain CCTP transfer still in flight, inbound and outbound, with the burn tx hash, chains, amount, status, and a Resume button. Pending transfers are persisted in the browser (`localStorage`), so a page reload never loses them — unlike chain events, they exist until the mint/deposit lands on Arc.
+The Activity tab has a **Pending** filter listing every cross-chain CCTP transfer still in flight, inbound and outbound, with the burn tx hash, chains, amount, status, and a Resume button. Pending transfers are persisted in the browser (`localStorage`), so a page reload never loses them — unlike chain events, they exist until the mint/deposit lands on Arc. They also appear at the top of the **All** view while in flight.
 
 ---
 
