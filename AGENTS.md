@@ -6,6 +6,17 @@ This is the **project memory** - what Arc Studio remembers about building this a
 
 ---
 
+## Session discipline (IMPORTANT for future agent sessions)
+
+This project is being built for a hackathon on a metered Arc Studio AI quota. Every session must conserve it:
+
+- **Never run `arc-studio upgrade`** or any other quota-consuming Arc Studio CLI flow unless the user explicitly asks.
+- **Do all local work (code, tests, lint, build, docs, git) directly in this repo without touching Arc Studio.**
+- **Prefer reading this file first** over re-exploring the codebase; it already documents architecture, addresses, cul-de-sacs (CCTP uint64 return bug, hooks are not automatic, etc.), and current status.
+- **Keep edits small and targeted**; batch verification (typecheck + lint + tests + build in one command) instead of cycling on each file.
+- **Write findings back here** so the next session does not need to rediscover them.
+- The user will compact conversations before context usage gets high; do not restart work that this file already covers.
+
 ## What This App Does
 
 Cross-chain USDC treasury for AI agents. Accepts USDC from any CCTP-supported chain via CCTP v2, auto-deploys into a Morpho yield vault on Arc, and allows withdrawals to any destination chain. Three Circle products: CCTP v2 + Circle Gateway + Earn Kit (Morpho). Outbound burns use standard finality (2000) for reliable Arc-origin attestations.
