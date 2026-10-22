@@ -10,7 +10,7 @@ WORKDIR /app
 COPY hermes/package.json hermes/package-lock.json ./
 RUN npm ci
 
-COPY shared ./shared
+COPY shared /shared
 COPY hermes/tsconfig.json hermes/tsup.config.ts ./
 COPY hermes/src ./src
 COPY hermes/migrations ./migrations
