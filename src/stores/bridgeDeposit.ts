@@ -1,10 +1,13 @@
 /**
- * Cross-chain deposit flow (source-chain CCTP burn -> Arc mint).
+ * Cross-chain deposit flow (source-chain CCTP burn -> Arc receiver credit).
  *
- * Kept separate from the Arc-local deposit flow so a long-running attestation
- * poll cannot overwrite the local deposit UI state. The active flow and a small
- * list of recent source burns are persisted so a page refresh does not lose the
- * only copy of the burn hash.
+ * New burns set the Arc CCTPReceiverV2 as both mintRecipient and
+ * destinationCaller; the receiver credits the agent in one Arc transaction.
+ * Legacy burns (minted to the wallet) are still recoverable through the same
+ * store. Kept separate from the Arc-local deposit flow so a long-running
+ * attestation poll cannot overwrite the local deposit UI state. The active
+ * flow and a small list of recent source burns are persisted so a page refresh
+ * does not lose the only copy of the burn hash.
  */
 import { create } from 'zustand'
 
@@ -26,7 +29,7 @@ export const BRIDGE_STATUS_LABEL: Record<BridgeDepositStatus, string> = {
   burning: 'Burning source',
   waiting: 'Waiting for Circle',
   ready: 'Ready to mint',
-  minting: 'Minting on Arc',
+  minting: 'Processing on Arc',
   'arc-approving': 'Approving on Arc',
   depositing: 'Depositing',
   done: 'Credited',
@@ -62,9 +65,10 @@ export interface BridgeDepositState extends BridgeDepositCurrent {
 
 
   setBridgeDeposit: (
-    patch: Partial<Omit<BridgeDepositState, 'setBridgeDeposit' | 'resetBridgeDeposit' | 'restoreBridgeDeposit' | 'clearBridgeHistory' | 'recent'>>,
+    patch: Partial<Omit<BridgeDepositState, 'setBridgeDeposit' | 'resetBridgeDeposit' | 'discardBridgeDeposit' | 'restoreBridgeDeposit' | 'clearBridgeHistory' | 'recent'>>,
   ) => void
   resetBridgeDeposit: () => void
+  discardBridgeDeposit: () => void
   restoreBridgeDeposit: (record: BridgeDepositRecord) => void
   clearBridgeHistory: () => void
 }
@@ -297,6 +301,19 @@ export const useBridgeDepositStore = create<BridgeDepositState>((setState) => ({
       const current = { ...INITIAL_CURRENT }
       persist(current, state.recent)
       return { ...state, ...current }
+    }),
+
+  /** Reset the active flow and forget its burn hash entirely. */
+  discardBridgeDeposit: () =>
+    setState((state) => {
+      const current = { ...INITIAL_CURRENT }
+      const recent = state.burnHash
+        ? state.recent.filter(
+            (record) => record.burnHash.toLowerCase() !== state.burnHash.toLowerCase(),
+          )
+        : state.recent
+      persist(current, recent)
+      return { ...state, ...current, recent }
     }),
 
   restoreBridgeDeposit: (record) =>

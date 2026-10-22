@@ -1,0 +1,69 @@
+# Hermes Ops profile - Phase 1 (read-only)
+#
+# This profile lives in the private Discord server. It can read the Arc/CCTP
+# MCP server, but it has no terminal, filesystem, browser, or signing ability.
+# The LLM is never the source of truth: balances and CCTP status come from the
+# MCP tools, which query Arc/Iris/Postgres deterministically.
+
+# Pick one provider and put its key in ../.env. If you use OpenRouter, OpenAI,
+# Gemini, etc., change provider/default here and use that provider's key.
+model:
+  provider: "anthropic"
+  default: "claude-sonnet-4-6"
+
+mcp_servers:
+  arc-treasury:
+    url: "http://arc-mcp:8788/mcp"
+    headers:
+      Authorization: "Bearer ${ARC_MCP_TOKEN_OPS}"
+    trust: untrusted
+    timeout: 60
+    connect_timeout: 10
+    tools:
+      include:
+        - arc_get_config
+        - arc_get_treasury_state
+        - arc_list_activity
+        - arc_get_cctp_status
+        - arc_get_transfer
+        - arc_get_bookkeeping_queue
+        - arc_get_incidents
+      resources: false
+      prompts: false
+
+agent:
+  disabled_toolsets:
+    - terminal
+    - file
+    - browser
+    - web
+    - search
+    - skills
+    - code_execution
+    - delegation
+    - cronjob
+    - vision
+    - image_gen
+    - video_gen
+    - tts
+    - computer_use
+    - connections
+    - catalog
+    - desktop_ui
+    - project
+    - kanban
+    - discord_admin
+    - x_search
+
+approvals:
+  mode: smart
+  timeout: 300
+  cron_mode: deny
+  single_query_mode: deny
+  unattended_mode: deny
+  mcp_reload_confirm: true
+  destructive_slash_confirm: true
+
+# Keep the ops profile from becoming a general-purpose agent.
+security:
+  redact_secrets: true

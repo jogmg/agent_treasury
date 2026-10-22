@@ -6,7 +6,15 @@
  * polls Iris for the attestation and then asks the user to submit the mint on
  * the destination chain.
  */
-import { parseAbi, type Chain } from 'viem'
+import {
+  createPublicClient,
+  fallback,
+  http,
+  parseAbi,
+  parseAbiItem,
+  type Chain,
+  type PublicClient,
+} from 'viem'
 import {
   arbitrum,
   arbitrumSepolia,
@@ -22,6 +30,24 @@ import {
   sepolia,
 } from 'viem/chains'
 import { ARC_CCTP_DOMAIN, IS_ARC_MAINNET } from './contracts'
+import {
+  getCctpMessageAmount,
+  getCctpMessageDestinationDomain,
+  getCctpMessageMintRecipient,
+  getCctpMessageNonce,
+  getCctpMessageSourceDomain,
+} from '../../shared/cctp-message'
+
+export {
+  getCctpMessageAmount,
+  getCctpMessageBurnToken,
+  getCctpMessageDestinationCaller,
+  getCctpMessageDestinationDomain,
+  getCctpMessageHookAgent,
+  getCctpMessageMintRecipient,
+  getCctpMessageNonce,
+  getCctpMessageSourceDomain,
+} from '../../shared/cctp-message'
 
 export { ARC_CCTP_DOMAIN }
 
@@ -41,27 +67,19 @@ export const MESSAGE_TRANSMITTER_V2 = (IS_ARC_MAINNET
 
 export const MESSAGE_TRANSMITTER_V2_ABI = parseAbi([
   'function receiveMessage(bytes message, bytes attestation) external returns (bool)',
-  'function usedNonces(bytes32 nonce) external view returns (bool)',
+  'function usedNonces(bytes32 nonce) external view returns (uint256)',
 ])
+
+// Emitted by MessageTransmitterV2 when a message is delivered. `nonce` is
+// indexed, so one getLogs call can find the destination mint tx for a burn.
+export const MESSAGE_RECEIVED_EVENT = parseAbiItem(
+  'event MessageReceived(address indexed caller, uint32 sourceDomain, bytes32 indexed nonce, bytes32 sender, uint32 indexed finalityThresholdExecuted, bytes messageBody)',
+)
 
 export const TOKEN_MESSENGER_V2_ABI = parseAbi([
   'function depositForBurn(uint256 amount, uint32 destinationDomain, bytes32 mintRecipient, address burnToken, bytes32 destinationCaller, uint256 maxFee, uint32 minFinalityThreshold) external',
   'function depositForBurnWithHook(uint256 amount, uint32 destinationDomain, bytes32 mintRecipient, address burnToken, bytes32 destinationCaller, uint256 maxFee, uint32 minFinalityThreshold, bytes hookData) external',
 ])
-
-/**
- * The CCTP message header is:
- *   version (4) | sourceDomain (4) | destinationDomain (4) | nonce (32) | ...
- * The nonce is the key used by MessageTransmitterV2.usedNonces on the
- * destination chain. It lets the UI tell whether a transfer was already minted.
- */
-export function getCctpMessageNonce(message: string): `0x${string}` {
-  const nonce = message.slice(2 + 24, 2 + 24 + 64)
-  if (!/^[0-9a-fA-F]{64}$/.test(nonce)) {
-    throw new Error('Invalid CCTP message header')
-  }
-  return `0x${nonce}`
-}
 
 export interface CctpDestination {
   domain: number
@@ -229,13 +247,15 @@ function isHex(value: unknown): value is `0x${string}` {
 }
 
 /**
- * Fetch the CCTP v2 attestation for a burn transaction.
- * Returns null while Iris has not attested the message yet.
+ * Fetch the first CCTP v2 message for a burn transaction. This returns the
+ * message even while Iris is still attesting it, so the UI can show the
+ * destination domain/nonce before the attestation is complete. A 404 means
+ * Iris has not indexed the burn yet.
  */
-export async function fetchCctpAttestation(
+async function fetchIrisMessage(
   burnTx: string,
-  sourceDomain = ARC_CCTP_DOMAIN,
-): Promise<CctpAttestation | null> {
+  sourceDomain: number,
+): Promise<IrisMessage | null> {
   const url = `${IRIS_API}/v2/messages/${sourceDomain}?transactionHash=${encodeURIComponent(burnTx)}`
   const response = await fetch(url)
   if (response.status === 404) return null
@@ -244,7 +264,18 @@ export async function fetchCctpAttestation(
   }
 
   const data = (await response.json()) as IrisResponse
-  const message = data.messages?.find((entry) => entry.cctpVersion === 2)
+  return data.messages?.find((entry) => Number(entry.cctpVersion) === 2) ?? null
+}
+
+/**
+ * Fetch the CCTP v2 attestation for a burn transaction.
+ * Returns null while Iris has not attested the message yet.
+ */
+export async function fetchCctpAttestation(
+  burnTx: string,
+  sourceDomain = ARC_CCTP_DOMAIN,
+): Promise<CctpAttestation | null> {
+  const message = await fetchIrisMessage(burnTx, sourceDomain)
   if (!message || message.status !== 'complete') return null
   if (!isHex(message.message) || !isHex(message.attestation)) return null
 
@@ -269,6 +300,256 @@ export async function fetchCctpAttestation(
     amount,
     mintRecipient: isHex(rawRecipient) ? rawRecipient : undefined,
     forwardTxHash,
+  }
+}
+
+export interface CctpWithdrawalStatus {
+  burnTx: string
+  sourceDomain: number
+  destinationDomain: number
+  /** waiting: no complete attestation; ready: attested, not delivered; done: delivered. */
+  phase: 'waiting' | 'ready' | 'done' | 'error'
+  attestationComplete: boolean
+  delivered: boolean
+  nonce?: `0x${string}`
+  amount?: bigint
+  mintRecipient?: `0x${string}`
+  message?: `0x${string}`
+  attestation?: `0x${string}`
+  mintTxHash?: string
+  mintBlockNumber?: bigint
+  forwardTxHash?: `0x${string}`
+  error?: string
+}
+
+// Public RPC fallbacks for destination reads. The chain defaults are used too,
+// but Base in particular rate-limits eth_getLogs aggressively, so put a couple
+// of independent endpoints in front of it.
+const CCTP_RPC_FALLBACKS: Record<number, string[]> = IS_ARC_MAINNET
+  ? {
+      0: ['https://ethereum-rpc.publicnode.com', 'https://eth.drpc.org'],
+      1: ['https://avalanche-c-chain-rpc.publicnode.com'],
+      2: ['https://optimism-rpc.publicnode.com'],
+      3: ['https://arbitrum-one-rpc.publicnode.com', 'https://arb1.arbitrum.io/rpc'],
+      6: ['https://base-rpc.publicnode.com', 'https://base.drpc.org', 'https://mainnet.base.org'],
+      7: ['https://polygon-bor-rpc.publicnode.com'],
+    }
+  : {
+      0: ['https://ethereum-sepolia-rpc.publicnode.com'],
+      1: ['https://avalanche-fuji-c-chain-rpc.publicnode.com'],
+      2: ['https://optimism-sepolia-rpc.publicnode.com'],
+      3: ['https://arbitrum-sepolia-rpc.publicnode.com'],
+      6: ['https://base-sepolia-rpc.publicnode.com', 'https://sepolia.base.org'],
+      7: ['https://polygon-amoy-bor-rpc.publicnode.com'],
+    }
+
+function createDestinationClient(destination: CctpDestination): PublicClient {
+  const urls = [...new Set([
+    ...(CCTP_RPC_FALLBACKS[destination.domain] ?? []),
+    ...destination.chain.rpcUrls.default.http,
+  ])]
+  return createPublicClient({
+    chain: destination.chain,
+    transport: fallback(urls.map((url) => http(url, { timeout: 10_000, retryCount: 1 }))),
+  })
+}
+
+function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : 'Unknown RPC error'
+}
+
+/**
+ * Find the destination MessageReceived log for a nonce. Circle's forwarder tx
+ * is used first when Iris reports one; otherwise scan recent chunks backwards.
+ * Returns null when the mint tx cannot be located (delivery status is still
+ * known from usedNonces, so the UI can show "Delivered" without a link).
+ */
+async function findMessageReceived(
+  client: PublicClient,
+  destination: CctpDestination,
+  nonce: `0x${string}`,
+  forwardTxHash?: `0x${string}`,
+): Promise<{ txHash: string; blockNumber: bigint } | null> {
+  if (forwardTxHash) {
+    try {
+      const receipt = await client.getTransactionReceipt({ hash: forwardTxHash })
+      if (receipt.status === 'success') {
+        return { txHash: forwardTxHash, blockNumber: receipt.blockNumber }
+      }
+    } catch {
+      // Not indexed by this RPC; fall back to a log scan.
+    }
+  }
+
+  let latest: bigint
+  try {
+    latest = await client.getBlockNumber()
+  } catch {
+    return null
+  }
+
+  const chunk = 5_000n
+  const maxChunks = 120n // ~600k blocks; recent enough for normal attestations
+  let end = latest
+  for (let i = 0n; i < maxChunks && end > 0n; i++) {
+    const start = end >= chunk ? end - chunk + 1n : 0n
+    try {
+      const logs = await client.getLogs({
+        address: destination.transmitter,
+        event: MESSAGE_RECEIVED_EVENT,
+        args: { nonce },
+        fromBlock: start,
+        toBlock: end,
+      })
+      if (logs.length > 0) {
+        const log = logs[logs.length - 1]
+        return { txHash: log.transactionHash, blockNumber: log.blockNumber ?? 0n }
+      }
+    } catch {
+      // Some public RPCs reject archive ranges; keep walking backwards.
+    }
+    if (start === 0n) break
+    end = start - 1n
+  }
+
+  return null
+}
+
+/**
+ * Resolve an outbound CCTP withdrawal from its Arc burn tx without relying on
+ * AgentTreasury's legacy executeWithdrawal bookkeeping:
+ *   Arc WithdrawalRequested tx -> Iris message/attestation -> destination
+ *   usedNonces + MessageReceived log.
+ *
+ * A complete attestation with no destination delivery is `ready` (the mint is
+ * still pending). Iris still attesting is `waiting`. A used nonce is `done`.
+ */
+export async function resolveCctpWithdrawal(
+  burnTx: string,
+  options: { sourceDomain?: number; checkDestination?: boolean } = {},
+): Promise<CctpWithdrawalStatus> {
+  const sourceDomain = options.sourceDomain ?? ARC_CCTP_DOMAIN
+  const status: CctpWithdrawalStatus = {
+    burnTx,
+    sourceDomain,
+    destinationDomain: 0,
+    phase: 'waiting',
+    attestationComplete: false,
+    delivered: false,
+  }
+
+  let iris: IrisMessage | null
+  try {
+    iris = await fetchIrisMessage(burnTx, sourceDomain)
+  } catch (error) {
+    return { ...status, phase: 'error', error: `Could not reach Circle Iris: ${errorText(error)}` }
+  }
+
+  if (!iris) return status
+
+  // Use Iris's decoded fields for an early display, even before attestation.
+  const decodedDestination = Number(iris.decodedMessage?.destinationDomain)
+  if (Number.isInteger(decodedDestination) && decodedDestination > 0) {
+    status.destinationDomain = decodedDestination
+  }
+  const decodedAmount = iris.decodedMessage?.decodedMessageBody?.amount
+  if (decodedAmount) {
+    try { status.amount = BigInt(decodedAmount) } catch { /* ignore */ }
+  }
+  const decodedRecipient = iris.decodedMessage?.decodedMessageBody?.mintRecipient
+  if (isHex(decodedRecipient)) status.mintRecipient = decodedRecipient
+  if (isHex(iris.forwardTxHash)) status.forwardTxHash = iris.forwardTxHash
+
+  if (isHex(iris.message)) {
+    try {
+      status.nonce = getCctpMessageNonce(iris.message)
+      status.sourceDomain = getCctpMessageSourceDomain(iris.message)
+      status.destinationDomain = getCctpMessageDestinationDomain(iris.message)
+      status.amount = getCctpMessageAmount(iris.message)
+      status.mintRecipient = getCctpMessageMintRecipient(iris.message)
+    } catch {
+      // Keep the Iris-decoded values; complete messages are validated below.
+    }
+  }
+
+  if (iris.status !== 'complete' || !isHex(iris.message) || !isHex(iris.attestation)) {
+    return status
+  }
+
+  status.attestationComplete = true
+  status.message = iris.message
+  status.attestation = iris.attestation
+
+  try {
+    status.nonce = getCctpMessageNonce(iris.message)
+    status.sourceDomain = getCctpMessageSourceDomain(iris.message)
+    status.destinationDomain = getCctpMessageDestinationDomain(iris.message)
+    status.amount = getCctpMessageAmount(iris.message)
+    status.mintRecipient = getCctpMessageMintRecipient(iris.message)
+  } catch {
+    return { ...status, phase: 'error', error: 'The attested CCTP message has an invalid header.' }
+  }
+
+  if (options.checkDestination === false) {
+    return { ...status, phase: 'ready' }
+  }
+
+  const destination = getCctpDestination(status.destinationDomain)
+  if (!destination) {
+    return {
+      ...status,
+      phase: 'ready',
+      error: `Destination CCTP domain ${status.destinationDomain} is not configured in this build.`,
+    }
+  }
+
+  const nonce = status.nonce
+  if (!nonce) {
+    return { ...status, phase: 'error', error: 'The attested CCTP message is missing its nonce.' }
+  }
+
+  try {
+    const client = createDestinationClient(destination)
+    const used = await client.readContract({
+      address: destination.transmitter,
+      abi: MESSAGE_TRANSMITTER_V2_ABI,
+      functionName: 'usedNonces',
+      args: [nonce],
+    })
+
+    if (used === 0n) {
+      return { ...status, phase: 'ready' }
+    }
+
+    status.delivered = true
+    status.phase = 'done'
+
+    const mint = await findMessageReceived(client, destination, nonce, status.forwardTxHash)
+    if (mint) {
+      status.mintTxHash = mint.txHash
+      status.mintBlockNumber = mint.blockNumber
+    } else if (status.forwardTxHash) {
+      status.mintTxHash = status.forwardTxHash
+    }
+
+    return status
+  } catch (error) {
+    // Circle's forwarder tx is a strong delivery signal when the destination
+    // RPC is unavailable. Otherwise the attestation is ready but unverified.
+    if (status.forwardTxHash) {
+      return {
+        ...status,
+        phase: 'done',
+        delivered: true,
+        mintTxHash: status.forwardTxHash,
+        error: undefined,
+      }
+    }
+    return {
+      ...status,
+      phase: 'ready',
+      error: `Attested, but the destination RPC could not be checked: ${errorText(error)}`,
+    }
   }
 }
 

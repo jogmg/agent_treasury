@@ -61,6 +61,32 @@ describe('cross-chain deposit flow', () => {
     expect(state.recent[0].burnHash).toBe(HASH)
   })
 
+  it('discards the active burn and removes it from recent history', () => {
+    const { setBridgeDeposit, discardBridgeDeposit } = useBridgeDepositStore.getState()
+    setBridgeDeposit({
+      status: 'waiting',
+      owner: '0xabc',
+      sourceDomain: 6,
+      amount: '10000000',
+      burnHash: HASH,
+    })
+    setBridgeDeposit({
+      status: 'waiting',
+      owner: '0xabc',
+      sourceDomain: 6,
+      amount: '20000000',
+      burnHash: OTHER_HASH,
+    })
+
+    discardBridgeDeposit()
+
+    const state = useBridgeDepositStore.getState()
+    expect(state.status).toBe('idle')
+    expect(state.burnHash).toBe('')
+    expect(state.recent).toHaveLength(1)
+    expect(state.recent[0].burnHash).toBe(HASH)
+  })
+
   it('updates the recent record and does not duplicate the same hash', () => {
     const { setBridgeDeposit } = useBridgeDepositStore.getState()
     setBridgeDeposit({

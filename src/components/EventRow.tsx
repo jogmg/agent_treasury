@@ -9,7 +9,7 @@ import { clsx } from 'clsx'
 import type { ActivityEvent, ActivityEventType } from '../lib/activity'
 import { explorerTx } from '../lib/contracts'
 import { formatUsdcDollar } from '../lib/decimals'
-import { getCctpDestination } from '../lib/cctp'
+import { getCctpDestination, type CctpWithdrawalStatus } from '../lib/cctp'
 
 type BadgeClass = Record<ActivityEventType, string>
 
@@ -57,7 +57,7 @@ function argStr(a: Record<string, unknown>, key: string): string {
   return ''
 }
 
-function describeEvent(e: ActivityEvent): string {
+function describeEvent(e: ActivityEvent, cctpStatus?: CctpWithdrawalStatus): string {
   const a = e.args
   switch (e.type) {
     case 'DepositRecorded': {
@@ -68,10 +68,11 @@ function describeEvent(e: ActivityEvent): string {
     case 'WithdrawalToWallet':
       return `${formatUsdcDollar(argBigInt(a, 'amount'))} withdrawn to wallet`
     case 'WithdrawalRequested': {
-      const domain = Number(argStr(a, 'destinationDomain'))
+      const domain = cctpStatus?.destinationDomain || Number(argStr(a, 'destinationDomain'))
       const destination = Number.isFinite(domain) ? getCctpDestination(domain) : undefined
       const to = destination?.name ?? `domain ${domain}`
-      return `${formatUsdcDollar(argBigInt(a, 'amount'))} burned via CCTP to ${to}`
+      const suffix = cctpStatus ? ` · ${CCTP_PHASE_LABEL[cctpStatus.phase]}` : ''
+      return `${formatUsdcDollar(argBigInt(a, 'amount'))} burned via CCTP to ${to}${suffix}`
     }
     case 'WithdrawalExecuted':   return `Withdrawal #${argStr(a, 'id')} executed`
     case 'WithdrawalCancelled':  return `Withdrawal #${argStr(a, 'id')} cancelled`
@@ -80,6 +81,29 @@ function describeEvent(e: ActivityEvent): string {
     case 'YieldClaimed':         return `${formatUsdcDollar(argBigInt(a, 'amount'))} yield claimed`
     case 'SpendingLimitSet':     return `Daily ${formatUsdcDollar(argBigInt(a, 'dailyLimit'))}`
     default:                     return e.type
+  }
+}
+
+const CCTP_PHASE_LABEL: Record<CctpWithdrawalStatus['phase'], string> = {
+  waiting: 'Waiting for Circle',
+  ready: 'Attested — mint pending',
+  done: 'Minted',
+  error: 'Status unavailable',
+}
+
+function cctpDescription(status: CctpWithdrawalStatus): string {
+  const destination = getCctpDestination(status.destinationDomain)
+  const name = destination?.name ?? `domain ${status.destinationDomain}`
+  switch (status.phase) {
+    case 'waiting':
+      return 'Circle is attesting the Arc burn. The destination mint starts after the attestation is complete.'
+    case 'ready':
+      return `Circle's attestation is complete. The mint on ${name} has not been indexed by the destination RPC yet.`
+    case 'done':
+      if (status.mintTxHash) return `Minted on ${name}.`
+      return `Delivered on ${name}; the destination RPC did not return the mint transaction hash yet.`
+    case 'error':
+      return status.error ?? 'The destination status could not be checked.'
   }
 }
 
@@ -124,7 +148,11 @@ const TX_LINK_LABEL: Record<ActivityEventType, string> = {
 }
 
 /** Map a treasury chain event onto the shared row shape. */
-export function eventRowData(e: ActivityEvent): ActivityRowData {
+export function eventRowData(
+  e: ActivityEvent,
+  options: { cctpStatus?: CctpWithdrawalStatus; cctpCompleted?: boolean; onResume?: () => void } = {},
+): ActivityRowData {
+  const { cctpStatus, cctpCompleted, onResume } = options
   const clock = formatEventTime(e)
   const prettyArgs = JSON.stringify(
     Object.fromEntries(
@@ -133,19 +161,51 @@ export function eventRowData(e: ActivityEvent): ActivityRowData {
     null,
     2,
   )
+
+  const links: ActivityLink[] = e.txHash
+    ? [{
+        href: explorerTx(e.txHash),
+        label: TX_LINK_LABEL[e.type] ?? 'View tx',
+        className: 'text-emerald-400 hover:text-emerald-300',
+      }]
+    : []
+
+  // Outbound CCTP: add the destination mint link discovered from
+  // usedNonces + MessageReceived, not from AgentTreasury's legacy flags.
+  if (e.type === 'WithdrawalRequested' && cctpStatus?.mintTxHash) {
+    const destination = getCctpDestination(cctpStatus.destinationDomain)
+    links.push({
+      href: destination
+        ? `${destination.explorer}/tx/${cctpStatus.mintTxHash}`
+        : explorerTx(cctpStatus.mintTxHash),
+      label: 'Mint tx',
+      className: 'text-blue-400 hover:text-blue-300',
+    })
+  }
+
+  // No Resume until either the off-chain status or the persisted transfer
+  // history gives us a real answer. Otherwise a completed withdrawal briefly
+  // renders Resume while Iris/destination RPC is still being checked.
+  const statusKnown = cctpStatus !== undefined || cctpCompleted !== undefined
+  const completed = cctpStatus?.phase === 'done' || cctpCompleted === true
+  const action = e.type === 'WithdrawalRequested' &&
+    onResume &&
+    statusKnown &&
+    !completed
+    ? { label: 'Resume', onClick: onResume }
+    : undefined
+
   return {
     badgeLabel: TYPE_LABELS[e.type] ?? e.type,
     badgeClass: TYPE_COLORS[e.type] ?? 'bg-slate-700 text-slate-400 border-slate-700',
-    title: describeEvent(e),
+    title: describeEvent(e, cctpStatus),
     meta: clock ? `Block ${e.blockNumber.toString()} · ${clock}` : `Block ${e.blockNumber.toString()}`,
-    links: e.txHash
-      ? [{
-          href: explorerTx(e.txHash),
-          label: TX_LINK_LABEL[e.type] ?? 'View tx',
-          className: 'text-emerald-400 hover:text-emerald-300',
-        }]
-      : [],
+    links,
+    description: e.type === 'WithdrawalRequested' && cctpStatus
+      ? cctpDescription(cctpStatus)
+      : undefined,
     preJson: prettyArgs,
+    action,
   }
 }
 
@@ -215,8 +275,17 @@ export function ActivityRow({ data, compact }: { data: ActivityRowData; compact?
 interface Props {
   event: ActivityEvent
   compact?: boolean
+  cctpStatus?: CctpWithdrawalStatus
+  /** Persisted history knows the transfer is done before the status query loads. */
+  cctpCompleted?: boolean
+  onResume?: () => void
 }
 
-export function EventRow({ event, compact }: Props) {
-  return <ActivityRow data={eventRowData(event)} compact={compact} />
+export function EventRow({ event, compact, cctpStatus, cctpCompleted, onResume }: Props) {
+  return (
+    <ActivityRow
+      data={eventRowData(event, { cctpStatus, cctpCompleted, onResume })}
+      compact={compact}
+    />
+  )
 }

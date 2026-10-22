@@ -1,0 +1,18 @@
+# Local debugging overlay. Do NOT use this on a public VPS.
+#   docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
+#
+# Binds only to loopback. Use `docker compose exec` on the VPS instead of
+# publishing ports.
+
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:5432:5432"
+
+  arc-mcp:
+    ports:
+      - "127.0.0.1:8788:8788"
+
+  monitor:
+    ports:
+      - "127.0.0.1:8787:8787"

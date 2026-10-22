@@ -14,6 +14,11 @@
     "check": "oxlint --type-aware src scripts && oxlint . && tsc --noEmit",
     "contracts:build": "forge build",
     "contracts:test": "forge test",
+    "hermes:install": "npm --prefix hermes install",
+    "hermes:build": "npm --prefix hermes run build",
+    "hermes:test": "npm --prefix hermes test",
+    "hermes:typecheck": "npm --prefix hermes run typecheck",
+    "hermes:smoke": "npm --prefix hermes run smoke",
     "test": "vitest run"
   },
   "dependencies": {

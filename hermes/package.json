@@ -1,0 +1,38 @@
+{
+  "name": "agent-treasury-hermes",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.9"
+  },
+  "scripts": {
+    "dev:mcp": "tsx --env-file-if-exists=.env watch src/mcp/server.ts",
+    "dev:monitor": "tsx --env-file-if-exists=.env src/monitor/run.ts",
+    "build": "tsup",
+    "start:mcp": "node --env-file-if-exists=.env dist/mcp/server.js",
+    "start:monitor": "node --env-file-if-exists=.env dist/monitor/run.js",
+    "migrate": "node --env-file-if-exists=.env dist/db/migrate.js",
+    "smoke": "node --env-file-if-exists=.env scripts/smoke.mjs",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.20.0",
+    "express": "^5.1.0",
+    "pg": "^8.16.3",
+    "pino": "^9.6.0",
+    "viem": "^2.56.3",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.11",
+    "@types/express": "^5.0.3",
+    "@types/node": "^24.0.0",
+    "@types/pg": "^8.15.5",
+    "tsup": "^8.5.0",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.5"
+  }
+}

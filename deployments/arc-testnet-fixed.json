@@ -1,5 +1,5 @@
 {
-  "_note": "Arc Testnet CCTP-hotfix deployment — Oct 2026. Fixes ITokenMessengerV2 returning no data (Arc-specific); CCTP_MIN_FINALITY_THRESHOLD=2000.",
+  "_note": "Arc Testnet CCTP-hotfix deployment — Oct 2026. Fixes ITokenMessengerV2 returning no data (Arc-specific); CCTP_MIN_FINALITY_THRESHOLD=2000. CCTPReceiverV2 added 2026-10-22 to record the real inbound source domain; old CCTPReceiver abandoned. The first V2 (0xa0d2…) was superseded the same day after a live burn reverted WrongBurnToken(); the corrected V2 (0x3444…) is wired and passed a live Base Sepolia -> Arc inbound proof (3 USDC, sourceDomain 6).",
   "chainId": 5042002,
   "network": "Arc Testnet",
   "rpc": "https://rpc.testnet.arc.io",
@@ -21,14 +21,93 @@
       "address": "0x8066bcf8e6b17e2d84082179a89f0972cc6e31c1",
       "deployTxHash": "0xdf20df5ebb935966b2bb1a58342f0a58919d2246e5393fe8f4f67c628a75d167",
       "deployBlock": 68193025,
-      "explorerUrl": "https://explorer.testnet.arc.io/address/0x8066bcf8e6b17e2d84082179a89f0972cc6e31c1"
+      "explorerUrl": "https://explorer.testnet.arc.io/address/0x8066bcf8e6b17e2d84082179a89f0972cc6e31c1",
+      "_status": "ABANDONED — wrong BurnMessageV2 hookData offset. Do not send new inbound burns here."
     },
     "AgentTreasury": {
       "address": "0x5e2e3da19533ebf85bc916612eff5cdc7bf4d489",
       "deployTxHash": "0x7b6c6727070b1da18746447c6e97fee7b2684aea3f8296604f8716461db7337f",
       "deployBlock": 68193025,
       "explorerUrl": "https://explorer.testnet.arc.io/address/0x5e2e3da19533ebf85bc916612eff5cdc7bf4d489"
+    },
+    "CCTPReceiverV2": {
+      "address": "0xa0d233e24B7B2280bC4f9a2447F59860050aCb4D",
+      "deployTxHash": "0x3aa59c55cca7e1f8b1614ac78dd6d818d786bc2cb15db05eee92985a0c8add91",
+      "deployBlock": 68434709,
+      "wiredTxHash": "0xd82842a828f3a115a2ce1a938c23f4a40b58ba908a773876a9d3f30e388e9f66",
+      "wiredBlock": 68434720,
+      "explorerUrl": "https://explorer.testnet.arc.io/address/0xa0d233e24B7B2280bC4f9a2447F59860050aCb4D",
+      "_status": "SUPERSEDED — compared BurnMessageV2.burnToken to Arc USDC, but real messages carry the source-chain token. Live burn 0x8ebbab…afea reverted WrongBurnToken() (0x206898e8). Abandoned; do not send new inbound burns here."
+    },
+    "CCTPReceiverV2Corrected": {
+      "address": "0x344466B00BED1BD5bdFa3E21392E776144323f4c",
+      "deployTxHash": "0xd11d7f70cd421fa860cc68b930fe011b011f27d1787940318221ad57660f067a",
+      "deployBlock": 68444166,
+      "wiredTxHash": "0x882c79a0dc6cd932145150cb9c635234b395f71d2c7efbc691101b942934c801",
+      "wiredBlock": 68444182,
+      "explorerUrl": "https://explorer.testnet.arc.io/address/0x344466B00BED1BD5bdFa3E21392E776144323f4c",
+      "verified": {
+        "trustedTransmitter": "0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275",
+        "usdc": "0x3600000000000000000000000000000000000000",
+        "treasury": "0x5E2e3da19533Ebf85Bc916612eFf5cDC7BF4D489",
+        "ARC_DOMAIN": 26,
+        "owner": "0xD00fD0B006c01342522cAf4FA04D5f8910aB268c",
+        "paused": false,
+        "runtimeCodeBytes": 5015,
+        "treasury_gatewayReceiver": "0x344466B00BED1BD5bdFa3E21392E776144323f4c",
+        "wrongBurnTokenSelectorAbsent": true
+      }
     }
+  },
+  "receiverV2Correction": {
+    "date": "2026-10-22",
+    "reason": "First V2 compared BurnMessageV2.burnToken (source-chain token, Base Sepolia USDC 0x036cbd…) to Arc USDC and reverted WrongBurnToken() on every live inbound call.",
+    "triggerBurnTx": "0x8ebbab2f02e04ef6885704f1f0ef3f567f8fdd61b8685f655372d830e84fafea",
+    "triggerBurnChain": "Base Sepolia (domain 6)",
+    "triggerBurnAmount": 5000000,
+    "abandonedReceiver": "0xa0d233e24B7B2280bC4f9a2447F59860050aCb4D",
+    "correctedReceiver": "0x344466B00BED1BD5bdFa3E21392E776144323f4c"
+  },
+  "liveInboundProof": {
+    "date": "2026-10-22",
+    "sourceChain": "Base Sepolia",
+    "sourceDomain": 6,
+    "destinationDomain": 26,
+    "amount": 3000000,
+    "burnTx": "0xf07a1cff21a97fa89bd53fc45c2ae6a967e2887f62a3c609195e94e53f198750",
+    "burnBlock": 48561808,
+    "irisStatus": "complete",
+    "nonce": "0x84d93b61681105269d8be01e1af0885cbead2ac9c2cac462cc3479878e34768d",
+    "messageHash": "0xd93afae26ec084f6fdf6fcdd3e85f5cb13cad5ae57d4ff75c15e74f73d1c1132",
+    "arcTx": "0x7eabd5bcdd25163fde02e8621f93e840b703cb138d2ea9cf932e29079447d409",
+    "arcBlock": 68550820,
+    "arcGasUsed": 551172,
+    "depositRecorded": {
+      "agent": "0xD00fD0B006c01342522cAf4FA04D5f8910aB268c",
+      "amount": 3000000,
+      "sourceDomain": 6,
+      "vaultId": 1,
+      "shares": "2996828265797596427"
+    },
+    "messageProcessed": {
+      "agent": "0xD00fD0B006c01342522cAf4FA04D5f8910aB268c",
+      "sourceDomain": 6,
+      "nonce": "0x84d93b61681105269d8be01e1af0885cbead2ac9c2cac462cc3479878e34768d",
+      "amount": 3000000,
+      "messageHash": "0xd93afae26ec084f6fdf6fcdd3e85f5cb13cad5ae57d4ff75c15e74f73d1c1132"
+    },
+    "accountingAfter": {
+      "principal": "12000001",
+      "totalBalance": "12000000",
+      "vaultShares": "11987313064933833949",
+      "depositsByChain6": "3000000",
+      "depositsByChain26": "10000000",
+      "receiverUsdcBalance": "0",
+      "treasuryUsdcBalance": "0",
+      "treasuryPaused": false,
+      "gatewayReceiver": "0x344466B00BED1BD5bdFa3E21392E776144323f4c"
+    },
+    "result": "PASS"
   },
   "smokeTests": {
     "adapter_treasury": "0x5E2e3da19533Ebf85Bc916612eFf5cDC7BF4D489 (PASS)",

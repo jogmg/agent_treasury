@@ -1,0 +1,130 @@
+name: agent-treasury-hermes
+
+# Phase 1 topology:
+#   postgres  - business state, private only
+#   migrate   - one-shot schema migration
+#   arc-mcp   - read-only Arc/CCTP MCP server, private only
+#   monitor   - deterministic scanner, private only
+#   hermes    - Discord gateway, private only (no published ports)
+#
+# Nothing in this file publishes a host port. Hermes talks to arc-mcp over the
+# internal network, and Discord is an outbound connection.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-treasury}
+      POSTGRES_USER: ${POSTGRES_USER:-treasury}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in hermes/.env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U ${POSTGRES_USER:-treasury} -d ${POSTGRES_DB:-treasury}
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - internal
+
+  migrate:
+    image: agent-treasury-hermes:local
+    build:
+      context: ..
+      dockerfile: hermes/Dockerfile
+    command: ["node", "dist/db/migrate.js"]
+    restart: "no"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-treasury}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-treasury}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - internal
+
+  arc-mcp:
+    image: agent-treasury-hermes:local
+    build:
+      context: ..
+      dockerfile: hermes/Dockerfile
+    command: ["node", "dist/mcp/server.js"]
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-treasury}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-treasury}
+      MCP_HOST: 0.0.0.0
+    expose:
+      - "8788"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:8788/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - internal
+
+  monitor:
+    image: agent-treasury-hermes:local
+    build:
+      context: ..
+      dockerfile: hermes/Dockerfile
+    command: ["node", "dist/monitor/run.js"]
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-treasury}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-treasury}
+      MONITOR_HOST: 0.0.0.0
+    expose:
+      - "8787"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:8787/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 15s
+      timeout: 5s
+      retries: 12
+    networks:
+      - internal
+
+  hermes:
+    image: nousresearch/hermes-agent:latest
+    restart: unless-stopped
+    command: ["--profile", "ops", "gateway", "run"]
+    environment:
+      HERMES_HOME: /opt/data
+      HERMES_UID: ${HERMES_UID:-1000}
+      HERMES_GID: ${HERMES_GID:-1000}
+      HERMES_DASHBOARD: "0"
+    volumes:
+      - ${HERMES_DATA_DIR:-./data}:/opt/data
+    depends_on:
+      arc-mcp:
+        condition: service_healthy
+    networks:
+      - internal
+
+networks:
+  internal:
+    driver: bridge
+
+volumes:
+  pgdata:

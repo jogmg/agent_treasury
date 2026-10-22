@@ -1,5 +1,5 @@
 {
-  "_note": "Arc Mainnet deployment — Oct 21, 2026. Unaudited, deployed with guardrails (5 USDC vault minimum, 25 USDC/day + 50 USDC/week per-agent spending limit). Testnet stack remains separate in arc-testnet-fixed.json.",
+  "_note": "Arc Mainnet deployment — Oct 21, 2026. Unaudited, deployed with guardrails (5 USDC vault minimum, 25 USDC/day + 50 USDC/week per-agent spending limit). Testnet stack remains separate in arc-testnet-fixed.json. CCTPReceiverV2 added 2026-10-22 to record the real inbound source domain; the first V2 was superseded after the live burnToken bug, and corrected receiver 0x847F55221F30675791d2fAaf84f93B1fa86399E2 is deployed and wired. Old CCTPReceiver abandoned.",
   "chainId": 5042,
   "network": "Arc Mainnet",
   "rpc": "https://rpc.mainnet.arc.io",
@@ -25,12 +25,52 @@
     "CCTPReceiver": {
       "address": "0x91f1eb97a40fdab05d150c10566cf9aa3546a375",
       "deployTxHash": "0x6dfd7168175d643cb6447f9f4c29c5005e6deacbd42815bfe9bb29e6a8ecafe1",
-      "deployBlock": 27153192
+      "deployBlock": 27153192,
+      "_status": "ABANDONED — wrong BurnMessageV2 hookData offset. Do not send new inbound burns here."
     },
     "AgentTreasury": {
       "address": "0xf71b5d1a19d72b98675785123fae811698be6f63",
       "deployTxHash": "0xb57016bde4ec8bc63be2e158125cd2e1b8442954d2051bd9ac2e141629105780",
       "deployBlock": 27153209
+    },
+    "CCTPReceiverV2": {
+      "address": "0x54776bc9551b0dC8c1c83c21F81F11eF3A59Da98",
+      "_status": "SUPERSEDED — compared BurnMessageV2.burnToken to Arc USDC. Replaced by 0x847F55221F30675791d2fAaf84f93B1fa86399E2 on 2026-10-22. Do not send new inbound burns here.",
+      "deployTxHash": "0xeeac642b5f68e4cd489764c3409d3bb48099c010aae03f8031a227d829c413da",
+      "deployBlock": 27199918,
+      "wiredTxHash": "0x5a8a5e2a0c3d8882feef3463de2fc3bd01e8327419f7f34fed04071b195df907",
+      "wiredBlock": 27199934,
+      "explorerUrl": "https://explorer.arc.io/address/0x54776bc9551b0dC8c1c83c21F81F11eF3A59Da98",
+      "verified": {
+        "trustedTransmitter": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64",
+        "usdc": "0x3600000000000000000000000000000000000000",
+        "treasury": "0xF71B5D1A19d72B98675785123fAE811698bE6F63",
+        "ARC_DOMAIN": 26,
+        "owner": "0xD00fD0B006c01342522cAf4FA04D5f8910aB268c",
+        "paused": false,
+        "runtimeCodeBytes": 5107,
+        "treasury_gatewayReceiver": "0x54776bc9551b0dC8c1c83c21F81F11eF3A59Da98"
+      }
+    },
+    "CCTPReceiverV2Corrected": {
+      "address": "0x847F55221F30675791d2fAaf84f93B1fa86399E2",
+      "deployTxHash": "0x5aa620ba929d7e921ee7ea02b8f5a34f1975c1487db6f81073cd34a2bf9cf1fe",
+      "deployBlock": 27315893,
+      "wiredTxHash": "0x8d0f4d1b7330ee6cb6c1937c57927b3b250ce950a2ba926e98f3fd27d799e7ba",
+      "wiredBlock": 27315906,
+      "explorerUrl": "https://explorer.arc.io/address/0x847F55221F30675791d2fAaf84f93B1fa86399E2",
+      "verified": {
+        "trustedTransmitter": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64",
+        "usdc": "0x3600000000000000000000000000000000000000",
+        "treasury": "0xF71B5D1A19d72B98675785123fAE811698bE6F63",
+        "ARC_DOMAIN": 26,
+        "owner": "0xD00fD0B006c01342522cAf4FA04D5f8910aB268c",
+        "paused": false,
+        "runtimeCodeBytes": 5015,
+        "treasury_gatewayReceiver": "0x847F55221F30675791d2fAaf84f93B1fa86399E2",
+        "receiver_usdc_balance": "0",
+        "wrongBurnTokenSelectorAbsent": true
+      }
     }
   },
   "wiringTxs": {
@@ -107,6 +147,66 @@
       "isActive": true
     }
   },
+  "receiverV2Upgrade": {
+    "date": "2026-10-22",
+    "receiver": "0x54776bc9551b0dC8c1c83c21F81F11eF3A59Da98",
+    "deployTxHash": "0xeeac642b5f68e4cd489764c3409d3bb48099c010aae03f8031a227d829c413da",
+    "deployBlock": 27199918,
+    "wiredTxHash": "0x5a8a5e2a0c3d8882feef3463de2fc3bd01e8327419f7f34fed04071b195df907",
+    "wiredBlock": 27199934,
+    "checks": {
+      "treasury.gatewayReceiver": "0x54776bc9551b0dC8c1c83c21F81F11eF3A59Da98",
+      "receiver.trustedTransmitter": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64",
+      "receiver.usdc": "0x3600000000000000000000000000000000000000",
+      "receiver.treasury": "0xF71B5D1A19d72B98675785123fAE811698bE6F63",
+      "receiver.ARC_DOMAIN": 26,
+      "receiver.owner": "0xD00fD0B006c01342522cAf4FA04D5f8910aB268c",
+      "receiver.paused": false,
+      "treasury.paused": false,
+      "runtimeCodeBytes": 5107
+    },
+    "note": "Old receiver 0x91f1eb97a40fdab05d150c10566cf9aa3546a375 is abandoned. Treasury was not redeployed and no funds moved. This V2 was later superseded by the corrected receiver."
+  },
+  "receiverV2Correction": {
+    "date": "2026-10-22",
+    "reason": "The first V2 compared BurnMessageV2.burnToken (source-chain token) to Arc USDC and reverted WrongBurnToken() on every live inbound call.",
+    "abandonedReceiver": "0x54776bc9551b0dC8c1c83c21F81F11eF3A59Da98",
+    "correctedReceiver": "0x847F55221F30675791d2fAaf84f93B1fa86399E2",
+    "deployTxHash": "0x5aa620ba929d7e921ee7ea02b8f5a34f1975c1487db6f81073cd34a2bf9cf1fe",
+    "deployBlock": 27315893,
+    "wiredTxHash": "0x8d0f4d1b7330ee6cb6c1937c57927b3b250ce950a2ba926e98f3fd27d799e7ba",
+    "wiredBlock": 27315906,
+    "liveInboundProof": {
+      "result": "PASS",
+      "date": "2026-10-22",
+      "sourceChain": "Base",
+      "sourceDomain": 6,
+      "sourceBurnTx": "0x0b4aa4f9bcaa3f78de7725f17725bb5cc500e752622d7e34fca92936c54da735",
+      "sourceBurnBlock": 52950088,
+      "amountUsdc": "5",
+      "amountRaw": "5000000",
+      "arcTx": "0xdd79d20a0cf3c09a9bb85baeb7d0aafdf35fc95cf7f63c5d7c3ff80f0d873b86",
+      "arcBlock": 27319900,
+      "arcGasUsed": 558947,
+      "messageNonce": "0x7a51cf6e44fd61cf52a8a2be2e5a7eabea97f34e16211f8622f53542c12380d4",
+      "usedNonces": true,
+      "messageHash": "0xb31055f750090de75953933ed7ac0037f19145b7d8c408a56cf6febd22b572e1",
+      "depositRecordedSourceDomain": 6,
+      "depositRecordedAmount": "5000000",
+      "vaultId": 1,
+      "shares": "4996190411368419803",
+      "receiverUsdcBalanceAfter": "0",
+      "treasuryUsdcBalanceAfter": "0",
+      "accountingAfter": {
+        "principal": "10000001",
+        "totalBalance": "10000011",
+        "vaultShares": "9992387766924438899",
+        "depositsByChain6": "5000000",
+        "depositsByChain26": "27000000"
+      }
+    },
+    "note": "Treasury was not redeployed and no funds moved. No inbound burn has targeted the superseded V2; the earlier Base→Arc 5 USDC inbound used the legacy mint-to-wallet path and recorded domain 26. The corrected receiver path now records source domain 6."
+  },
   "balancesAtDeploy": {
     "ownerNativeUsdc18": "3.323327212292452634",
     "ownerErc20Usdc6": "3.323327"
@@ -163,11 +263,12 @@
   },
   "liveCctpE2E": {
     "date": "2026-10-21",
-    "verifiedAtBlock": 27182006,
+    "latestProofDate": "2026-10-22",
+    "verifiedAtBlock": 27319900,
     "arcNetwork": "Arc Mainnet (5042)",
     "baseNetwork": "Base (8453)",
     "wallet": "0xD00fD0B006c01342522cAf4FA04D5f8910aB268c",
-    "summary": "Two outbound CCTP withdrawals from Arc to Base were attested and minted, then 5 USDC was burned on Base and minted + deposited back into the Arc treasury.",
+    "summary": "Three outbound CCTP withdrawals from Arc to Base were attested and minted. Two inbound Base-to-Arc transfers were proven: one legacy mint-to-wallet + deposit() path that recorded Arc domain 26, and one atomic CCTPReceiverV2.receiveAndProcess path that recorded the true source domain 6.",
     "outboundWithdrawals": [
       {
         "withdrawalId": 1,
@@ -208,6 +309,28 @@
         "destinationMintedAt": "2026-10-21T21:26:53Z",
         "destinationMintAmountUsdc": "4.999999",
         "destinationMintRelayer": "0xecfe41d83efbb0d22712e28e2bca20546277c717 (same relayer as withdrawal 1)"
+      },
+      {
+        "withdrawalId": 3,
+        "amountUsdc": "4.999999",
+        "amountRaw": "4999999",
+        "burnedShares": "4996197034365983951",
+        "destinationDomain": 6,
+        "destination": "Base",
+        "mintRecipient": "0xD00fD0B006c01342522cAf4FA04D5f8910aB268c",
+        "requestedAt": "2026-10-22T17:17:24Z",
+        "burnTx": "0x79006af075136d77abb5724fc1124e7ee2b61c8a58ceea3cd943e50423042b13",
+        "burnBlock": 27317380,
+        "messageHash": "0x1bdc9cefc564b3272699e459246c3d6d73eaf37c6c4a89096d6592177c09fa77",
+        "nonce": "0xfb087f47e9200537cf8670a67e7ae3feff2e9f76c158c14c2d137e643143bf75",
+        "usedNonces": true,
+        "irisStatus": "complete",
+        "onchainExecuted": false,
+        "onchainBookkeeping": "getWithdrawal(3) has empty message/messageHash; requestWithdrawal does not persist the MessageSent bytes. The app derives status from the burn receipt + Iris, so this is cosmetic keeper bookkeeping.",
+        "destinationMintTx": "0x875d8220284648e79920f3f3603d111cdc4628b43c747cf0f126039cf2118a94",
+        "destinationMintBlock": 52950067,
+        "destinationMintAmountUsdc": "4.999999",
+        "destinationMintRelayer": "0xD00fD0B006c01342522cAf4FA04D5f8910aB268c (owner wallet, not a relayer)"
       }
     ],
     "inboundDeposit": {
@@ -232,6 +355,31 @@
       "depositEventSourceDomain": 26,
       "note": "The app mints to the Arc wallet and then calls deposit(), so DepositRecorded shows Arc domain 26 even though the USDC originated on Base domain 6. Funds and balances are correct; source-domain accounting still needs a relayer/forwarder."
     },
+    "receiverInboundDeposit": {
+      "path": "CCTPReceiverV2.receiveAndProcess",
+      "receiver": "0x847F55221F30675791d2fAaf84f93B1fa86399E2",
+      "sourceDomain": 6,
+      "source": "Base",
+      "sourceBurnTx": "0x0b4aa4f9bcaa3f78de7725f17725bb5cc500e752622d7e34fca92936c54da735",
+      "sourceBurnBlock": 52950088,
+      "sourceBurnGasUsed": 110676,
+      "sourceBurnedAt": "2026-10-22T17:18:43Z",
+      "amountUsdc": "5",
+      "amountRaw": "5000000",
+      "arcTx": "0xdd79d20a0cf3c09a9bb85baeb7d0aafdf35fc95cf7f63c5d7c3ff80f0d873b86",
+      "arcBlock": 27319900,
+      "arcGasUsed": 558947,
+      "messageNonce": "0x7a51cf6e44fd61cf52a8a2be2e5a7eabea97f34e16211f8622f53542c12380d4",
+      "usedNonces": true,
+      "messageHash": "0xb31055f750090de75953933ed7ac0037f19145b7d8c408a56cf6febd22b572e1",
+      "depositRecordedSourceDomain": 6,
+      "depositRecordedAmount": "5000000",
+      "vaultId": 1,
+      "shares": "4996190411368419803",
+      "receiverUsdcBalanceAfter": "0",
+      "treasuryUsdcBalanceAfter": "0",
+      "note": "Atomic receiver path: the CCTP mint, transfer to the treasury, recordDeposit(sourceDomain=6), and Galaxy vault deposit all happened in this one Arc transaction. This is the mainnet source-domain fix proof."
+    },
     "supportingLocalDeposit": {
       "tx": "0xb2b80d3320ba1be4631c041f2ec03434e6daf758fdff3032c0a2c3e50a5b78c2",
       "block": 27176075,
@@ -243,26 +391,30 @@
     "nonceChecks": {
       "withdrawal1UsedOnBase": true,
       "withdrawal2UsedOnBase": true,
-      "inboundUsedOnArc": true
+      "withdrawal3UsedOnBase": true,
+      "inboundUsedOnArc": true,
+      "receiverInboundUsedOnArc": true
     },
     "stateAfter": {
-      "verifiedAtBlock": 27182006,
-      "principalUsdc": "9.000003",
-      "vaultShares": "8993822921076662356",
-      "totalBalanceUsdc": "9.000028",
-      "previewRedeemSharesUsdc": "9.000028",
-      "walletErc20Usdc": "2.246716",
-      "walletNativeUsdc18": "2.246716343949721945"
+      "verifiedAtBlock": 27319900,
+      "principalUsdc": "10.000001",
+      "vaultShares": "9992387766924438899",
+      "totalBalanceUsdc": "10.000011",
+      "previewRedeemSharesUsdc": "10.000011",
+      "walletErc20Usdc": "1.158534",
+      "walletNativeUsdc18": "1.158534687368721945"
     },
     "notes": [
-      "Both outbound mints were submitted by a relayer (0xecfe...) rather than the owner wallet, demonstrating permissionless relay of the attested message.",
-      "The treasury withdrawal requests are still unexecuted on-chain (executed=false) because the app does not call executeWithdrawal(). Funds are unaffected, but keeper bookkeeping should clear pending ids 1 and 2.",
-      "Base USDC balance after the round trip is 1.999998: 1.999999 + 4.999999 minted minus 5.000000 burned.",
-      "This closes the mainnet CCTP proof: Arc burn -> production Iris attestation -> Base mint, and Base burn -> Arc mint -> Galaxy USDC deposit."
+      "Withdrawals 1 and 2 were minted by a relayer (0xecfe...) rather than the owner wallet, demonstrating permissionless relay of the attested message. Withdrawal 3 was minted by the owner wallet.",
+      "The treasury withdrawal requests are still unexecuted on-chain (executed=false) because the app does not call executeWithdrawal(). Funds are unaffected, but keeper bookkeeping should clear pending ids 1, 2, and 3.",
+      "After the latest round trip, Base USDC is 1.999997: 1.999998 + 4.999999 minted minus 5.000000 burned.",
+      "Withdrawal 3 burned 4.999999 USDC (id 3, block 27317380); Iris reports status complete with nonce 0xfb087f..., and Base minted 4.999999 USDC to the owner.",
+      "The receiver-path 5 USDC deposit (Arc tx 0xdd79d20a...) is the proof that CCTPReceiverV2 records the true source domain: DepositRecorded.sourceDomain = 6, amount 5000000, shares 4996190411368419803, receiver balance 0.",
+      "This closes the mainnet CCTP proof: Arc burn -> production Iris attestation -> Base mint, and Base burn -> Arc atomic receiver -> Galaxy USDC deposit with source domain 6."
     ]
   },
   "pendingActions": [
-    "Run keeper executeWithdrawal(1) and executeWithdrawal(2) to clear the two completed cross-chain requests (bookkeeping only).",
+    "Run keeper executeWithdrawal(1), executeWithdrawal(2), and executeWithdrawal(3) to clear the completed cross-chain requests (bookkeeping only).",
     "Rotate the keeper role to a dedicated hot key before scaling real volume.",
     "External audit before raising caps or onboarding third-party agents.",
     "Verify contract source on the Arc mainnet explorer."
@@ -271,6 +423,7 @@
     "testnet": "deployments/arc-testnet-fixed.json",
     "deployScript": "contracts/script/DeployMainnet.s.sol",
     "forkTest": "contracts/test/fork/MainnetDeploy.t.sol",
-    "deployPage": "scripts/mainnet-deploy/template.html"
+    "deployPage": "scripts/mainnet-deploy/template.html",
+    "receiverDeployPage": "scripts/receiver-deploy/template.html"
   }
 }

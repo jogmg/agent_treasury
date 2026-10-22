@@ -11,8 +11,10 @@ pragma solidity ^0.8.24;
 ///      CCTP v2 message body format (from Circle spec):
 ///      https://developers.circle.com/cctp/
 ///      The message body is abi-encoded by the source TokenMessengerV2.
-///      On the destination, the MessageTransmitterV2 calls the hook handler
-///      (handleReceiveMessage) with the decoded fields.
+///      On the destination, MessageTransmitterV2 mints USDC to the
+///      mintRecipient; it does not auto-call an application hook. The receiver
+///      contract must be the mintRecipient and call receiveMessage itself.
+///      BurnMessageV2 has 228 fixed bytes; raw hookData starts at body byte 228.
 library CCTPMessageLib {
     // ── Hook data ─────────────────────────────────────────────────────────────
 

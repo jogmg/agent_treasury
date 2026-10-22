@@ -1,0 +1,67 @@
+# Hermes User profile - Phase 1 (public, read-only)
+#
+# This profile is for the future public help surface. It uses a different
+# token, a different Discord bot, and a smaller tool set than Hermes Ops.
+# Phase 1 does not expose it publicly.
+
+# Pick one provider and put its key in ../.env. If you use OpenRouter, OpenAI,
+# Gemini, etc., change provider/default here and use that provider's key.
+model:
+  provider: "anthropic"
+  default: "claude-sonnet-4-6"
+
+mcp_servers:
+  arc-treasury:
+    url: "http://arc-mcp:8788/mcp"
+    headers:
+      Authorization: "Bearer ${ARC_MCP_TOKEN_USER}"
+    trust: untrusted
+    timeout: 60
+    connect_timeout: 10
+    tools:
+      include:
+        - arc_get_config
+        - arc_get_treasury_state
+        - arc_list_activity
+        - arc_get_cctp_status
+        - arc_get_transfer
+      resources: false
+      prompts: false
+
+agent:
+  disabled_toolsets:
+    - terminal
+    - file
+    - browser
+    - web
+    - search
+    - skills
+    - memory
+    - session_search
+    - code_execution
+    - delegation
+    - cronjob
+    - vision
+    - image_gen
+    - video_gen
+    - tts
+    - computer_use
+    - connections
+    - catalog
+    - desktop_ui
+    - project
+    - kanban
+    - discord_admin
+    - x_search
+
+approvals:
+  mode: smart
+  timeout: 300
+  cron_mode: deny
+  single_query_mode: deny
+  unattended_mode: deny
+  mcp_reload_confirm: true
+  destructive_slash_confirm: true
+
+security:
+  redact_secrets: true

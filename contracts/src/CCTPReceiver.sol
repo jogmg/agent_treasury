@@ -14,6 +14,11 @@ import {Errors}                 from "./libraries/Errors.sol";
 /// @title CCTPReceiver
 /// @notice Receives CCTP v2 messages on Arc and routes minted USDC to AgentTreasury.
 ///
+/// @dev DEPRECATED: the live v1 receiver decoded raw hookData as a
+///      length-prefixed blob, so real BurnMessageV2 messages were misrouted.
+///      Use CCTPReceiverV2.sol for all new deployments. This file is kept for
+///      historical deployment records and legacy tests.
+///
 /// @dev Two viable inbound patterns (both implemented):
 ///      (A) Hook pattern: MessageTransmitterV2 calls handleReceiveMessage automatically
 ///          after minting USDC to this contract address (mintRecipient = this).

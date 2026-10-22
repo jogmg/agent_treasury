@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useUiStore } from '../../stores/ui'
 import { BRIDGE_STATUS_LABEL, useBridgeDepositStore } from '../../stores/bridgeDeposit'
 import { useFlowStore } from '../../stores/flow'
-import { getCctpDestination } from '../../lib/cctp'
+import { getCctpDestination, type CctpWithdrawalStatus } from '../../lib/cctp'
 import { formatUsdcDollar } from '../../lib/decimals'
 import { ARC_CCTP_DOMAIN } from '../../lib/contracts'
 import { EventRow, ActivityRow } from '../EventRow'
@@ -13,6 +13,7 @@ import type { PendingCctpItem } from '../PendingCctpRow'
 import { exportCsv } from '../../lib/activity'
 import type { ActivityEvent, ActivityEventType } from '../../lib/activity'
 import type { BridgeDepositStatus } from '../../stores/bridgeDeposit'
+import { useCctpWithdrawalStatuses } from '../../hooks/useCctpWithdrawals'
 
 /**
  * Filter taxonomy. Deposits = local on-chain deposit events + cross-chain
@@ -33,7 +34,9 @@ const FILTER_OPTIONS: { label: string; value: ActivityFilter }[] = [
 /** Which treasury events belong in which filter (All = no restriction). */
 const EVENT_FILTER: Partial<Record<ActivityFilter, ActivityEventType[] | null>> = {
   all: null,
-  inflight: [],
+  // In-flight outbound rows are WithdrawalRequested events whose off-chain
+  // status is not done yet. The status map decides which ones to show.
+  inflight: ['WithdrawalRequested'],
   deposits: ['DepositRecorded'],
   withdrawals: ['WithdrawalRequested', 'WithdrawalToWallet', 'WithdrawalExecuted', 'WithdrawalCancelled'],
   YieldClaimed: ['YieldClaimed'],
@@ -45,6 +48,13 @@ const OUT_STATUS = {
   minting: { label: 'Minting', tone: 'info' as const },
   error:   { label: 'Needs attention', tone: 'error' as const },
   done:    { label: 'Credited', tone: 'action' as const },
+}
+
+const PHASE_STATUS: Record<CctpWithdrawalStatus['phase'], { label: string; tone: PendingCctpItem['tone'] }> = {
+  waiting: { label: 'Waiting for Circle', tone: 'info' },
+  ready:   { label: 'Attested — mint pending', tone: 'action' },
+  done:    { label: 'Minted', tone: 'action' },
+  error:   { label: 'Status unavailable', tone: 'error' },
 }
 
 function bridgeStatusTone(status: BridgeDepositStatus): PendingCctpItem['tone'] {
@@ -82,12 +92,14 @@ interface DisplayRow {
 function buildPendingItems(
   address: string,
   filter: ActivityFilter,
+  knownBurnHashes: Set<string>,
+  statusMap: Record<string, CctpWithdrawalStatus>,
 ): PendingCctpItem[] {
   const items: PendingCctpItem[] = []
 
-  // Inbound: source-chain burn -> Arc mint. "In flight" hides completed ones;
-  // Deposits/All keep them as "Credited" rows (they have no chain event of
-  // their own because the app mints to the wallet and calls deposit()).
+  // Inbound: source-chain burn -> Arc receiver/deposit. "In flight" hides
+  // completed ones; Deposits/All keep them as "Credited" rows because the
+  // source burn tx is not part of the Arc DepositRecorded event args.
   if (filter === 'all' || filter === 'inflight' || filter === 'deposits') {
     for (const record of useBridgeDepositStore.getState().recent) {
       if (filter === 'inflight' && record.status === 'done') continue
@@ -108,25 +120,34 @@ function buildPendingItems(
     }
   }
 
-  // Outbound: Arc burn -> destination mint. Completed ones already exist as
-  // WithdrawalRequested chain events, so only unfinished ones are shown here.
+  // Outbound: Arc burn -> destination mint. The WithdrawalRequested chain
+  // event is the primary row now (enriched with the off-chain status). Only
+  // fall back to the persisted client-side history when the log scan did not
+  // return that burn, so the same transfer is never shown twice.
   if (filter === 'all' || filter === 'inflight' || filter === 'withdrawals') {
     for (const record of useFlowStore.getState().cctpHistory) {
-      if (record.status === 'done') continue
+      if (knownBurnHashes.has(record.burnHash.toLowerCase())) continue
       if (record.owner.toLowerCase() !== address.toLowerCase()) continue
-      const labeled = OUT_STATUS[record.status] ?? { label: 'In progress', tone: 'info' as const }
+
+      const status = statusMap[record.burnHash.toLowerCase()]
+      const completed = status?.phase === 'done' || record.status === 'done'
+      if (filter === 'inflight' && completed) continue
+
+      const labeled = status
+        ? PHASE_STATUS[status.phase]
+        : OUT_STATUS[record.status] ?? { label: 'In progress', tone: 'info' as const }
       items.push({
         id: `out-${record.burnHash}`,
         direction: 'out',
         sourceDomain: ARC_CCTP_DOMAIN,
-        destinationDomain: record.destinationDomain,
+        destinationDomain: status?.destinationDomain ?? record.destinationDomain,
         amount: record.amount,
         burnHash: record.burnHash,
-        mintHash: record.mintHash,
+        mintHash: status?.mintTxHash ?? record.mintHash,
         statusLabel: labeled.label,
         tone: labeled.tone,
         timestamp: record.updatedAt,
-        completed: false,
+        completed,
       })
     }
   }
@@ -140,31 +161,62 @@ export function ActivityTab() {
   const { activityEvents, activityFilter, activityLoading, setFilter, setTab } = useUiStore()
   const bridge = useBridgeDepositStore()
   const flow = useFlowStore()
+  // Local history can already prove completion while the Iris/destination
+  // status map is still loading. Use it to suppress a false Resume CTA.
+  const historyCompletion = new Map(
+    flow.cctpHistory
+      .filter((record) => address && record.owner.toLowerCase() === address.toLowerCase())
+      .map(
+        (record) => [record.burnHash.toLowerCase(), record.status === 'done'] as const,
+      ),
+  )
 
   const filter = activityFilter
-  const pendingItems = address ? buildPendingItems(address, filter) : []
-  const inflightCount = address ? buildPendingItems(address, 'inflight').length : 0
+  const chainBurnHashes = new Set(
+    activityEvents
+      .filter((event) => event.type === 'WithdrawalRequested')
+      .map((event) => event.txHash.toLowerCase()),
+  )
+  const withdrawalBurnTxs = [
+    ...chainBurnHashes,
+    ...flow.cctpHistory.map((record) => record.burnHash.toLowerCase()),
+  ]
+  const { statuses: cctpStatuses } = useCctpWithdrawalStatuses(withdrawalBurnTxs)
+
+  const pendingItems = address
+    ? buildPendingItems(address, filter, chainBurnHashes, cctpStatuses)
+    : []
+  const inflightPending = address
+    ? buildPendingItems(address, 'inflight', chainBurnHashes, cctpStatuses)
+    : []
 
   const allowedTypes = EVENT_FILTER[filter]
   const filtered = allowedTypes
     ? activityEvents.filter((e) => allowedTypes.includes(e.type))
     : activityEvents
 
+  // The chain row is the primary outbound representation. Its status comes
+  // from Iris + the destination usedNonces/MessageReceived check, never from
+  // the treasury's legacy executed flag.
+  const inflightEvents = filter === 'inflight'
+    ? filtered.filter((event) => cctpStatuses[event.txHash.toLowerCase()]?.phase !== 'done')
+    : []
+  const chainRows = filter === 'inflight' ? inflightEvents : filtered
+  const inflightChainCount = activityEvents.filter(
+    (event) => event.type === 'WithdrawalRequested' &&
+      cctpStatuses[event.txHash.toLowerCase()]?.phase !== 'done',
+  ).length
+  const inflightCount = inflightPending.length + inflightChainCount
+
   // Chain events and in-flight rows are merged into one recency-sorted stream
   // whenever every chain event has a real block timestamp. If enrichment
   // failed, fall back to block-ordered chain rows after the pending ones.
-  const eventsTimed = filtered.length > 0
-    ? filtered.every((event) => event.timestamp !== undefined && event.timestamp > 0)
+  const eventsTimed = chainRows.length > 0
+    ? chainRows.every((event) => event.timestamp !== undefined && event.timestamp > 0)
     : false
 
-  let displayRows: DisplayRow[]
-  if (filter === 'inflight') {
-    displayRows = pendingItems.map((item) => ({ key: item.id, item }))
-  } else if (eventsTimed) {
-    displayRows = [
-      ...pendingItems.map((item): DisplayRow => ({ key: item.id, item })),
-      ...filtered.map((event): DisplayRow => ({ key: `ev-${event.id}`, event })),
-    ].sort((a, b) => {
+  function sortRows(rows: DisplayRow[]): DisplayRow[] {
+    return rows.sort((a, b) => {
       const aTime = a.item ? a.item.timestamp : eventTimeMs(a.event!)
       const bTime = b.item ? b.item.timestamp : eventTimeMs(b.event!)
       if (aTime !== bTime) return bTime - aTime
@@ -175,10 +227,23 @@ export function ActivityTab() {
       }
       return 0
     })
+  }
+
+  let displayRows: DisplayRow[]
+  if (filter === 'inflight') {
+    displayRows = sortRows([
+      ...pendingItems.map((item): DisplayRow => ({ key: item.id, item })),
+      ...chainRows.map((event): DisplayRow => ({ key: `ev-${event.id}`, event })),
+    ])
+  } else if (eventsTimed) {
+    displayRows = sortRows([
+      ...pendingItems.map((item): DisplayRow => ({ key: item.id, item })),
+      ...chainRows.map((event): DisplayRow => ({ key: `ev-${event.id}`, event })),
+    ])
   } else {
     displayRows = [
       ...pendingItems.map((item): DisplayRow => ({ key: item.id, item })),
-      ...filtered.map((event): DisplayRow => ({ key: `ev-${event.id}`, event })),
+      ...chainRows.map((event): DisplayRow => ({ key: `ev-${event.id}`, event })),
     ]
   }
 
@@ -226,6 +291,39 @@ export function ActivityTab() {
         cctpCompletionError: '',
       })
     }
+    setTab('withdraw')
+  }
+
+  function resumeWithdrawal(event: ActivityEvent) {
+    if (!address) return
+    const destinationDomain = Number(event.args.destinationDomain)
+    const amount = event.args.amount
+    const recipientWord = typeof event.args.mintRecipient === 'string'
+      ? event.args.mintRecipient
+      : ''
+    const recipient = /^0x[0-9a-fA-F]{64}$/.test(recipientWord)
+      ? `0x${recipientWord.slice(-40)}`
+      : ''
+    const amountText = typeof amount === 'bigint' || typeof amount === 'number'
+      ? amount.toString()
+      : typeof amount === 'string'
+        ? amount
+        : ''
+
+    flow.setCctp({
+      cctpStep: 'success',
+      cctpHash: event.txHash,
+      cctpOwner: address,
+      cctpError: '',
+      cctpCompletionStatus: 'waiting',
+      cctpDestinationDomain: Number.isInteger(destinationDomain) ? destinationDomain : 0,
+      cctpAmount: amountText,
+      cctpRecipient: recipient,
+      cctpMessage: '',
+      cctpAttestation: '',
+      cctpMintHash: '',
+      cctpCompletionError: '',
+    })
     setTab('withdraw')
   }
 
@@ -302,7 +400,10 @@ export function ActivityTab() {
         </div>
         <div className="ml-auto flex gap-2">
           <button
-            onClick={() => { void queryClient.invalidateQueries({ queryKey: ['activity', address] }) }}
+            onClick={() => {
+              void queryClient.invalidateQueries({ queryKey: ['activity', address] })
+              void queryClient.invalidateQueries({ queryKey: ['cctp-withdrawals'] })
+            }}
             className="flex items-center gap-1 rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-400 hover:text-slate-200"
           >
             <RefreshCw className={`h-3 w-3 ${activityLoading ? 'animate-spin' : ''}`} />
@@ -349,7 +450,17 @@ export function ActivityTab() {
                 data={pendingRowData(row.item, resumePending)}
               />
             ) : (
-              <EventRow key={row.key} event={row.event!} />
+              <EventRow
+                key={row.key}
+                event={row.event!}
+                cctpStatus={cctpStatuses[row.event!.txHash.toLowerCase()]}
+                cctpCompleted={historyCompletion.get(row.event!.txHash.toLowerCase())}
+                onResume={
+                  row.event!.type === 'WithdrawalRequested'
+                    ? () => resumeWithdrawal(row.event!)
+                    : undefined
+                }
+              />
             ),
           )}
         </div>

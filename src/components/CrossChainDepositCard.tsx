@@ -8,7 +8,7 @@ import {
   useWriteContract,
 } from 'wagmi'
 import { useQueryClient } from '@tanstack/react-query'
-import { decodeFunctionData, zeroHash } from 'viem'
+import { decodeFunctionData, keccak256, zeroHash } from 'viem'
 import { toast } from 'sonner'
 import {
   AlertTriangle,
@@ -25,6 +25,7 @@ import {
   ARC_CCTP_DOMAIN,
   CCTP_DESTINATIONS,
   getCctpDestination,
+  getCctpMessageMintRecipient,
   getCctpMessageNonce,
   MESSAGE_TRANSMITTER_V2,
   MESSAGE_TRANSMITTER_V2_ABI,
@@ -36,6 +37,7 @@ import {
   ADDRESSES,
   ARC_EXPLORER,
   ARC_CHAIN_ID,
+  CCTP_RECEIVER_ABI,
   ERC20_ABI,
   IS_ARC_MAINNET,
   TREASURY_ABI,
@@ -54,6 +56,17 @@ const ARC_GAS_SYMBOL = 'USDC'
 const ARC_GAS_RESERVE = 100_000_000_000_000_000n // 0.1 USDC in 18-dec native units
 const SOURCES = Object.values(CCTP_DESTINATIONS)
 
+// Receivers that were once wired but can no longer credit inbound burns: the
+// original v1 (never on the app path) and the first V2, which rejected real
+// cross-chain messages because it compared the source-chain `burnToken` to
+// Arc USDC. A burn bound to one of these cannot be re-routed; start a new burn.
+const SUPERSEDED_RECEIVERS = new Set([
+  '0x8066bcf8e6b17e2d84082179a89f0972cc6e31c1', // v1 testnet
+  '0x91f1eb97a40fdab05d150c10566cf9aa3546a375', // v1 mainnet
+  '0xa0d233e24b7b2280bc4f9a2447f59860050acb4d', // V2 testnet (burnToken bug)
+  '0x54776bc9551b0dc8c1c83c21f81f11ef3a59da98', // V2 mainnet (burnToken bug)
+])
+
 function rawAmount(value: string): bigint {
   try {
     return value ? BigInt(value) : 0n
@@ -63,9 +76,12 @@ function rawAmount(value: string): bigint {
 }
 
 /**
- * Inbound CCTP: burn USDC on a source chain, wait for Circle's attestation,
- * then call receiveMessage on Arc. The CCTPReceiver hook credits the connected
- * wallet's agent and deploys the USDC into the treasury vault.
+ * Inbound CCTP: burn USDC on a source chain with the Arc receiver as both
+ * mintRecipient and destinationCaller, wait for Circle's attestation, then call
+ * CCTPReceiverV2.receiveAndProcess on Arc. The receiver mints to itself,
+ * forwards the USDC to the treasury, and records the real source domain in one
+ * transaction. The old wallet-mint + approve + deposit path is kept only as a
+ * fallback for burns created before the receiver upgrade.
  */
 export function CrossChainDepositCard() {
   const { address, chainId } = useAccount()
@@ -95,7 +111,9 @@ export function CrossChainDepositCard() {
     recent,
     setBridgeDeposit,
     resetBridgeDeposit,
+    discardBridgeDeposit,
     restoreBridgeDeposit,
+    clearBridgeHistory,
   } = useBridgeDepositStore()
 
   const source = getCctpDestination(sourceDomain) ?? CCTP_DESTINATIONS[0]
@@ -277,18 +295,22 @@ export function CrossChainDepositCard() {
 
       setBridgeDeposit({ status: 'burning', error: '' })
 
+      // mintRecipient + destinationCaller are the receiver: CCTP mints to it and
+      // only it can call receiveMessage. hookData is abi.encode(agent), i.e. the
+      // connected wallet as one 32-byte word at body byte 228.
       const burnTx = await writeContractAsync({
         address: TOKEN_MESSENGER_V2,
         abi: TOKEN_MESSENGER_V2_ABI,
-        functionName: 'depositForBurn',
+        functionName: 'depositForBurnWithHook',
         args: [
           parsedAmount,
           ARC_CCTP_DOMAIN,
-          addrToBytes32(address),
+          addrToBytes32(ADDRESSES.receiver),
           source.usdc,
-          zeroHash,
+          addrToBytes32(ADDRESSES.receiver),
           0n,
           2000, // standard finality; 1000 would require a fast-transfer fee
+          addrToBytes32(address),
         ],
         chainId: source.chain.id,
       })
@@ -332,49 +354,94 @@ export function CrossChainDepositCard() {
         abi: TOKEN_MESSENGER_V2_ABI,
         data: transaction.input,
       })
-      const args = decoded.args as readonly [
-        bigint,
-        number,
-        `0x${string}`,
-        `0x${string}`,
-        `0x${string}`,
-        bigint,
-        number,
-      ]
-      if (!args || args.length < 3) throw new Error('Could not decode the CCTP burn arguments.')
 
-      const domain = Number(args[1])
-      if (domain !== ARC_CCTP_DOMAIN) {
-        throw new Error(`That burn targets CCTP domain ${domain}, not Arc (${ARC_CCTP_DOMAIN}).`)
+      if (decoded.functionName === 'depositForBurnWithHook') {
+        const args = decoded.args
+        if (!args || args.length < 8) throw new Error('Could not decode the CCTP burn arguments.')
+
+        const domain = Number(args[1])
+        if (domain !== ARC_CCTP_DOMAIN) {
+          throw new Error(`That burn targets CCTP domain ${domain}, not Arc (${ARC_CCTP_DOMAIN}).`)
+        }
+
+        const mintRecipient = `0x${args[2].slice(-40)}`
+        if (mintRecipient.toLowerCase() !== ADDRESSES.receiver.toLowerCase()) {
+          throw new Error(
+            `That burn mints to ${shortAddr(mintRecipient)}, not the Arc receiver ${shortAddr(ADDRESSES.receiver)}.`,
+          )
+        }
+
+        if (args[4].toLowerCase() !== addrToBytes32(ADDRESSES.receiver).toLowerCase()) {
+          throw new Error('That burn does not restrict the destination caller to the Arc receiver.')
+        }
+
+        const hookAgent = args[7].length >= 66
+          ? `0x${args[7].slice(-40)}`
+          : ''
+        if (hookAgent.toLowerCase() !== address.toLowerCase()) {
+          throw new Error(
+            `That burn credits ${hookAgent ? shortAddr(hookAgent) : 'an unknown agent'}, not the connected wallet ${shortAddr(address)}.`,
+          )
+        }
+
+        setBridgeDeposit({
+          status: 'waiting',
+          owner: address,
+          sourceDomain: source.domain,
+          amount: args[0].toString(),
+          approveHash: '',
+          burnHash: hash,
+          mintHash: '',
+          arcApproveHash: '',
+          depositHash: '',
+          message: '',
+          attestation: '',
+          error: '',
+        })
+        setResumeTx('')
+        toast.success('Source burn loaded. Waiting for Circle attestation…')
+      } else if (decoded.functionName === 'depositForBurn') {
+        // Legacy burns minted to the wallet and set destinationCaller = 0. Keep
+        // recovery working for any in-flight burn created before the receiver
+        // upgrade; completion branches on the message's mintRecipient.
+        const args = decoded.args
+        if (!args || args.length < 7) throw new Error('Could not decode the CCTP burn arguments.')
+
+        const domain = Number(args[1])
+        if (domain !== ARC_CCTP_DOMAIN) {
+          throw new Error(`That burn targets CCTP domain ${domain}, not Arc (${ARC_CCTP_DOMAIN}).`)
+        }
+
+        if (args[4].toLowerCase() !== zeroHash) {
+          throw new Error('That burn restricts the destination caller, so this wallet cannot mint it.')
+        }
+
+        const mintRecipient = `0x${args[2].slice(-40)}`
+        if (mintRecipient.toLowerCase() !== address.toLowerCase()) {
+          throw new Error(
+            `That burn mints to ${shortAddr(mintRecipient)}, not the connected wallet ${shortAddr(address)}.`,
+          )
+        }
+
+        setBridgeDeposit({
+          status: 'waiting',
+          owner: address,
+          sourceDomain: source.domain,
+          amount: args[0].toString(),
+          approveHash: '',
+          burnHash: hash,
+          mintHash: '',
+          arcApproveHash: '',
+          depositHash: '',
+          message: '',
+          attestation: '',
+          error: '',
+        })
+        setResumeTx('')
+        toast.success('Legacy source burn loaded. Waiting for Circle attestation…')
+      } else {
+        throw new Error('That transaction is not a CCTP burn.')
       }
-
-      if (args[4].toLowerCase() !== zeroHash) {
-        throw new Error('That burn restricts the destination caller, so this wallet cannot mint it.')
-      }
-
-      const mintRecipient = `0x${args[2].slice(-40)}`
-      if (mintRecipient.toLowerCase() !== address.toLowerCase()) {
-        throw new Error(
-          `That burn mints to ${shortAddr(mintRecipient)}, not the connected wallet ${shortAddr(address)}.`,
-        )
-      }
-
-      setBridgeDeposit({
-        status: 'waiting',
-        owner: address,
-        sourceDomain: source.domain,
-        amount: args[0].toString(),
-        approveHash: '',
-        burnHash: hash,
-        mintHash: '',
-        arcApproveHash: '',
-        depositHash: '',
-        message: '',
-        attestation: '',
-        error: '',
-      })
-      setResumeTx('')
-      toast.success('Source burn loaded. Waiting for Circle attestation…')
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Could not load that source transaction.')
     } finally {
@@ -394,6 +461,138 @@ export function CrossChainDepositCard() {
       toast.error('The attested amount is not available yet. Retry the attestation.')
       return
     }
+
+    // New burns mint to the receiver; legacy burns mint to the wallet. Branch
+    // on the attested message, not on a client-side flag, so a pasted burn hash
+    // always takes the correct path.
+    let mintRecipient: `0x${string}`
+    try {
+      mintRecipient = getCctpMessageMintRecipient(message)
+    } catch {
+      toast.error('The attested CCTP message could not be decoded.')
+      return
+    }
+
+    const receiverRoute = mintRecipient.toLowerCase() === ADDRESSES.receiver.toLowerCase()
+    const legacyRoute = mintRecipient.toLowerCase() === address.toLowerCase()
+
+    if (SUPERSEDED_RECEIVERS.has(mintRecipient.toLowerCase())) {
+      toast.error(
+        'This burn targets a superseded receiver and cannot be credited. Start a new cross-chain deposit.',
+      )
+      return
+    }
+
+    if (!receiverRoute && !legacyRoute) {
+      toast.error(
+        `This message mints to ${shortAddr(mintRecipient)}, not the Arc receiver or the connected wallet.`,
+      )
+      return
+    }
+
+    if (receiverRoute) {
+      await completeReceiverDeposit()
+    } else {
+      await completeLegacyDeposit(amountToDeposit)
+    }
+  }
+
+  /**
+   * New route: one Arc transaction. CCTPReceiverV2 is both mintRecipient and
+   * destinationCaller, so it can deliver the message, receive the USDC, forward
+   * it to the treasury, and record the real source domain atomically.
+   */
+  async function completeReceiverDeposit() {
+    if (!address || !arcClient || !message || !attestation) return
+
+    setBridgeDeposit({ status: 'minting', error: '', mintHash: '', arcApproveHash: '', depositHash: '' })
+    try {
+      if (chainId !== ARC_CHAIN_ID) {
+        await switchChainAsync({ chainId: ARC_CHAIN_ID })
+      }
+
+      const gasBalance = await arcClient.getBalance({ address })
+      if (gasBalance < ARC_GAS_RESERVE) {
+        setBridgeDeposit({
+          status: 'ready',
+          error: `Keep at least 0.1 ${ARC_GAS_SYMBOL} on Arc for the receiver transaction. The bridge amount is credited in full, so it cannot cover the gas.`,
+        })
+        return
+      }
+
+      const messageHash = keccak256(message as `0x${string}`)
+      let alreadyProcessed = false
+      try {
+        alreadyProcessed = await arcClient.readContract({
+          address: ADDRESSES.receiver,
+          abi: CCTP_RECEIVER_ABI,
+          functionName: 'processedMessages',
+          args: [messageHash],
+        })
+      } catch {
+        // Fall through to the receiver call.
+      }
+
+      if (alreadyProcessed) {
+        setBridgeDeposit({ status: 'done', error: '' })
+        await queryClient.invalidateQueries()
+        toast.success('This cross-chain deposit was already credited.')
+        return
+      }
+
+      // If the nonce was already used but the receiver has not processed this
+      // message, a relayer delivered it (legacy destinationCaller = 0). Only the
+      // owner can run processDeliveredMessage from here.
+      try {
+        const nonce = getCctpMessageNonce(message)
+        const delivered = await arcClient.readContract({
+          address: MESSAGE_TRANSMITTER_V2,
+          abi: MESSAGE_TRANSMITTER_V2_ABI,
+          functionName: 'usedNonces',
+          args: [nonce],
+        })
+        if (delivered > 0n && !alreadyProcessed) {
+          setBridgeDeposit({
+            status: 'ready',
+            error:
+              'The message was already delivered to the receiver but not credited. Ask the owner to run processDeliveredMessage, or use the receiver rescue path.',
+          })
+          return
+        }
+      } catch {
+        // Let the receiver transaction surface the real error.
+      }
+
+      const hash = await writeContractAsync({
+        address: ADDRESSES.receiver,
+        abi: CCTP_RECEIVER_ABI,
+        functionName: 'receiveAndProcess',
+        args: [message as `0x${string}`, attestation as `0x${string}`],
+        chainId: ARC_CHAIN_ID,
+      })
+      setBridgeDeposit({ mintHash: hash })
+
+      const receipt = await arcClient.waitForTransactionReceipt({ hash })
+      if (receipt.status !== 'success') throw new Error('Arc receiver processing reverted')
+
+      setBridgeDeposit({ status: 'done', error: '' })
+      await queryClient.invalidateQueries()
+      void refetchArcGas()
+      toast.success('Cross-chain deposit credited to your treasury')
+    } catch (e) {
+      const messageText = parseOnchainError(e)
+      setBridgeDeposit({ status: 'ready', error: messageText })
+      if (messageText !== 'Transaction cancelled.') toast.error(messageText)
+    }
+  }
+
+  /**
+   * Legacy route: the burn minted to the wallet and set destinationCaller = 0.
+   * Mint to the wallet, approve the treasury, then deposit. This path records
+   * the Arc domain as the source, which is why new burns use the receiver.
+   */
+  async function completeLegacyDeposit(amountToDeposit: bigint) {
+    if (!address || !arcClient || !message || !attestation) return
 
     setBridgeDeposit({ status: 'minting', error: '', mintHash: '', arcApproveHash: '', depositHash: '' })
     try {
@@ -415,12 +614,13 @@ export function CrossChainDepositCard() {
       let alreadyDelivered = false
       try {
         const nonce = getCctpMessageNonce(message)
-        alreadyDelivered = await arcClient.readContract({
+        const used = await arcClient.readContract({
           address: MESSAGE_TRANSMITTER_V2,
           abi: MESSAGE_TRANSMITTER_V2_ABI,
           functionName: 'usedNonces',
           args: [nonce],
         })
+        alreadyDelivered = used > 0n
       } catch {
         // Fall through to the mint; the wallet will surface a real revert.
       }
@@ -526,6 +726,12 @@ export function CrossChainDepositCard() {
   function reset() {
     setAmount('')
     resetBridgeDeposit()
+  }
+
+  function discard() {
+    setAmount('')
+    discardBridgeDeposit()
+    toast.success('Burn removed from this browser')
   }
 
   async function copyBurnHash() {
@@ -671,9 +877,9 @@ export function CrossChainDepositCard() {
             <ArrowRight className="h-3 w-3" />
             <span>2. Burn on {source.name}</span>
             <ArrowRight className="h-3 w-3" />
-            <span>3. Mint to Arc wallet</span>
+            <span>3. Circle attestation</span>
             <ArrowRight className="h-3 w-3" />
-            <span>4. Deposit to vault</span>
+            <span>4. Credit &amp; deploy on Arc</span>
           </div>
 
           <button
@@ -697,9 +903,9 @@ export function CrossChainDepositCard() {
 
           <p className="text-[11px] leading-relaxed text-slate-500">
             Standard CCTP, no protocol fee. The source-chain attestation can take 15–30 minutes.
-            The Arc mint delivers USDC to your connected
-            wallet; the app then approves the treasury and deposits it into your agent's vault. You
-            need a little Arc {ARC_GAS_SYMBOL} for up to three Arc transactions.
+            Once attested, one Arc transaction goes to the CCTPReceiverV2, which mints the USDC,
+            credits your agent with the real source chain, and deploys it into the Morpho vault.
+            You need a little Arc {ARC_GAS_SYMBOL} for that one transaction.
           </p>
 
           <details className="rounded-lg border border-slate-800 bg-slate-900/40">
@@ -709,7 +915,8 @@ export function CrossChainDepositCard() {
             <div className="space-y-2 border-t border-slate-800 p-3">
               <p className="text-[11px] leading-relaxed text-slate-500">
                 Paste the CCTP burn transaction from {source.name} to resume after a reload. The app
-                checks that the burn targets Arc and mints to the connected wallet.
+                checks that the burn targets Arc and credits the connected wallet's agent (receiver
+                burns) or the wallet itself (legacy burns).
               </p>
               <div className="flex gap-2">
                 <input
@@ -734,7 +941,16 @@ export function CrossChainDepositCard() {
                     <p className="text-[10px] uppercase tracking-wide text-slate-600">
                       Recent source burns
                     </p>
-                    <p className="text-[10px] text-slate-600">Saved in this browser</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-[10px] text-slate-600">Saved in this browser</p>
+                      <button
+                        type="button"
+                        onClick={clearBridgeHistory}
+                        className="text-[10px] text-slate-500 underline hover:text-slate-300"
+                      >
+                        Clear
+                      </button>
+                    </div>
                   </div>
                   {myRecent.slice(0, 5).map((record) => {
                     const recordSource = getCctpDestination(record.sourceDomain)
@@ -868,6 +1084,13 @@ export function CrossChainDepositCard() {
                   You can switch tabs and come back. This burn is saved in your browser, so a
                   reload restores the pending deposit automatically.
                 </p>
+                <button
+                  type="button"
+                  onClick={discard}
+                  className="mt-3 rounded-lg border border-slate-700 px-3 py-1.5 text-[11px] font-medium text-slate-300 transition hover:border-red-500/40 hover:text-red-300"
+                >
+                  Discard this burn
+                </button>
               </div>
             </div>
           )}
@@ -881,7 +1104,8 @@ export function CrossChainDepositCard() {
                     Attestation ready — {activeAmountLabel}
                   </p>
                   <p className="mt-1 text-xs text-slate-400">
-                    Mint to your Arc wallet, then approve and deposit into your agent treasury.
+                    Credit on Arc. The receiver mints the USDC, credits your agent with the real
+                    source chain, and deploys it into the vault in one transaction.
                   </p>
                 </div>
               </div>
@@ -890,10 +1114,9 @@ export function CrossChainDepositCard() {
                 <Fuel className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />
                 <div className="min-w-0 flex-1">
                   <p>
-                    The connected wallet pays Arc {ARC_GAS_SYMBOL} gas for the mint, approval, and
-                    deposit. USDC is minted to{' '}
-                    {owner ? shortAddr(owner) : 'the wallet that started the deposit'}, then
-                    deposited into that wallet's agent treasury.
+                    The connected wallet pays Arc {ARC_GAS_SYMBOL} gas for one receiver transaction.
+                    No Arc approval or separate treasury deposit is needed. The real source chain
+                    ({activeSource.name}) is recorded in your deposit history.
                   </p>
                   <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
                     {!IS_ARC_MAINNET && (
@@ -928,7 +1151,15 @@ export function CrossChainDepositCard() {
                 onClick={() => { void handleCompleteDeposit() }}
                 className="w-full rounded-xl bg-emerald-500 py-3 text-sm font-semibold text-black transition hover:bg-emerald-400"
               >
-                Mint &amp; Deposit to Treasury
+                Credit on Arc
+              </button>
+
+              <button
+                type="button"
+                onClick={discard}
+                className="w-full rounded-xl border border-slate-700 py-2.5 text-xs font-medium text-slate-300 transition hover:border-red-500/40 hover:text-red-300"
+              >
+                Discard this burn and start over
               </button>
 
               {error && (
@@ -944,10 +1175,10 @@ export function CrossChainDepositCard() {
             <div className="flex items-start gap-3 text-sm text-slate-300">
               <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-emerald-400" />
               <div>
-                <p className="font-medium text-white">Complete the Arc CCTP mint…</p>
+                <p className="font-medium text-white">Processing on Arc…</p>
                 <p className="mt-1 text-xs text-slate-400">
-                  Approve the network switch and the Arc transaction. This mints USDC to your
-                  wallet; the app then approves the treasury and deposits it.
+                  Approve the network switch and the Arc receiver transaction. It mints the USDC,
+                  credits your agent with the real source chain, and deploys it into the vault.
                 </p>
                 {mintHash && (
                   <a
@@ -956,7 +1187,7 @@ export function CrossChainDepositCard() {
                     rel="noopener noreferrer"
                     className="mt-1 inline-flex items-center gap-1 text-xs text-emerald-400 underline"
                   >
-                    View mint <ExternalLink className="h-3 w-3" />
+                    View transaction <ExternalLink className="h-3 w-3" />
                   </a>
                 )}
               </div>
@@ -1014,8 +1245,8 @@ export function CrossChainDepositCard() {
               <div>
                 <p className="font-medium">Cross-chain deposit credited</p>
                 <p className="mt-1 text-xs text-slate-400">
-                  {depositHash
-                    ? 'The USDC was minted to your Arc wallet, deposited into your agent treasury, and deployed in the Morpho vault.'
+                  {mintHash || depositHash
+                    ? 'The USDC was minted, credited to your agent with the real source chain, and deployed in the Morpho vault.'
                     : 'This CCTP transfer was already delivered. No further action is needed.'}
                 </p>
                 <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -1026,7 +1257,7 @@ export function CrossChainDepositCard() {
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1 text-xs text-emerald-400 underline hover:text-emerald-300"
                     >
-                      View Arc mint <ExternalLink className="h-3 w-3" />
+                      View Arc transaction <ExternalLink className="h-3 w-3" />
                     </a>
                   )}
                   {depositHash && (

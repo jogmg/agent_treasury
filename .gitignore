@@ -21,6 +21,7 @@ contracts/lib/
 # scratch / local verification
 .tmp-*
 scripts/mainnet-deploy/index.html
+scripts/receiver-deploy/index.html
 
 # env / secrets - never commit keys
 .env

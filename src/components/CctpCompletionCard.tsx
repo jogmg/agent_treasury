@@ -12,8 +12,8 @@ import {
 } from 'lucide-react'
 import {
   getCctpDestination,
-  getCctpMessageNonce,
   MESSAGE_TRANSMITTER_V2_ABI,
+  resolveCctpWithdrawal,
   waitForCctpAttestation,
 } from '../lib/cctp'
 import { formatUsdcDollar, shortAddr } from '../lib/decimals'
@@ -54,14 +54,6 @@ export function CctpCompletionCard({ burnTx }: Props) {
     query: { enabled: Boolean(address && destination) },
   })
 
-  const messageNonce = (() => {
-    try {
-      return cctpMessage ? getCctpMessageNonce(cctpMessage) : null
-    } catch {
-      return null
-    }
-  })()
-
   // Fetch the Circle attestation automatically after the burn. If the tab is
   // closed and reopened, the effect resumes from the stored burn hash.
   useEffect(() => {
@@ -75,15 +67,29 @@ export function CctpCompletionCard({ burnTx }: Props) {
         const result = await waitForCctpAttestation(burnTx, { signal: controller.signal })
         if (!active) return
 
+        // Resolve the destination leg from usedNonces + MessageReceived. This
+        // is the same source of truth the Activity tab uses; the treasury's
+        // legacy executed flag is intentionally ignored.
+        let resolved = null
+        try {
+          resolved = await resolveCctpWithdrawal(burnTx)
+        } catch {
+          // The attestation itself is enough to show the mint button.
+        }
+
+        const done = resolved?.phase === 'done' || (!resolved && Boolean(result.forwardTxHash))
+
         setCctp({
-          cctpDestinationDomain: result.destinationDomain,
-          cctpAmount: result.amount > 0n ? result.amount.toString() : useFlowStore.getState().cctpAmount,
-          cctpRecipient: result.mintRecipient ?? useFlowStore.getState().cctpRecipient,
+          cctpDestinationDomain: resolved?.destinationDomain || result.destinationDomain,
+          cctpAmount: (resolved?.amount ?? result.amount) > 0n
+            ? (resolved?.amount ?? result.amount).toString()
+            : useFlowStore.getState().cctpAmount,
+          cctpRecipient: resolved?.mintRecipient ?? result.mintRecipient ?? useFlowStore.getState().cctpRecipient,
           cctpMessage: result.message,
           cctpAttestation: result.attestation,
-          cctpCompletionStatus: result.forwardTxHash ? 'done' : 'ready',
-          cctpMintHash: result.forwardTxHash ?? '',
-          cctpCompletionError: '',
+          cctpCompletionStatus: done ? 'done' : 'ready',
+          cctpMintHash: resolved?.mintTxHash ?? result.forwardTxHash ?? '',
+          cctpCompletionError: resolved?.error ?? '',
         })
       } catch (error) {
         if (!active || controller.signal.aborted) return
@@ -100,37 +106,6 @@ export function CctpCompletionCard({ burnTx }: Props) {
       controller.abort()
     }
   }, [burnTx, cctpCompletionStatus, setCctp])
-
-  // If the destination nonce is already used, this transfer was already
-  // minted. Loading the same burn hash again must not offer a transaction that
-  // is guaranteed to revert.
-  useEffect(() => {
-    if (cctpCompletionStatus !== 'ready' || !destinationClient || !destination || !messageNonce) {
-      return
-    }
-
-    let active = true
-    void (async () => {
-      try {
-        const used = await destinationClient.readContract({
-          address: destination.transmitter,
-          abi: MESSAGE_TRANSMITTER_V2_ABI,
-          functionName: 'usedNonces',
-          args: [messageNonce],
-        })
-        if (active && used) {
-          setCctp({ cctpCompletionStatus: 'done', cctpCompletionError: '' })
-        }
-      } catch {
-        // If the RPC check fails, leave the mint button available; the wallet
-        // will surface the real error if the message is already used.
-      }
-    })()
-
-    return () => {
-      active = false
-    }
-  }, [cctpCompletionStatus, destinationClient, destination, messageNonce, setCctp])
 
   if (!burnTx || cctpCompletionStatus === 'idle') return null
 

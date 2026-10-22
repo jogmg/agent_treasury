@@ -1,0 +1,612 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Agent Treasury — Deploy CCTPReceiverV2</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 32px 20px; background: #0a0b0d; color: #e7e9ee;
+    font: 14px/1.55 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  }
+  main { max-width: 880px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: -0.02em; }
+  .sub { color: #8b93a7; margin-bottom: 24px; }
+  .card { background: #12141a; border: 1px solid #232733; border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .between { justify-content: space-between; }
+  button, select, input {
+    appearance: none; border: 1px solid #2c3242; background: #1a1e28; color: #e7e9ee;
+    padding: 10px 14px; border-radius: 10px; font: inherit; font-size: 13px;
+  }
+  button { font-weight: 600; cursor: pointer; }
+  button:hover:not(:disabled) { background: #222838; }
+  button.primary { background: #f5c542; border-color: #f5c542; color: #171204; }
+  button.primary:hover:not(:disabled) { background: #ffd75e; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  input { flex: 1; min-width: 260px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  dl { display: grid; grid-template-columns: 210px 1fr; gap: 6px 14px; margin: 0; font-size: 13px; }
+  dt { color: #8b93a7; }
+  dd { margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-all; }
+  pre {
+    background: #0a0c10; border: 1px solid #1d2230; border-radius: 10px; padding: 14px;
+    max-height: 420px; overflow: auto; font-size: 12px; line-height: 1.5; white-space: pre-wrap;
+    word-break: break-word; margin: 0;
+  }
+  .ok { color: #4ade80; } .err { color: #fb7185; } .muted { color: #8b93a7; }
+  .steps { display: grid; gap: 6px; margin-top: 14px; }
+  .step { display: flex; gap: 10px; align-items: baseline; font-size: 13px; }
+  .step .dot { width: 8px; height: 8px; border-radius: 50%; background: #2c3242; flex: 0 0 auto; margin-top: 6px; }
+  .step.active .dot { background: #f5c542; }
+  .step.done .dot { background: #4ade80; }
+  .step.error .dot { background: #fb7185; }
+  a { color: #7dd3fc; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .warn { border-color: #4a3a10; background: #1c1708; }
+  .danger { border-color: #4a1a22; background: #1c0a0e; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Agent Treasury — CCTPReceiverV2</h1>
+  <div class="sub">Deploy the corrected inbound receiver and wire it to the existing treasury. No treasury redeploy, no funds move.</div>
+
+  <div class="card warn">
+    <div class="row between">
+      <div>
+        <strong>Network</strong>
+        <div class="muted">The receiver must be deployed on the same Arc network as the treasury.</div>
+      </div>
+      <select id="network">
+        <option value="mainnet">Arc Mainnet (5042)</option>
+        <option value="testnet">Arc Testnet (5042002)</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row between">
+      <div>
+        <strong>1. Connect the treasury owner</strong>
+        <div class="muted">Owner: <span id="owner">not connected</span></div>
+      </div>
+      <button id="connect" class="primary">Connect MetaMask</button>
+    </div>
+    <div id="balance" class="muted" style="margin-top:10px"></div>
+    <div id="current" class="muted" style="margin-top:4px"></div>
+  </div>
+
+  <div class="card">
+    <div class="row between">
+      <div>
+        <strong>2. Deploy + wire</strong>
+        <div class="muted">1 deployment + 1 configuration transaction. You approve each in MetaMask.</div>
+      </div>
+      <button id="deploy" disabled>Deploy receiver</button>
+    </div>
+    <div class="steps" id="steps"></div>
+  </div>
+
+  <div class="card">
+    <div class="row between" style="margin-bottom:10px">
+      <strong>Recover: wire an existing receiver</strong>
+      <button id="verify" disabled>Verify only</button>
+    </div>
+    <div class="muted" style="margin-bottom:10px">
+      If deployment succeeded but wiring failed, paste the deployed receiver here. This never redeploys.
+    </div>
+    <div class="row">
+      <input id="existing" placeholder="0x… deployed CCTPReceiverV2" />
+      <button id="wire" disabled>Wire existing receiver</button>
+    </div>
+  </div>
+
+  <div class="card danger">
+    <strong>Safety checks</strong>
+    <div class="muted" style="margin-top:6px">
+      The deployer must be the treasury owner. The page verifies the new receiver's transmitter, USDC,
+      treasury, domain 26, and owner before calling <code>setGatewayReceiver</code>. The old receiver is
+      abandoned, not upgraded; do not send new burns to it.
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row between" style="margin-bottom:10px">
+      <strong>3. Deployment record</strong>
+      <button id="copy" disabled>Copy JSON</button>
+    </div>
+    <pre id="log">Waiting for wallet connection…</pre>
+  </div>
+</main>
+
+<script type="module">
+import {
+  createWalletClient, createPublicClient, custom, defineChain,
+  parseAbi, formatUnits, isAddress,
+} from 'https://esm.sh/viem@2.56.3'
+
+const ARTIFACTS = __ARTIFACTS__
+
+const USDC = '0x3600000000000000000000000000000000000000'
+const ARC_DOMAIN = 26
+
+const CHAINS = {
+  mainnet: defineChain({
+    id: 5042,
+    name: 'Arc',
+    nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
+    rpcUrls: { default: { http: ['https://rpc.mainnet.arc.io'] } },
+    blockExplorers: { default: { name: 'Arc Explorer', url: 'https://explorer.arc.io' } },
+  }),
+  testnet: defineChain({
+    id: 5042002,
+    name: 'Arc Testnet',
+    nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
+    rpcUrls: { default: { http: ['https://rpc.testnet.arc.io'] } },
+    blockExplorers: { default: { name: 'Arc Testnet Explorer', url: 'https://explorer.testnet.arc.io' } },
+  }),
+}
+
+const CONFIGS = {
+  mainnet: {
+    key: 'mainnet',
+    label: 'Arc Mainnet',
+    chain: CHAINS.mainnet,
+    explorer: 'https://explorer.arc.io',
+    treasury: '0xf71b5d1a19d72b98675785123fae811698be6f63',
+    transmitter: '0x81D40F21F12A8F0E3252Bccb954D722d4c464B64',
+    // Currently-wired receiver that this page replaces.
+    oldReceiver: '0x847F55221F30675791d2fAaf84f93B1fa86399E2',
+    minGas: 250_000_000_000_000_000n, // 0.25 USDC
+  },
+  testnet: {
+    key: 'testnet',
+    label: 'Arc Testnet',
+    chain: CHAINS.testnet,
+    explorer: 'https://explorer.testnet.arc.io',
+    treasury: '0x5e2e3da19533ebf85bc916612eff5cdc7bf4d489',
+    transmitter: '0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275',
+    // Currently-wired receiver that this page replaces.
+    oldReceiver: '0x344466B00BED1BD5bdFa3E21392E776144323f4c',
+    minGas: 50_000_000_000_000_000n, // 0.05 USDC
+  },
+}
+
+const TREASURY_ABI = parseAbi([
+  'function owner() view returns (address)',
+  'function gatewayReceiver() view returns (address)',
+  'function paused() view returns (bool)',
+  'function setGatewayReceiver(address receiver)',
+])
+
+const STEPS = [
+  'Deploy CCTPReceiverV2',
+  'Verify receiver configuration',
+  'treasury.setGatewayReceiver(receiver)',
+  'Verify treasury wiring',
+]
+
+const el = (id) => document.getElementById(id)
+const stepsEl = el('steps')
+const logEl = el('log')
+
+STEPS.forEach((label) => {
+  const div = document.createElement('div')
+  div.className = 'step'
+  div.innerHTML = `<span class="dot"></span><span>${label}</span>`
+  stepsEl.appendChild(div)
+})
+
+let cfg = CONFIGS.mainnet
+let wallet, reader, account
+let running = false
+const record = {}
+
+function resetRecord() {
+  for (const key of Object.keys(record)) delete record[key]
+  Object.assign(record, {
+    network: cfg.label,
+    chainId: cfg.chain.id,
+    treasury: cfg.treasury,
+    transmitter: cfg.transmitter,
+    usdc: USDC,
+    domain: ARC_DOMAIN,
+    txs: {},
+    contracts: {},
+    verification: {},
+  })
+}
+
+function log(line, cls = '') {
+  const time = new Date().toISOString().slice(11, 19)
+  const span = document.createElement('span')
+  if (cls) span.className = cls
+  span.textContent = `[${time}] ${line}\n`
+  logEl.appendChild(span)
+  logEl.scrollTop = logEl.scrollHeight
+}
+
+function setStep(index, state) {
+  const node = stepsEl.children[index]
+  if (node) node.className = `step ${state}`
+}
+
+function txLink(hash) {
+  return `${cfg.explorer}/tx/${hash}`
+}
+
+function shortErr(e) {
+  return e?.shortMessage || e?.details || e?.message || String(e)
+}
+
+function clearLog() {
+  logEl.textContent = ''
+}
+
+function setButtons() {
+  const ready = Boolean(account && reader && !running)
+  el('deploy').disabled = !ready
+  el('wire').disabled = !ready
+  el('verify').disabled = !ready
+}
+
+function onNetworkChange() {
+  cfg = CONFIGS[el('network').value]
+  account = undefined
+  wallet = undefined
+  reader = undefined
+  running = false
+  resetRecord()
+  el('owner').textContent = 'not connected'
+  el('balance').textContent = ''
+  el('current').textContent = ''
+  el('existing').value = ''
+  el('copy').disabled = true
+  STEPS.forEach((_, i) => setStep(i, ''))
+  clearLog()
+  log(`Selected ${cfg.label}. Connect the owner wallet.`)
+  setButtons()
+}
+
+async function connect() {
+  if (!window.ethereum) throw new Error('MetaMask not found. Open this page in a browser with MetaMask installed.')
+  running = true
+  setButtons()
+  clearLog()
+  try {
+    const [addr] = await window.ethereum.request({ method: 'eth_requestAccounts' })
+    if (!isAddress(addr)) throw new Error('No wallet account returned')
+    account = addr
+
+    wallet = createWalletClient({ account, chain: cfg.chain, transport: custom(window.ethereum) })
+    reader = createPublicClient({ chain: cfg.chain, transport: custom(window.ethereum) })
+
+    try {
+      await wallet.switchChain({ id: cfg.chain.id })
+    } catch (e) {
+      if (e?.code === 4902 || /Unrecognized chain|not added/i.test(shortErr(e))) {
+        await wallet.addChain({ chain: cfg.chain })
+        await wallet.switchChain({ id: cfg.chain.id })
+      } else {
+        throw e
+      }
+    }
+
+    const chainId = await reader.getChainId()
+    if (chainId !== cfg.chain.id) throw new Error(`Wallet is on chain ${chainId}, expected ${cfg.chain.id}`)
+
+    const native = await reader.getBalance({ address: account })
+    el('owner').textContent = account
+    el('balance').innerHTML = `Native USDC balance: <strong>${formatUnits(native, 18)}</strong> · ` +
+      `<a href="${cfg.explorer}/address/${account}" target="_blank" rel="noreferrer">view on explorer</a>`
+
+    const [owner, currentReceiver, paused] = await Promise.all([
+      reader.readContract({ address: cfg.treasury, abi: TREASURY_ABI, functionName: 'owner' }),
+      reader.readContract({ address: cfg.treasury, abi: TREASURY_ABI, functionName: 'gatewayReceiver' }),
+      reader.readContract({ address: cfg.treasury, abi: TREASURY_ABI, functionName: 'paused' }),
+    ])
+
+    el('current').innerHTML = `Current treasury receiver: <strong>${currentReceiver}</strong> · ` +
+      `paused: <strong>${paused}</strong>`
+
+    log(`Connected ${account} on ${cfg.label}.`)
+    log(`Gas balance ${formatUnits(native, 18)} USDC.`)
+    log(`Treasury owner: ${owner}`)
+    log(`Current receiver: ${currentReceiver}`)
+
+    if (owner.toLowerCase() !== account.toLowerCase()) {
+      throw new Error(`Connected wallet ${account} is not the treasury owner ${owner}. Only the owner can wire the receiver.`)
+    }
+    if (paused) {
+      log('Warning: the treasury is paused. recordDeposit will revert until it is unpaused, but wiring still works.', 'err')
+    }
+    if (native < cfg.minGas) {
+      log(`Warning: below the recommended ${formatUnits(cfg.minGas, 18)} USDC gas reserve. The deploy may fail.`, 'err')
+    }
+    record.owner = account
+    record.previousReceiver = currentReceiver
+    el('copy').disabled = false
+  } catch (e) {
+    log(`ERROR: ${shortErr(e)}`, 'err')
+    account = undefined
+    wallet = undefined
+    reader = undefined
+    el('owner').textContent = 'not connected'
+    el('current').textContent = ''
+  } finally {
+    running = false
+    setButtons()
+  }
+}
+
+async function preflight({ allowDifferentReceiver = false } = {}) {
+  if (!reader || !account) throw new Error('Connect the treasury owner first.')
+  log('Preflight: checking treasury, CCTP transmitter, USDC, owner, and paused state…')
+
+  const checks = [
+    ['treasury', cfg.treasury],
+    ['MessageTransmitterV2', cfg.transmitter],
+    ['USDC', USDC],
+  ]
+  for (const [label, address] of checks) {
+    const code = await reader.getCode({ address })
+    if (!code || code === '0x') throw new Error(`No code at ${label} ${address} on ${cfg.label}`)
+  }
+
+  const [owner, currentReceiver, paused] = await Promise.all([
+    reader.readContract({ address: cfg.treasury, abi: TREASURY_ABI, functionName: 'owner' }),
+    reader.readContract({ address: cfg.treasury, abi: TREASURY_ABI, functionName: 'gatewayReceiver' }),
+    reader.readContract({ address: cfg.treasury, abi: TREASURY_ABI, functionName: 'paused' }),
+  ])
+
+  if (owner.toLowerCase() !== account.toLowerCase()) {
+    throw new Error(`Connected wallet ${account} is not the treasury owner ${owner}.`)
+  }
+  if (!currentReceiver || currentReceiver === '0x0000000000000000000000000000000000000000') {
+    throw new Error('The treasury has no gateway receiver configured. Refusing to deploy without a known-good deployment.')
+  }
+  if (!allowDifferentReceiver && currentReceiver.toLowerCase() !== cfg.oldReceiver.toLowerCase()) {
+    throw new Error(
+      `The treasury already points at ${currentReceiver}, not the expected receiver ${cfg.oldReceiver}. ` +
+      'Refusing to deploy another receiver. Use "Wire existing receiver" or "Verify only".',
+    )
+  }
+
+  log(`Preflight OK. Owner ${owner}. Current receiver ${currentReceiver}. Paused ${paused}.`, 'ok')
+  return { owner, currentReceiver, paused }
+}
+
+async function verifyReceiver(receiver) {
+  const art = ARTIFACTS.CCTPReceiverV2
+  if (!art?.abi) throw new Error('Missing CCTPReceiverV2 ABI — run the build script.')
+
+  const [transmitter, usdc, treasury, domain, owner] = await Promise.all([
+    reader.readContract({ address: receiver, abi: art.abi, functionName: 'trustedTransmitter' }),
+    reader.readContract({ address: receiver, abi: art.abi, functionName: 'usdc' }),
+    reader.readContract({ address: receiver, abi: art.abi, functionName: 'treasury' }),
+    reader.readContract({ address: receiver, abi: art.abi, functionName: 'ARC_DOMAIN' }),
+    reader.readContract({ address: receiver, abi: art.abi, functionName: 'owner' }),
+  ])
+
+  if (transmitter.toLowerCase() !== cfg.transmitter.toLowerCase()) {
+    throw new Error(`Receiver transmitter ${transmitter} != ${cfg.transmitter}`)
+  }
+  if (usdc.toLowerCase() !== USDC.toLowerCase()) {
+    throw new Error(`Receiver USDC ${usdc} != ${USDC}`)
+  }
+  if (treasury.toLowerCase() !== cfg.treasury.toLowerCase()) {
+    throw new Error(`Receiver treasury ${treasury} != ${cfg.treasury}`)
+  }
+  if (Number(domain) !== ARC_DOMAIN) {
+    throw new Error(`Receiver ARC_DOMAIN ${domain} != ${ARC_DOMAIN}`)
+  }
+  if (owner.toLowerCase() !== account.toLowerCase()) {
+    throw new Error(`Receiver owner ${owner} != connected owner ${account}`)
+  }
+
+  const verification = { transmitter, usdc, treasury, domain: Number(domain), owner }
+  log('Receiver configuration verified.', 'ok')
+  return verification
+}
+
+async function verifyWiring(expectedReceiver) {
+  const current = await reader.readContract({
+    address: cfg.treasury, abi: TREASURY_ABI, functionName: 'gatewayReceiver',
+  })
+  if (current.toLowerCase() !== expectedReceiver.toLowerCase()) {
+    throw new Error(`treasury.gatewayReceiver() is ${current}, expected ${expectedReceiver}`)
+  }
+  record.verification.gatewayReceiver = current
+  log(`Treasury wiring verified: gatewayReceiver = ${current}`, 'ok')
+  return current
+}
+
+async function deploy() {
+  if (running) return
+  running = true
+  setButtons()
+  el('copy').disabled = true
+  STEPS.forEach((_, i) => setStep(i, ''))
+  clearLog()
+  resetRecord()
+  log(`Starting CCTPReceiverV2 deployment on ${cfg.label}. Keep this tab open and approve each MetaMask prompt.`)
+
+  let receiver = ''
+  try {
+    await preflight()
+
+    const art = ARTIFACTS.CCTPReceiverV2
+    if (!art?.bytecode || art.bytecode === '0x') {
+      throw new Error('Missing CCTPReceiverV2 bytecode — run the build script.')
+    }
+
+    setStep(0, 'active')
+    const hash = await wallet.deployContract({
+      abi: art.abi,
+      bytecode: art.bytecode,
+      args: [account, cfg.transmitter, USDC, cfg.treasury],
+    })
+    log(`CCTPReceiverV2 deploy tx ${hash}`)
+    log(`  ${txLink(hash)}`)
+
+    const receipt = await reader.waitForTransactionReceipt({ hash, timeout: 180_000 })
+    if (receipt.status !== 'success') throw new Error(`CCTPReceiverV2 deployment reverted (${hash})`)
+    if (!receipt.contractAddress) throw new Error('Deployment receipt has no contract address')
+
+    receiver = receipt.contractAddress
+    record.txs.deploy = { hash, block: Number(receipt.blockNumber) }
+    record.contracts.receiver = receiver
+    log(`CCTPReceiverV2 deployed at ${receiver} (block ${receipt.blockNumber})`, 'ok')
+    el('existing').value = receiver
+    setStep(0, 'done')
+
+    setStep(1, 'active')
+    record.verification.receiver = await verifyReceiver(receiver)
+    setStep(1, 'done')
+
+    setStep(2, 'active')
+    const wireHash = await wallet.writeContract({
+      address: cfg.treasury,
+      abi: TREASURY_ABI,
+      functionName: 'setGatewayReceiver',
+      args: [receiver],
+      account,
+      chain: cfg.chain,
+    })
+    log(`treasury.setGatewayReceiver: tx ${wireHash}`)
+    log(`  ${txLink(wireHash)}`)
+
+    const wireReceipt = await reader.waitForTransactionReceipt({ hash: wireHash, timeout: 180_000 })
+    if (wireReceipt.status !== 'success') throw new Error(`setGatewayReceiver reverted (${wireHash})`)
+    record.txs.setGatewayReceiver = { hash: wireHash, block: Number(wireReceipt.blockNumber) }
+    log(`treasury.setGatewayReceiver: confirmed in block ${wireReceipt.blockNumber}`, 'ok')
+    setStep(2, 'done')
+
+    setStep(3, 'active')
+    await verifyWiring(receiver)
+    setStep(3, 'done')
+
+    record.completedAt = new Date().toISOString()
+    log('DONE. The new receiver is wired. Use it for every new inbound burn.', 'ok')
+    log(`Receiver: ${receiver}`)
+    log('Next: run a small live source-chain burn with mintRecipient + destinationCaller = this receiver, hookData = abi.encode(agent).', 'ok')
+    el('copy').disabled = false
+  } catch (e) {
+    const active = Array.from(stepsEl.children).findIndex((node) => node.className.includes('active'))
+    if (active >= 0) setStep(active, 'error')
+    log(`ERROR: ${shortErr(e)}`, 'err')
+    if (receiver) {
+      el('existing').value = receiver
+      log(`The receiver ${receiver} is deployed. Fix the error, then use "Wire existing receiver" instead of redeploying.`, 'err')
+      el('copy').disabled = false
+    }
+  } finally {
+    running = false
+    setButtons()
+  }
+}
+
+async function wireExisting() {
+  if (running) return
+  running = true
+  setButtons()
+  clearLog()
+  try {
+    if (!reader || !account) throw new Error('Connect the treasury owner first.')
+    const receiver = el('existing').value.trim()
+    if (!isAddress(receiver)) throw new Error('Paste a valid receiver address.')
+
+    const code = await reader.getCode({ address: receiver })
+    if (!code || code === '0x') throw new Error(`No code at ${receiver} on ${cfg.label}`)
+
+    const pre = await preflight({ allowDifferentReceiver: true })
+    log('Verifying the existing receiver before wiring…')
+    record.verification.receiver = await verifyReceiver(receiver)
+    record.contracts.receiver = receiver
+
+    if (pre.currentReceiver.toLowerCase() === receiver.toLowerCase()) {
+      log('Treasury already points at this receiver. No transaction needed.', 'ok')
+      await verifyWiring(receiver)
+      record.completedAt = new Date().toISOString()
+      el('copy').disabled = false
+      return
+    }
+
+    const hash = await wallet.writeContract({
+      address: cfg.treasury,
+      abi: TREASURY_ABI,
+      functionName: 'setGatewayReceiver',
+      args: [receiver],
+      account,
+      chain: cfg.chain,
+    })
+    log(`treasury.setGatewayReceiver: tx ${hash}`)
+    log(`  ${txLink(hash)}`)
+
+    const receipt = await reader.waitForTransactionReceipt({ hash, timeout: 180_000 })
+    if (receipt.status !== 'success') throw new Error(`setGatewayReceiver reverted (${hash})`)
+    record.txs.setGatewayReceiver = { hash, block: Number(receipt.blockNumber) }
+    log(`treasury.setGatewayReceiver: confirmed in block ${receipt.blockNumber}`, 'ok')
+
+    await verifyWiring(receiver)
+    record.completedAt = new Date().toISOString()
+    log('DONE. Existing receiver wired without redeploying.', 'ok')
+    el('copy').disabled = false
+  } catch (e) {
+    log(`ERROR: ${shortErr(e)}`, 'err')
+  } finally {
+    running = false
+    setButtons()
+  }
+}
+
+async function verifyOnly() {
+  if (running) return
+  running = true
+  setButtons()
+  clearLog()
+  try {
+    if (!reader || !account) throw new Error('Connect the treasury owner first.')
+    await preflight({ allowDifferentReceiver: true })
+    const input = el('existing').value.trim()
+    const current = await reader.readContract({
+      address: cfg.treasury, abi: TREASURY_ABI, functionName: 'gatewayReceiver',
+    })
+    const receiver = input || current
+    if (!isAddress(receiver)) throw new Error('No receiver to verify.')
+    record.verification.receiver = await verifyReceiver(receiver)
+    await verifyWiring(receiver)
+    record.completedAt = new Date().toISOString()
+    log('Verification complete. No transactions sent.', 'ok')
+    el('copy').disabled = false
+  } catch (e) {
+    log(`ERROR: ${shortErr(e)}`, 'err')
+  } finally {
+    running = false
+    setButtons()
+  }
+}
+
+function copyRecord() {
+  const text = JSON.stringify(record, null, 2)
+  void navigator.clipboard.writeText(text).then(
+    () => log('Deployment record copied to clipboard.', 'ok'),
+    () => log('Clipboard unavailable. Select the JSON below and copy it manually.', 'err'),
+  )
+  logEl.textContent = text
+}
+
+el('network').addEventListener('change', onNetworkChange)
+el('connect').addEventListener('click', () => { void connect() })
+el('deploy').addEventListener('click', () => { void deploy() })
+el('wire').addEventListener('click', () => { void wireExisting() })
+el('verify').addEventListener('click', () => { void verifyOnly() })
+el('copy').addEventListener('click', copyRecord)
+
+resetRecord()
+log('Select a network, then connect the treasury owner wallet.')
+</script>
+</body>
+</html>

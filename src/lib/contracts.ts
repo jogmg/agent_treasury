@@ -46,7 +46,7 @@ const MAINNET_ADDRESSES = {
   usdc:     '0x3600000000000000000000000000000000000000',
   treasury: '0xf71b5d1a19d72b98675785123fae811698be6f63',
   adapter:  '0x5102057330f5bb5f3e4eb0925b7d1eac8a563c23',
-  receiver: '0x91f1eb97a40fdab05d150c10566cf9aa3546a375',
+  receiver: '0x847F55221F30675791d2fAaf84f93B1fa86399E2', // CCTPReceiverV2 (corrected)
   vault1:   '0x8E357432CC12ff425c36432F312968aEb16112AF', // Galaxy USDC
 } as const
 
@@ -54,7 +54,7 @@ const TESTNET_ADDRESSES = {
   usdc:     '0x3600000000000000000000000000000000000000',
   treasury: '0x5e2e3da19533ebf85bc916612eff5cdc7bf4d489',
   adapter:  '0x333deccbf9091540e849b7af80f2f10b72197b71',
-  receiver: '0x8066bcf8e6b17e2d84082179a89f0972cc6e31c1',
+  receiver: '0x344466B00BED1BD5bdFa3E21392E776144323f4c', // CCTPReceiverV2 (corrected)
   vault1:   '0xAabbeF1D3971c710276ed41eC791BbE14CdB8E88',
 } as const
 
@@ -105,6 +105,8 @@ export const TREASURY_ABI = parseAbi([
   'function setYieldStrategy(address agent, uint256 vaultId) external',
   'function setSpendingLimit(address agent, uint256 dailyLimit, uint256 weeklyLimit) external',
   'function requestWithdrawal(address agent, uint256 amount, uint32 destinationDomain, bytes32 mintRecipient) external returns (uint256 withdrawalId)',
+  'function setGatewayReceiver(address receiver) external',
+  'function gatewayReceiver() view returns (address)',
   'function paused() view returns (bool)',
   'function owner() view returns (address)',
   'function keeper() view returns (address)',
@@ -122,6 +124,22 @@ export const TREASURY_ABI = parseAbi([
   'event Rebalanced(address indexed agent, uint256 indexed vaultId, uint256 shares)',
   'event YieldClaimed(address indexed agent, uint256 amount)',
   'event SpendingLimitSet(address indexed agent, uint256 dailyLimit, uint256 weeklyLimit)',
+])
+
+export const CCTP_RECEIVER_ABI = parseAbi([
+  // Atomic inbound path: validate -> MessageTransmitterV2.receiveMessage ->
+  // transfer to treasury -> recordDeposit(agent, amount, sourceDomain).
+  'function receiveAndProcess(bytes message, bytes attestation) external returns (address agent, uint256 amount)',
+  // Owner fallback for a message a relayer already delivered to the receiver.
+  'function processDeliveredMessage(bytes message) external returns (address agent, uint256 amount)',
+  // Owner-only rescue for malformed hook data.
+  'function receiveAndRescue(bytes message, bytes attestation, address to) external returns (uint256 amount)',
+  'function rescueUSDC(address to, uint256 amount) external',
+  'function processedMessages(bytes32 messageHash) view returns (bool)',
+  'function paused() view returns (bool)',
+  'function treasury() view returns (address)',
+  'function trustedTransmitter() view returns (address)',
+  'function owner() view returns (address)',
 ])
 
 export const ADAPTER_ABI = parseAbi([
