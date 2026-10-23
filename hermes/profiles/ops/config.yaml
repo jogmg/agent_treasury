@@ -5,11 +5,76 @@
 # The LLM is never the source of truth: balances and CCTP status come from the
 # MCP tools, which query Arc/Iris/Postgres deterministically.
 
-# Pick one provider and put its key in ../.env. If you use OpenRouter, OpenAI,
-# Gemini, etc., change provider/default here and use that provider's key.
+# NVIDIA Build free endpoints (OpenAI-compatible). The provider key is
+# NVIDIA_API_KEY in ../.env; NVIDIA_BASE_URL is optional and defaults to
+# https://integrate.api.nvidia.com/v1.
+#
+# Model IDs and free availability change often. This chain is a ranked starting
+# point as of 2026-10-23: best general/agentic models first, then faster or
+# smaller models. Hermes tries the next entry automatically on rate limits,
+# timeouts, server errors, and missing models. Switch manually for a session with
+# /model nvidia-kimi (or the other aliases below), or edit model.default.
 model:
-  provider: "anthropic"
-  default: "claude-sonnet-4-6"
+  provider: "nvidia"
+  default: "z-ai/glm-5.3"
+
+model_aliases:
+  nvidia-glm:
+    provider: "nvidia"
+    model: "z-ai/glm-5.3"
+  nvidia-kimi:
+    provider: "nvidia"
+    model: "moonshotai/kimi-k2.6"
+  nvidia-deepseek:
+    provider: "nvidia"
+    model: "deepseek-ai/deepseek-v4.1-flash"
+  nvidia-fast:
+    provider: "nvidia"
+    model: "z-ai/glm-5.3-flash"
+  nvidia-lightning:
+    provider: "nvidia"
+    model: "nvidia/nemotron-3.5-lightning-30b-a3b"
+
+# Primary model fallback chain. All entries use the same NVIDIA key, but a
+# model can be unavailable or rate-limited independently of the others.
+fallback_providers:
+  - provider: "nvidia"
+    model: "moonshotai/kimi-k2.6"
+  - provider: "nvidia"
+    model: "deepseek-ai/deepseek-v4.1-flash"
+  - provider: "nvidia"
+    model: "z-ai/glm-5.3-flash"
+  - provider: "nvidia"
+    model: "nvidia/nemotron-3.5-lightning-30b-a3b"
+  - provider: "nvidia"
+    model: "minimaxai/minimax-m3.1-flash"
+  - provider: "nvidia"
+    model: "stepfun-ai/step-5-preview"
+  - provider: "nvidia"
+    model: "meta/muse-glimmer-30b"
+  - provider: "nvidia"
+    model: "openai/gpt-oss-20b"
+  - provider: "nvidia"
+    model: "poolside/laguna-xs-2.1"
+  - provider: "nvidia"
+    model: "mistralai/mistral-large-2-instruct"
+
+# Fail over quickly instead of retrying the same stalled/limited model.
+# The default 1800s non-streaming timeout is far too long for Discord chat.
+providers:
+  nvidia:
+    request_timeout_seconds: 60
+    stale_timeout_seconds: 90
+
+# Keep side tasks cheap and on a fast free model. If that model is unavailable,
+# Hermes falls back to the main model chain.
+auxiliary:
+  compression:
+    provider: "nvidia"
+    model: "z-ai/glm-5.3-flash"
+  title_generation:
+    provider: "nvidia"
+    model: "nvidia/nemotron-3.5-lightning-30b-a3b"
 
 mcp_servers:
   arc-treasury:
@@ -32,6 +97,9 @@ mcp_servers:
       prompts: false
 
 agent:
+  # One retry per model, then move to the next free NVIDIA model.
+  api_max_retries: 1
+  auto_recovery_cycles: 1
   disabled_toolsets:
     - terminal
     - file

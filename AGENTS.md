@@ -116,9 +116,10 @@ Full plan: `docs/HERMES.md`. VPS runbook: `docs/HERMES_VPS.md`.
   `transfers`; MCP authenticates before JSON parsing and closes the stateless transport/server per
   request; PGlite tests cover the migration SQL and alert dedupe/throttle.
 - Local services bind loopback by default (`MCP_HOST`/`MONITOR_HOST`), while Compose sets both to
-  `0.0.0.0` on the private network. The Ops/User profiles pin `anthropic` +
-  `claude-sonnet-4-6`; change the `model:` block for another provider. Managed Postgres can opt into
-  TLS with `DATABASE_SSL=true`.
+  `0.0.0.0` on the private network. The Ops profile uses NVIDIA Build free endpoints
+  (`provider: nvidia`, `NVIDIA_API_KEY`) with a ranked `fallback_providers` chain and short
+  aliases for `/model`; the User profile remains a separate Phase 2 template. Managed Postgres can
+  opt into TLS with `DATABASE_SSL=true`.
 - Transfer refresh runs four at a time. Delivery comes from destination `usedNonces` plus Iris; the
   mint tx link is only a forwarder-tx receipt when Iris supplies one, so manual mints may have no
   link. Two fresh monitor runs indexed 11 + 1 catch-up activity events and resolved withdrawal ids

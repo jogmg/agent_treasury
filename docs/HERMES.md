@@ -748,7 +748,7 @@ Defaults are chosen so Phase 1 can start immediately:
 | Cloud | Fly.io |
 | Postgres | Fly Postgres or Neon |
 | Phase 1 scope | Ops-only, read-only |
-| LLM provider | Nous Portal or OpenAI-compatible; cheap ops model |
+| LLM provider | NVIDIA Build free endpoints with a ranked fallback chain |
 | Discord | Private server, allowlisted user IDs |
 | Public web chat | Phase 2 |
 | Keeper | Phase 3, after rotation |
@@ -768,11 +768,21 @@ files and `docs/HERMES_VPS.md`.
 ```yaml
 # hermes/profiles/ops/config.yaml
 model:
-  provider: "anthropic"
-  default: "claude-sonnet-4-6"
+  provider: "nvidia"
+  default: "z-ai/glm-5.3"
+
+# Ranked free-model fallback; IDs and availability change often.
+fallback_providers:
+  - provider: "nvidia"
+    model: "moonshotai/kimi-k2.6"
+  - provider: "nvidia"
+    model: "deepseek-ai/deepseek-v4.1-flash"
+  - provider: "nvidia"
+    model: "z-ai/glm-5.3-flash"
 
 agent:
   # Ops answers questions and reads chain state. It does not need a shell.
+  api_max_retries: 1
   disabled_toolsets:
     - terminal
     - file
@@ -827,7 +837,10 @@ approvals:
 ```dotenv
 DISCORD_BOT_TOKEN=...
 DISCORD_ALLOWED_USERS=...
+DISCORD_ALLOWED_CHANNELS=...
 ARC_MCP_TOKEN_OPS=...
+NVIDIA_API_KEY=...
+NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
 ```
 
 Do not add `DISCORD_REQUIRE_MENTION=false` for Ops. Keep mention-only behavior.
@@ -1004,7 +1017,8 @@ The actual split is:
   (host-only), `DATABASE_SSL` (managed Postgres only), `ARC_MCP_TOKEN_*`,
   `DISCORD_WEBHOOK_URL`, monitor intervals.
 - `data/profiles/ops/.env` (Hermes profile): `DISCORD_BOT_TOKEN`, `DISCORD_ALLOWED_USERS`,
-  `ARC_MCP_TOKEN_OPS`, the LLM provider key, and `API_SERVER_ENABLED=false`.
+  `DISCORD_ALLOWED_CHANNELS` (recommended), `ARC_MCP_TOKEN_OPS`, `NVIDIA_API_KEY`,
+  `NVIDIA_BASE_URL` (optional), and `API_SERVER_ENABLED=false`.
 
 See `.env.example` and `profiles/ops/.env.example` for the current list.
 MCP tokens must be at least 32 characters; known placeholders and short values

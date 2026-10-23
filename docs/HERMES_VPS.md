@@ -19,7 +19,8 @@ later phases.
   but 4 GB is comfortable).
 - Ubuntu 24.04, SSH access, and a non-root sudo user.
 - A Discord server you control, plus permission to create a bot.
-- An LLM provider key (Anthropic, OpenAI, or OpenRouter).
+- An NVIDIA Build API key from <https://build.nvidia.com> (free endpoints; the
+  Ops profile uses a ranked fallback chain).
 - This repository on the VPS: `git clone https://github.com/jogmg/agent_treasury.git`.
 
 No inbound ports are needed except SSH. Discord is an outbound connection.
@@ -181,23 +182,46 @@ In the [Discord Developer Portal](https://discord.com/developers/applications):
    Right-click `#treasury-alerts` → **Edit Channel → Integrations → Webhooks →
    New Webhook** and copy the webhook URL.
 
-Fill in `hermes/data/profiles/ops/.env`:
+Fill in `data/profiles/ops/.env` (on InstaBox:
+`/data/hermes-data/profiles/ops/.env`):
 
 ```dotenv
 DISCORD_BOT_TOKEN=...
 DISCORD_ALLOWED_USERS=YOUR_DISCORD_USER_ID
-# DISCORD_ALLOWED_CHANNELS=YOUR_OPS_CHANNEL_ID
+DISCORD_ALLOWED_CHANNELS=YOUR_OPS_CHANNEL_ID
 DISCORD_REQUIRE_MENTION=true
 ARC_MCP_TOKEN_OPS=THE_SAME_VALUE_AS_HERMES_.ENV
-ANTHROPIC_API_KEY=...
+NVIDIA_API_KEY=nvapi-...
+NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
 API_SERVER_ENABLED=false
 ```
 
-The Ops profile defaults to `model.provider: anthropic` and
-`model.default: claude-sonnet-4-6`. If you use OpenRouter, OpenAI, Gemini, or
-another provider, change the `model:` block in
-`hermes/data/profiles/ops/config.yaml` and put that provider's key in the
-profile `.env`.
+The Ops profile uses `model.provider: nvidia` with a ranked
+`fallback_providers` chain in `hermes/profiles/ops/config.yaml` (copied to
+`data/profiles/ops/config.yaml` by `bootstrap.sh`). As of 2026-10-23 the chain
+starts with `z-ai/glm-5.3`, `moonshotai/kimi-k2.6`, and
+`deepseek-ai/deepseek-v4.1-flash`; NVIDIA's catalog changes often, so verify the
+IDs against <https://integrate.api.nvidia.com/v1/models> and reorder as needed.
+The provider key is `NVIDIA_API_KEY`; `NVIDIA_BASE_URL` is optional and defaults
+to the same URL.
+
+#### Switching NVIDIA free models
+
+- **Automatic:** `fallback_providers` is tried in order on HTTP 429/5xx,
+  timeouts, auth/not-found errors, and invalid responses. `agent.api_max_retries:
+  1` and `providers.nvidia.request_timeout_seconds: 60` keep failover quick.
+- **For one chat:** use an alias in Discord or the CLI:
+  `/model nvidia-glm`, `/model nvidia-kimi`, `/model nvidia-deepseek`,
+  `/model nvidia-fast`, or `/model nvidia-lightning`.
+- **Persistently:** edit `model.default` in
+  `/data/hermes-data/profiles/ops/config.yaml` (or run
+  `hermes -p ops config set model.default "MODEL_ID"` inside the Hermes
+  container), then restart the gateway.
+- **Interactive manager:** `hermes -p ops fallback` edits the fallback chain;
+  `hermes -p ops model` picks the primary.
+- **List current IDs:** with `NVIDIA_API_KEY` loaded in the profile shell,
+  `curl -s https://integrate.api.nvidia.com/v1/models -H "Authorization: Bearer
+  $NVIDIA_API_KEY"` (or use the Build catalog UI).
 
 Fill in `hermes/.env`:
 
