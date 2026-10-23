@@ -98,7 +98,7 @@ recorded domain 26. The corrected mainnet receiver path passed live on 2026-10-2
 - Full record: `deployments/arc-mainnet.json`. Audit: not done (owner chose "ship with guardrails":
   low caps, small live test, external audit before raising limits).
 
-## Hermes Agent (Phase 1 deployed on InstaBox; gateway credentials pending)
+## Hermes Agent (Phase 1 deployed on InstaBox; standalone Ops gateway running)
 
 Full plan: `docs/HERMES.md`. VPS runbook: `docs/HERMES_VPS.md`.
 
@@ -133,8 +133,17 @@ Full plan: `docs/HERMES.md`. VPS runbook: `docs/HERMES_VPS.md`.
   alert. In-container `scripts/smoke.mjs` passed against Arc mainnet, including a live
   `arc_get_cctp_status` for id 3 (`done`, delivered, no mint link). The real Hermes runtime
   registered the Ops profile, and `hermes -p ops mcp test arc-treasury` connected with all seven
-  read-only tools. The gateway is not started yet because Discord and Anthropic credentials are
-  not installed.
+  read-only tools. The standalone Ops gateway is running (`gateway.standalone: true` is required
+  because Hermes otherwise expects the default profile to own the host gateway). NVIDIA MiniMax
+  M3.1 Flash is primary because it returned tool calls quickly during setup; GLM-5.3 and
+  DeepSeek-V4.1-Flash were timing out/over quota and sit later in the fallback chain. Hermes
+  one-shot tests returned `OK` and live `arc_get_treasury_state` values, and the Discord bot can
+  see `#treasury-ops`.
+- **Secret-handling lesson (2026-10-23):** do not source `profiles/ops/.env` under `set -x` or
+  `bash -x`; a debug trace printed the Discord bot token, NVIDIA key, and MCP token. All three were
+  rotated (MCP token replaced on both service and profile), the gateway was stopped during
+  rotation, and the new values were installed directly on the server. Scripts must print only
+  `set`/`EMPTY` and never environment values.
 - Disk layout: Docker's `data-root` and the containerd image store were moved to `/data`
   (`/data/docker`, `/data/containerd`, with `/var/lib/containerd` symlinked). After pulling the
   Hermes image, root has ~11 GB free and `/data` ~15 GB free. Pulling the image without moving

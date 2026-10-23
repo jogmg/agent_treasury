@@ -1,9 +1,9 @@
 # Hermes Agent Implementation Plan
 
-> Status: **Phase 1 deployed on the current InstaBox production host; Discord gateway credentials
-> pending.** The read-only stack lives in `hermes/`; the VPS runbook is `docs/HERMES_VPS.md`. No
-> cloud signer, no owner key, no automated bookkeeping, and no changes to the live mainnet
-> contracts.
+> Status: **Phase 1 deployed on the current InstaBox production host; Hermes Ops gateway is
+> running with NVIDIA free-model fallback in the private Discord.** The read-only stack lives in
+> `hermes/`; the VPS runbook is `docs/HERMES_VPS.md`. No cloud signer, no owner key, no automated
+> bookkeeping, and no changes to the live mainnet contracts.
 >
 > Phase 1 implementation: shared CCTP parser, Arc/CCTP MCP server, Postgres schema, deterministic
 > monitor, Discord alerts, Ops profile, Docker Compose, and read-only smoke test. The MCP smoke
@@ -14,9 +14,10 @@
 > Deployment: the free InstaBox 4 vCPU / 8 GiB / 20 GiB machine is running Postgres, `arc-mcp`, and
 > the monitor. The database verified 3 snapshots, 12 activity events, 3 completed transfers, 3
 > bookkeeping rows, and the open `keeper-is-owner` alert. The real Hermes runtime registered the
-> Ops profile and `hermes -p ops mcp test arc-treasury` connected with seven tools. The gateway is
-> not started until Discord and Anthropic credentials are installed. InstaBox auto-pauses after 30
-> minutes idle. The primary keepalive is the Cloudflare Worker in
+> Ops profile and `hermes -p ops mcp test arc-treasury` connected with seven tools. The standalone
+> Ops gateway is running with NVIDIA MiniMax primary and verified MCP tool calls; the Discord bot
+> has access to `#treasury-ops`. InstaBox auto-pauses after 30 minutes idle. The primary keepalive
+> is the Cloudflare Worker in
 > `hermes/infra/cloudflare-keepalive/`, whose `*/10 * * * *` Cron Trigger calls the InstaBox
 > `wake` and `exec` endpoints; it was deployed and its scheduled run verified on 2026-10-23. The
 > public `.github/workflows/instabox-keepalive.yml` is a manual `workflow_dispatch` fallback only:
@@ -769,16 +770,18 @@ files and `docs/HERMES_VPS.md`.
 # hermes/profiles/ops/config.yaml
 model:
   provider: "nvidia"
-  default: "z-ai/glm-5.3"
+  default: "minimaxai/minimax-m3.1-flash"
 
 # Ranked free-model fallback; IDs and availability change often.
 fallback_providers:
   - provider: "nvidia"
-    model: "moonshotai/kimi-k2.6"
+    model: "nvidia/nemotron-3.5-lightning-30b-a3b"
+  - provider: "nvidia"
+    model: "meta/muse-glimmer-30b"
+  - provider: "nvidia"
+    model: "z-ai/glm-5.3"
   - provider: "nvidia"
     model: "deepseek-ai/deepseek-v4.1-flash"
-  - provider: "nvidia"
-    model: "z-ai/glm-5.3-flash"
 
 agent:
   # Ops answers questions and reads chain state. It does not need a shell.

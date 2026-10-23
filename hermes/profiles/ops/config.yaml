@@ -10,68 +10,68 @@
 # https://integrate.api.nvidia.com/v1.
 #
 # Model IDs and free availability change often. This chain is a ranked starting
-# point as of 2026-10-23: best general/agentic models first, then faster or
-# smaller models. Hermes tries the next entry automatically on rate limits,
-# timeouts, server errors, and missing models. Switch manually for a session with
-# /model nvidia-kimi (or the other aliases below), or edit model.default.
+# point as of 2026-10-23. The first entries are the models that currently answer
+# quickly and support tool calls; larger models that were over quota during
+# setup remain later in the chain so they are used when they recover.
+# Switch manually for a session with /model nvidia-minimax (or another alias
+# below), or edit model.default.
 model:
   provider: "nvidia"
-  default: "z-ai/glm-5.3"
+  default: "minimaxai/minimax-m3.1-flash"
 
 model_aliases:
+  nvidia-minimax:
+    provider: "nvidia"
+    model: "minimaxai/minimax-m3.1-flash"
+  nvidia-lightning:
+    provider: "nvidia"
+    model: "nvidia/nemotron-3.5-lightning-30b-a3b"
+  nvidia-muse:
+    provider: "nvidia"
+    model: "meta/muse-glimmer-30b"
   nvidia-glm:
     provider: "nvidia"
     model: "z-ai/glm-5.3"
-  nvidia-kimi:
-    provider: "nvidia"
-    model: "moonshotai/kimi-k2.6"
   nvidia-deepseek:
     provider: "nvidia"
     model: "deepseek-ai/deepseek-v4.1-flash"
   nvidia-fast:
     provider: "nvidia"
     model: "z-ai/glm-5.3-flash"
-  nvidia-lightning:
-    provider: "nvidia"
-    model: "nvidia/nemotron-3.5-lightning-30b-a3b"
 
 # Primary model fallback chain. All entries use the same NVIDIA key, but a
-# model can be unavailable or rate-limited independently of the others.
+# model can be unavailable, over quota, or slow independently of the others.
 fallback_providers:
   - provider: "nvidia"
-    model: "moonshotai/kimi-k2.6"
+    model: "nvidia/nemotron-3.5-lightning-30b-a3b"
+  - provider: "nvidia"
+    model: "meta/muse-glimmer-30b"
+  - provider: "nvidia"
+    model: "z-ai/glm-5.3"
   - provider: "nvidia"
     model: "deepseek-ai/deepseek-v4.1-flash"
   - provider: "nvidia"
     model: "z-ai/glm-5.3-flash"
   - provider: "nvidia"
-    model: "nvidia/nemotron-3.5-lightning-30b-a3b"
-  - provider: "nvidia"
-    model: "minimaxai/minimax-m3.1-flash"
-  - provider: "nvidia"
-    model: "stepfun-ai/step-5-preview"
-  - provider: "nvidia"
-    model: "meta/muse-glimmer-30b"
-  - provider: "nvidia"
     model: "openai/gpt-oss-20b"
   - provider: "nvidia"
     model: "poolside/laguna-xs-2.1"
   - provider: "nvidia"
-    model: "mistralai/mistral-large-2-instruct"
+    model: "stepfun-ai/step-5-preview"
 
 # Fail over quickly instead of retrying the same stalled/limited model.
 # The default 1800s non-streaming timeout is far too long for Discord chat.
 providers:
   nvidia:
-    request_timeout_seconds: 60
-    stale_timeout_seconds: 90
+    request_timeout_seconds: 45
+    stale_timeout_seconds: 60
 
 # Keep side tasks cheap and on a fast free model. If that model is unavailable,
 # Hermes falls back to the main model chain.
 auxiliary:
   compression:
     provider: "nvidia"
-    model: "z-ai/glm-5.3-flash"
+    model: "minimaxai/minimax-m3.1-flash"
   title_generation:
     provider: "nvidia"
     model: "nvidia/nemotron-3.5-lightning-30b-a3b"

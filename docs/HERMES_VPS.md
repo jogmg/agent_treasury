@@ -199,20 +199,22 @@ API_SERVER_ENABLED=false
 The Ops profile uses `model.provider: nvidia` with a ranked
 `fallback_providers` chain in `hermes/profiles/ops/config.yaml` (copied to
 `data/profiles/ops/config.yaml` by `bootstrap.sh`). As of 2026-10-23 the chain
-starts with `z-ai/glm-5.3`, `moonshotai/kimi-k2.6`, and
-`deepseek-ai/deepseek-v4.1-flash`; NVIDIA's catalog changes often, so verify the
-IDs against <https://integrate.api.nvidia.com/v1/models> and reorder as needed.
-The provider key is `NVIDIA_API_KEY`; `NVIDIA_BASE_URL` is optional and defaults
-to the same URL.
+starts with `minimaxai/minimax-m3.1-flash`,
+`nvidia/nemotron-3.5-lightning-30b-a3b`, and `meta/muse-glimmer-30b`;
+`z-ai/glm-5.3` and `deepseek-ai/deepseek-v4.1-flash` are later because they
+were over quota or timing out during setup. NVIDIA's catalog changes often, so
+verify IDs against <https://integrate.api.nvidia.com/v1/models> and reorder as
+needed. The provider key is `NVIDIA_API_KEY`; `NVIDIA_BASE_URL` is optional and
+defaults to the same URL.
 
 #### Switching NVIDIA free models
 
 - **Automatic:** `fallback_providers` is tried in order on HTTP 429/5xx,
   timeouts, auth/not-found errors, and invalid responses. `agent.api_max_retries:
-  1` and `providers.nvidia.request_timeout_seconds: 60` keep failover quick.
+  1` and `providers.nvidia.request_timeout_seconds: 45` keep failover quick.
 - **For one chat:** use an alias in Discord or the CLI:
-  `/model nvidia-glm`, `/model nvidia-kimi`, `/model nvidia-deepseek`,
-  `/model nvidia-fast`, or `/model nvidia-lightning`.
+  `/model nvidia-minimax`, `/model nvidia-lightning`, `/model nvidia-muse`,
+  `/model nvidia-glm`, `/model nvidia-deepseek`, or `/model nvidia-fast`.
 - **Persistently:** edit `model.default` in
   `/data/hermes-data/profiles/ops/config.yaml` (or run `hermes -p ops config edit`
   inside the Hermes container), then restart the gateway.
@@ -221,6 +223,12 @@ to the same URL.
 - **List current IDs:** with `NVIDIA_API_KEY` loaded in the profile shell,
   `curl -s https://integrate.api.nvidia.com/v1/models -H "Authorization: Bearer
   $NVIDIA_API_KEY"` (or use the Build catalog UI).
+
+The Compose service runs `hermes -p ops gateway run`. Hermes' default
+multiplexing expects the default profile to own the host gateway, so the Ops
+profile sets `gateway.standalone: true`; otherwise a named-profile gateway
+refuses to start. This is a single-profile standalone deployment, not a
+multi-profile fleet.
 
 Fill in `hermes/.env`:
 
