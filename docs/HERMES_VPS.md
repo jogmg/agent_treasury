@@ -20,10 +20,49 @@ later phases.
 - Ubuntu 24.04, SSH access, and a non-root sudo user.
 - A Discord server you control, plus permission to create a bot.
 - An LLM provider key (Anthropic, OpenAI, or OpenRouter).
-- This repository on the VPS. There is no git remote configured yet, so use
-  `rsync`/`scp` until one exists.
+- This repository on the VPS: `git clone https://github.com/jogmg/agent_treasury.git`.
 
 No inbound ports are needed except SSH. Discord is an outbound connection.
+
+### InstaBox free-plan deployment (current)
+
+The current host is a free InstaBox `agent-browser` machine: 4 vCPU, 8 GiB RAM,
+20 GiB persistent `/data`, and a 16 GiB root disk. The stack is healthy, but the
+free plan sets `manualLifecycle: false`. `instabox auto-suspend ... 0` is refused
+and the idle pause is fixed at 30 minutes. This is accepted as the current
+production host; the monitor can have gaps when the host is paused.
+
+Docker 29 uses the containerd image store, so setting `data-root` alone does not
+move images. On a small root disk, move both Docker and containerd to `/data`:
+
+```bash
+sudo systemctl stop docker.socket docker containerd
+sudo install -d -o root -g root -m 0711 /data/docker
+printf '%s\n' '{"data-root":"/data/docker","log-driver":"json-file","log-opts":{"max-size":"10m","max-file":"3"}}' \
+  | sudo tee /etc/docker/daemon.json
+sudo mv /var/lib/containerd /data/containerd
+sudo ln -s /data/containerd /var/lib/containerd
+sudo systemctl start containerd docker
+docker info --format '{{.DockerRootDir}}'
+df -h / /data
+```
+
+The keepalive is in the private repository `jogmg/workflows`:
+`.github/workflows/instabox-keepalive.yml` runs every 15 minutes with an
+`INSTABOX_API_KEY` repository secret (scopes `machines:read` and
+`machines:write`, 90-day rotation). It runs:
+
+```bash
+instabox wake "$INSTABOX_MACHINE"
+instabox exec "$INSTABOX_MACHINE" -- true
+```
+
+`wake` resumes only an idle auto-pause; a manual `pause`/`stop` needs
+`resume`/`start`. GitHub scheduled workflows can be delayed and may be disabled
+after prolonged repository inactivity. If a run is late, the machine pauses and
+the next successful `wake` resumes it; the monitor catches up from its last
+indexed block. This is a free-plan workaround, not equivalent to a paid
+always-on host.
 
 ---
 

@@ -98,7 +98,7 @@ recorded domain 26. The corrected mainnet receiver path passed live on 2026-10-2
 - Full record: `deployments/arc-mainnet.json`. Audit: not done (owner chose "ship with guardrails":
   low caps, small live test, external audit before raising limits).
 
-## Hermes Agent (Phase 1 implemented locally, not deployed)
+## Hermes Agent (Phase 1 deployed on InstaBox; gateway credentials pending)
 
 Full plan: `docs/HERMES.md`. VPS runbook: `docs/HERMES_VPS.md`.
 
@@ -125,11 +125,30 @@ Full plan: `docs/HERMES.md`. VPS runbook: `docs/HERMES_VPS.md`.
   1–3; the first run took about 17s, under the 60s interval. The monitor refuses to persist a
   snapshot when a core Arc read is missing, so partial RPC failures become incidents instead of
   zero balances.
-- Full read path verified without Docker: migrations applied to a PGlite Postgres wire server,
-  monitor runs indexed 12 activity events total and 3 done transfers (ids 1–3), and MCP returned
-  bookkeeping queue ids 1–3 plus the open `keeper-is-owner` incident. Docker Compose bring-up and
-  Hermes profile launch are still unverified because Docker Desktop is not installed on this host.
-  MCP tokens now fail closed if missing, shorter than 32 characters, or left as placeholders.
+- **Live InstaBox deployment (Oct 22–23, 2026).** The private Compose stack is running on the
+  free `agent-browser` machine (4 vCPU, 8 GiB, 20 GiB `/data`): `postgres`, `arc-mcp`, and
+  `monitor` are healthy; `migrate` exited 0. Verified rows: 3 treasury snapshots, 12 activity
+  events, 3 done transfers (ids 1–3), 3 `ready_for_keeper` queue rows, 1 open `keeper-is-owner`
+  alert. In-container `scripts/smoke.mjs` passed against Arc mainnet, including a live
+  `arc_get_cctp_status` for id 3 (`done`, delivered, no mint link). The real Hermes runtime
+  registered the Ops profile, and `hermes -p ops mcp test arc-treasury` connected with all seven
+  read-only tools. The gateway is not started yet because Discord and Anthropic credentials are
+  not installed.
+- Disk layout: Docker's `data-root` and the containerd image store were moved to `/data`
+  (`/data/docker`, `/data/containerd`, with `/var/lib/containerd` symlinked). After pulling the
+  Hermes image, root has ~11 GB free and `/data` ~15 GB free. Pulling the image without moving
+  containerd filled root; Docker 29 uses the containerd image store, so `data-root` alone is not
+  enough on a 16 GB root disk.
+- The free plan has `manualLifecycle: false`; `auto-suspend 0` is refused and auto-pause is fixed
+  at 30 minutes. Production keepalive is a private GitHub Actions repo
+  `jogmg/workflows` running `instabox wake` plus `instabox exec -- true` every 15 minutes
+  (`INSTABOX_API_KEY` secret, `machines:read` + `machines:write`, 90-day rotation). A manual
+  `pause`/`stop` is not overridden; `wake` only resumes idle auto-pause. GitHub cron delays and
+  the 60-day scheduled-workflow inactivity rule remain operational risks.
+- Dockerfile fix `f196fca`: the image copies `shared/` to `/shared`, matching the
+  `../../shared/cctp-message` import from `/app/src`; the initial `/app/shared` copy failed the
+  Docker build. Local Docker Desktop is still absent, so all Compose verification is on InstaBox.
+  MCP tokens fail closed if missing, shorter than 32 characters, or left as placeholders.
 
 - Hermes Agent is the **agent runtime/control plane**, not the treasury ledger. Reuse its gateway,
   Discord adapter, cron, MCP client, API server, sessions, logs, and Docker deployment; do not build
@@ -151,8 +170,10 @@ Full plan: `docs/HERMES.md`. VPS runbook: `docs/HERMES_VPS.md`.
   specific wallet UI. Hermes may explain or deep-link; it never signs.
 - Keeper automation (Phase 3) stays blocked until the keeper is rotated from the owner EOA to a
   dedicated KMS/HSM-backed key. `executeWithdrawal` is bookkeeping only, but still a write.
-- Default deployment: Fly.io (or Railway) with a persistent `/opt/data` volume and managed Postgres.
-  No public port for Hermes API, MCP, monitor, or Postgres.
+- Current deployment: InstaBox free machine with a persistent `/data` volume and private Postgres.
+  Fly.io/Railway remains reference material. No public port for Hermes API, MCP, monitor, Postgres,
+  or the keepalive path; only SSH is reachable, and all service traffic is outbound or on the
+  private Compose network.
 
 ## Stage 2 + Hardening Pass Contract Summary
 

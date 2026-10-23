@@ -1,14 +1,24 @@
 # Hermes Agent Implementation Plan
 
-> Status: **Phase 1 implemented locally, not cloud-deployed.** The read-only stack lives in
-> `hermes/`; the VPS runbook is `docs/HERMES_VPS.md`. No cloud signer, no owner key, no automated
-> bookkeeping, and no changes to the live mainnet contracts.
+> Status: **Phase 1 deployed on the current InstaBox production host; Discord gateway credentials
+> pending.** The read-only stack lives in `hermes/`; the VPS runbook is `docs/HERMES_VPS.md`. No
+> cloud signer, no owner key, no automated bookkeeping, and no changes to the live mainnet
+> contracts.
 >
 > Phase 1 implementation: shared CCTP parser, Arc/CCTP MCP server, Postgres schema, deterministic
-> monitor, Discord alerts, Ops profile, local Docker Compose, and read-only smoke test. The MCP
-> smoke test passed against Arc mainnet and the known id 3 burn resolved `done` from destination
+> monitor, Discord alerts, Ops profile, Docker Compose, and read-only smoke test. The MCP smoke
+> test passed against Arc mainnet and the known id 3 burn resolved `done` from destination
 > `usedNonces`, with delivery verified. Mint tx links are best-effort and may be absent for manual
 > mints; Hermes reports one only when Circle supplies a forwarder transaction.
+>
+> Deployment: the free InstaBox 4 vCPU / 8 GiB / 20 GiB machine is running Postgres, `arc-mcp`, and
+> the monitor. The database verified 3 snapshots, 12 activity events, 3 completed transfers, 3
+> bookkeeping rows, and the open `keeper-is-owner` alert. The real Hermes runtime registered the
+> Ops profile and `hermes -p ops mcp test arc-treasury` connected with seven tools. The gateway is
+> not started until Discord and Anthropic credentials are installed. InstaBox auto-pauses after 30
+> minutes idle; the private `jogmg/workflows` repository runs `wake` + `exec true` every 15 minutes
+> to keep it alive. This free-plan workaround can still leave monitoring gaps, and GitHub may delay
+> scheduled runs.
 
 ## 1. Decision
 
