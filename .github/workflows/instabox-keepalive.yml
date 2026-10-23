@@ -1,0 +1,41 @@
+name: InstaBox keepalive
+
+# This workflow lives in a public repository because GitHub Free does not run
+# schedule events in private repositories. The API key is stored as the masked
+# INSTABOX_API_KEY repository secret; it is not present in this file.
+#
+# GitHub's scheduled runners are not real-time. A 15-minute cadence leaves
+# enough slack under InstaBox's 30-minute idle pause, even when GitHub delays a
+# scheduled run.
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: instabox-keepalive
+  cancel-in-progress: false
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Install InstaBox CLI
+        run: npm install --global instabox@0.6.3
+
+      - name: Wake and reset idle timer
+        env:
+          INSTABOX_API_KEY: ${{ secrets.INSTABOX_API_KEY }}
+          INSTABOX_MACHINE: m_agqvtg5gwokf3k7e5easq4hd5e
+          INSTABOX_NO_TELEMETRY: "1"
+        run: |
+          set -euo pipefail
+          # wake is a no-op when the machine is already running; if it paused
+          # itself for idleness, wake resumes it. exec is the terminal activity
+          # that resets the idle timer.
+          instabox wake "$INSTABOX_MACHINE"
+          instabox exec "$INSTABOX_MACHINE" -- true
