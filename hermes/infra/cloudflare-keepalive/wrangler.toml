@@ -1,0 +1,9 @@
+name = "instabox-keepalive"
+main = "src/index.js"
+compatibility_date = "2026-10-23"
+
+[triggers]
+crons = ["*/10 * * * *"]
+
+[vars]
+INSTABOX_MACHINE = "m_agqvtg5gwokf3k7e5easq4hd5e"

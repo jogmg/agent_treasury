@@ -47,23 +47,29 @@ docker info --format '{{.DockerRootDir}}'
 df -h / /data
 ```
 
-The keepalive is `.github/workflows/instabox-keepalive.yml` in the public
-`agent_treasury` repository. GitHub Free does not run `schedule` events in
-private repositories, so the workflow must stay public; the API key is only the
-masked `INSTABOX_API_KEY` repository secret. It runs every 15 minutes with
-scopes `machines:read` and `machines:write` (90-day rotation). It runs:
+The primary keepalive is the Cloudflare Worker in
+`hermes/infra/cloudflare-keepalive/`. Its `*/10 * * * *` Cron Trigger calls the
+InstaBox control-plane API directly:
 
-```bash
-instabox wake "$INSTABOX_MACHINE"
-instabox exec "$INSTABOX_MACHINE" -- true
+```text
+POST https://api.instabox.sh/v1/machines/{id}/wake
+POST https://api.instabox.sh/v1/machines/{id}/exec   {"cmd":"true"}
 ```
 
-`wake` resumes only an idle auto-pause; a manual `pause`/`stop` needs
-`resume`/`start`. GitHub scheduled workflows can be delayed and may be disabled
-after prolonged repository inactivity. If a run is late, the machine pauses and
-the next successful `wake` resumes it; the monitor catches up from its last
-indexed block. This is a free-plan workaround, not equivalent to a paid
-always-on host.
+The Worker stores `INSTABOX_API_KEY` as an encrypted secret with scopes
+`machines:read` and `machines:write` (90-day rotation). `wake` resumes only an
+idle auto-pause; a manual `pause`/`stop` needs `resume`/`start`. The Worker was
+deployed on 2026-10-23 and its cron was verified by an API-key `lastUsedAt`
+update on the scheduled run. If a run is late, the next successful `wake`
+resumes the machine and the monitor catches up from its last indexed block.
+
+The public `.github/workflows/instabox-keepalive.yml` is a manual
+`workflow_dispatch` fallback only. GitHub Free does not run `schedule` events in
+private repositories, and the public-repo schedule was delayed for hours and
+failed once on an InstaBox CLI checksum error. Do not treat GitHub's schedule as
+the primary keepalive.
+
+This is a free-plan workaround, not equivalent to a paid always-on host.
 
 ---
 

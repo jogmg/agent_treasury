@@ -140,14 +140,15 @@ Full plan: `docs/HERMES.md`. VPS runbook: `docs/HERMES_VPS.md`.
   containerd filled root; Docker 29 uses the containerd image store, so `data-root` alone is not
   enough on a 16 GB root disk.
 - The free plan has `manualLifecycle: false`; `auto-suspend 0` is refused and auto-pause is fixed
-  at 30 minutes. Production keepalive is `.github/workflows/instabox-keepalive.yml` in the public
-  `agent_treasury` repository, running `instabox wake` plus `instabox exec -- true` every 15 minutes
-  (`INSTABOX_API_KEY` secret, `machines:read` + `machines:write`, 90-day rotation). A manual
-  `pause`/`stop` is not overridden; `wake` only resumes idle auto-pause. GitHub Free does not run
-  `schedule` events in private repositories, so the workflow must stay in the public repo. GitHub
-  cron delays, the possible 60-day public-repo inactivity disable, and the currently unreliable
-  schedule queue remain operational risks; the workflow also has `workflow_dispatch` for a manual
-  wake.
+  at 30 minutes. Production keepalive is the **Cloudflare Worker** `instabox-keepalive` in
+  `hermes/infra/cloudflare-keepalive/`, with a `*/10 * * * *` cron trigger. Each run calls
+  `POST /v1/machines/{id}/wake` and `POST /v1/machines/{id}/exec` with `{"cmd":"true"}` using the
+  encrypted `INSTABOX_API_KEY` Worker secret (`machines:read` + `machines:write`, 90-day rotation).
+  A manual `pause`/`stop` is not overridden; `wake` only resumes idle auto-pause. Cloudflare was
+  adopted because GitHub Free does not run `schedule` events in private repositories, and even the
+  public `agent_treasury` schedule was delayed for hours and failed once on an InstaBox CLI
+  checksum error. The public `.github/workflows/instabox-keepalive.yml` remains as a
+  `workflow_dispatch` manual fallback only.
 - Dockerfile fix `f196fca`: the image copies `shared/` to `/shared`, matching the
   `../../shared/cctp-message` import from `/app/src`; the initial `/app/shared` copy failed the
   Docker build. Local Docker Desktop is still absent, so all Compose verification is on InstaBox.
@@ -174,9 +175,10 @@ Full plan: `docs/HERMES.md`. VPS runbook: `docs/HERMES_VPS.md`.
 - Keeper automation (Phase 3) stays blocked until the keeper is rotated from the owner EOA to a
   dedicated KMS/HSM-backed key. `executeWithdrawal` is bookkeeping only, but still a write.
 - Current deployment: InstaBox free machine with a persistent `/data` volume and private Postgres.
-  Fly.io/Railway remains reference material. No public port for Hermes API, MCP, monitor, Postgres,
-  or the keepalive path; only SSH is reachable, and all service traffic is outbound or on the
-  private Compose network.
+  Fly.io/Railway remains reference material. No public InstaBox port for Hermes API, MCP, monitor,
+  Postgres, or the keepalive path; only SSH is reachable, and all service traffic is outbound or on
+  the private Compose network. The Cloudflare Worker exposes a public HTTPS URL, but its manual
+  trigger requires the `KEEPALIVE_TRIGGER_TOKEN` secret and every other request returns 404.
 
 ## Stage 2 + Hardening Pass Contract Summary
 

@@ -1,15 +1,11 @@
 name: InstaBox keepalive
 
-# This workflow lives in a public repository because GitHub Free does not run
-# schedule events in private repositories. The API key is stored as the masked
-# INSTABOX_API_KEY repository secret; it is not present in this file.
-#
-# GitHub's scheduled runners are not real-time. A 15-minute cadence leaves
-# enough slack under InstaBox's 30-minute idle pause, even when GitHub delays a
-# scheduled run.
+# Manual fallback for the Cloudflare Worker cron in
+# hermes/infra/cloudflare-keepalive/. GitHub Free does not run schedule events
+# in private repositories, and the public-repo schedule was observed to be
+# delayed for hours and to fail once on an InstaBox CLI checksum error. Keep this
+# workflow manual-only; the Worker is the primary keepalive.
 on:
-  schedule:
-    - cron: "*/15 * * * *"
   workflow_dispatch:
 
 permissions:
