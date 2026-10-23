@@ -76,6 +76,12 @@ auxiliary:
     provider: "nvidia"
     model: "nvidia/nemotron-3.5-lightning-30b-a3b"
 
+# This deployment runs one private Ops bot, not a multi-profile host gateway.
+# Hermes otherwise refuses a named-profile gateway and expects the default
+# profile's multiplexed host gateway to serve Ops.
+gateway:
+  standalone: true
+
 mcp_servers:
   arc-treasury:
     url: "http://arc-mcp:8788/mcp"
