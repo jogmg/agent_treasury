@@ -16,9 +16,11 @@
 > bookkeeping rows, and the open `keeper-is-owner` alert. The real Hermes runtime registered the
 > Ops profile and `hermes -p ops mcp test arc-treasury` connected with seven tools. The gateway is
 > not started until Discord and Anthropic credentials are installed. InstaBox auto-pauses after 30
-> minutes idle; the private `jogmg/workflows` repository runs `wake` + `exec true` every 15 minutes
-> to keep it alive. This free-plan workaround can still leave monitoring gaps, and GitHub may delay
-> scheduled runs.
+> minutes idle; `.github/workflows/instabox-keepalive.yml` in the public `agent_treasury` repository
+> runs `wake` + `exec true` every 15 minutes to keep it alive. GitHub Free does not schedule private
+> repositories, so the keepalive workflow must remain public; the API key stays a masked secret.
+> This free-plan workaround can still leave monitoring gaps, and GitHub may delay or fail to queue
+> scheduled runs. The workflow also supports manual dispatch.
 
 ## 1. Decision
 

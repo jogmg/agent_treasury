@@ -140,11 +140,14 @@ Full plan: `docs/HERMES.md`. VPS runbook: `docs/HERMES_VPS.md`.
   containerd filled root; Docker 29 uses the containerd image store, so `data-root` alone is not
   enough on a 16 GB root disk.
 - The free plan has `manualLifecycle: false`; `auto-suspend 0` is refused and auto-pause is fixed
-  at 30 minutes. Production keepalive is a private GitHub Actions repo
-  `jogmg/workflows` running `instabox wake` plus `instabox exec -- true` every 15 minutes
+  at 30 minutes. Production keepalive is `.github/workflows/instabox-keepalive.yml` in the public
+  `agent_treasury` repository, running `instabox wake` plus `instabox exec -- true` every 15 minutes
   (`INSTABOX_API_KEY` secret, `machines:read` + `machines:write`, 90-day rotation). A manual
-  `pause`/`stop` is not overridden; `wake` only resumes idle auto-pause. GitHub cron delays and
-  the 60-day scheduled-workflow inactivity rule remain operational risks.
+  `pause`/`stop` is not overridden; `wake` only resumes idle auto-pause. GitHub Free does not run
+  `schedule` events in private repositories, so the workflow must stay in the public repo. GitHub
+  cron delays, the possible 60-day public-repo inactivity disable, and the currently unreliable
+  schedule queue remain operational risks; the workflow also has `workflow_dispatch` for a manual
+  wake.
 - Dockerfile fix `f196fca`: the image copies `shared/` to `/shared`, matching the
   `../../shared/cctp-message` import from `/app/src`; the initial `/app/shared` copy failed the
   Docker build. Local Docker Desktop is still absent, so all Compose verification is on InstaBox.

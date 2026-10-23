@@ -47,10 +47,11 @@ docker info --format '{{.DockerRootDir}}'
 df -h / /data
 ```
 
-The keepalive is in the private repository `jogmg/workflows`:
-`.github/workflows/instabox-keepalive.yml` runs every 15 minutes with an
-`INSTABOX_API_KEY` repository secret (scopes `machines:read` and
-`machines:write`, 90-day rotation). It runs:
+The keepalive is `.github/workflows/instabox-keepalive.yml` in the public
+`agent_treasury` repository. GitHub Free does not run `schedule` events in
+private repositories, so the workflow must stay public; the API key is only the
+masked `INSTABOX_API_KEY` repository secret. It runs every 15 minutes with
+scopes `machines:read` and `machines:write` (90-day rotation). It runs:
 
 ```bash
 instabox wake "$INSTABOX_MACHINE"
