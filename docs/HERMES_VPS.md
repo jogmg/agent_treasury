@@ -214,9 +214,8 @@ to the same URL.
   `/model nvidia-glm`, `/model nvidia-kimi`, `/model nvidia-deepseek`,
   `/model nvidia-fast`, or `/model nvidia-lightning`.
 - **Persistently:** edit `model.default` in
-  `/data/hermes-data/profiles/ops/config.yaml` (or run
-  `hermes -p ops config set model.default "MODEL_ID"` inside the Hermes
-  container), then restart the gateway.
+  `/data/hermes-data/profiles/ops/config.yaml` (or run `hermes -p ops config edit`
+  inside the Hermes container), then restart the gateway.
 - **Interactive manager:** `hermes -p ops fallback` edits the fallback chain;
   `hermes -p ops model` picks the primary.
 - **List current IDs:** with `NVIDIA_API_KEY` loaded in the profile shell,
