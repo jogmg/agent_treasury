@@ -148,7 +148,11 @@ runbook: `docs/HERMES_VPS.md`.
   transaction's `from`/`to`/`data`/`value`/`chainId` match the stored intent; a reverted or
   mismatched transaction becomes `failed`, and missing/pending stays `submitted`. Both
   transitions write `audit_events`; every sweep is best-effort and never confirms from a user
-  supplied hash alone.
+  supplied hash alone. Live local verification on 2026-10-24: `002_intents.sql` applied to Compose
+  Postgres; SIWE, config/treasury/activity, minimum/balance rejection, and the no-User-Service
+  chat 502 were exercised; the sweep expired a stale draft and confirmed a submitted intent from
+  real mainnet deposit tx `0xf48c28d1…fc50225` only after matching
+  `from`/`to`/`data`/`value`/`chainId`. Test rows were removed afterward.
 - **Chat action bridge.** The BFF injects a server-owned system prompt as a
   `system`-role message (Hermes ignores a top-level `system` field), and accepts at most one
   `<hermes_action>{...}</hermes_action>` (or fenced `hermes-action`) envelope from the User
