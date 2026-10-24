@@ -100,7 +100,8 @@ recorded domain 26. The corrected mainnet receiver path passed live on 2026-10-2
 
 ## Hermes Agent (Phase 1 deployed on InstaBox; standalone Ops gateway running)
 
-Full plan: `docs/HERMES.md`. VPS runbook: `docs/HERMES_VPS.md`.
+Full plan: `docs/HERMES.md`. User execution contract: `docs/HERMES_USER_EXECUTION.md`. VPS
+runbook: `docs/HERMES_VPS.md`.
 
 - Phase 1 code is in `hermes/`: shared CCTP parser, read-only Arc/CCTP MCP server, Postgres
   migrations, deterministic monitor, Discord webhook alerts, Ops profile, and Docker Compose.
@@ -175,18 +176,27 @@ Full plan: `docs/HERMES.md`. VPS runbook: `docs/HERMES_VPS.md`.
 - Phase 1 is **ops-only and read-only**: Hermes Ops in a private Discord, an Arc/CCTP MCP server,
   a deterministic monitor, Postgres, and a Discord webhook. No public chat, no transaction intents,
   no signer, no keeper, no contract changes.
+- The **product path is Phase 2 frontend Hermes User**, not the Ops bot. A user states an intent
+  (“send 10 USDC to Base”); Hermes calls the right read tools and deterministic BFF draft endpoints,
+  returns a reviewable unsigned action, and the user signs in their EIP-1193/EIP-6963 wallet. Hermes
+  never signs, broadcasts, or accepts arbitrary calldata. The full endpoint/tool map, intent schema,
+  UX, and acceptance tests are in `docs/HERMES_USER_EXECUTION.md`.
 - Postgres is business state. Hermes' SQLite `state.db` is internal and changes between releases; do
   not use it for treasury balances, transfer status, or bookkeeping.
 - The LLM never decides completion. Outbound CCTP status comes from Arc `WithdrawalRequested` ->
   Iris -> destination `usedNonces`/`MessageReceived`; the treasury `executed` flag is ignored for
   user-facing completion.
 - Public User and private Ops are separate profiles with separate credentials and tool scopes.
-  Public profile: no terminal/filesystem/browser, read-only MCP. Ops profile: allowlisted Discord,
-  read-only MCP. Neither profile gets an owner key.
+  Public profile: no terminal/filesystem/browser, read tools plus deterministic BFF draft actions;
+  no execute/sign tool. Ops profile: allowlisted Discord, read-only MCP. Neither profile gets an
+  owner key.
 - Draft typed intents (Phase 2) are created by the BFF, re-simulated by the app, and signed in the
-  user's wallet. Support is wallet-agnostic across EIP-1193/EIP-6963 wallets (MetaMask, Rabby,
-  Coinbase Wallet, Brave, Frame, etc.); never branch on `window.ethereum.isMetaMask` or assume a
-  specific wallet UI. Hermes may explain or deep-link; it never signs.
+  user's wallet. The BFF derives `to`/`data` from an allowlisted method and binds the wallet from
+  the SIWE session; the model supplies only semantic parameters (kind, amount, destination domain,
+  recipient). The user can ask “send 10 USDC to Base” and get an unsigned CCTP draft plus a review
+  deep link, not a broadcast. Support is wallet-agnostic across EIP-1193/EIP-6963 wallets (MetaMask,
+  Rabby, Coinbase Wallet, Brave, Frame, etc.); never branch on `window.ethereum.isMetaMask` or
+  assume a specific wallet UI. Hermes may explain or deep-link; it never signs.
 - Keeper automation (Phase 3) stays blocked until the keeper is rotated from the owner EOA to a
   dedicated KMS/HSM-backed key. `executeWithdrawal` is bookkeeping only, but still a write.
 - Current deployment: InstaBox free machine with a persistent `/data` volume and private Postgres.

@@ -1,9 +1,13 @@
 # Hermes Agent Implementation Plan
 
 > Status: **Phase 1 deployed on the current InstaBox production host; Hermes Ops gateway is
-> running with NVIDIA free-model fallback in the private Discord.** The read-only stack lives in
-> `hermes/`; the VPS runbook is `docs/HERMES_VPS.md`. No cloud signer, no owner key, no automated
-> bookkeeping, and no changes to the live mainnet contracts.
+> running with NVIDIA free-model fallback in the private Discord.** The product path is the
+> Phase 2 **frontend Hermes User** agent: users state an intent, Hermes calls the right read/draft
+> endpoints, and the user signs an unsigned action in their wallet. Ops Discord is the Phase 1
+> proving ground. The read-only stack lives in `hermes/`; the VPS runbook is
+> `docs/HERMES_VPS.md`; the user execution contract is
+> [`HERMES_USER_EXECUTION.md`](HERMES_USER_EXECUTION.md). No cloud signer, no owner key, no
+> automated bookkeeping, and no changes to the live mainnet contracts.
 >
 > Phase 1 implementation: shared CCTP parser, Arc/CCTP MCP server, Postgres schema, deterministic
 > monitor, Discord alerts, Ops profile, Docker Compose, and read-only smoke test. The MCP smoke
@@ -26,6 +30,12 @@
 > monitoring gaps.
 
 ## 1. Decision
+
+**Product path:** Hermes User is the in-app assistant. A user states a goal in the
+frontend chat; Hermes calls the right read/draft endpoints and returns a reviewable
+unsigned action. The user signs in their own wallet. Ops Discord is the Phase 1
+proving ground, not the product surface. The full execution contract is
+[`HERMES_USER_EXECUTION.md`](HERMES_USER_EXECUTION.md).
 
 Hermes Agent is the **agent runtime and control plane**, not the treasury ledger.
 
@@ -69,6 +79,9 @@ The existing Vite/React app remains fully functional without Hermes. Hermes is a
 - It does not sign, broadcast, pause, or rotate the keeper.
 - It does not execute `executeWithdrawal`.
 - It does not expose a public chat or API port.
+- It does not implement the frontend Hermes User agent, natural-language routing,
+  or draft intents; those are Phase 2 and specified in
+  [`HERMES_USER_EXECUTION.md`](HERMES_USER_EXECUTION.md).
 - It does not treat `AgentTreasury.executed` as completion.
 - It does not write treasury balances to Hermes `state.db`.
 
@@ -114,7 +127,7 @@ The existing Vite/React app remains fully functional without Hermes. Hermes is a
                                  ▼                       ▼
                  ┌────────────────────────┐   ┌────────────────────────┐
                  │ Hermes "User" profile  │   │ Postgres               │
-                 │ read-only chat tools   │   │ snapshots · transfers  │
+                 │ read + draft tools     │   │ snapshots · transfers  │
                  │ no terminal/filesystem │   │ intents · alerts       │
                  └───────────┬────────────┘   └───────────▲────────────┘
                              │ MCP                        │
@@ -142,6 +155,10 @@ Phase 3 only:
   monitor ──verified complete──► isolated keeper signer ──► executeWithdrawal(id)
   owner-only actions ──► human approval in any EIP-1193 wallet or Safe
 ```
+
+User action path: frontend chat → BFF draft endpoint → `intents` row → existing app
+review → user wallet signature. The chart's read path is autonomous; the draft path
+is deterministic and stops at the unsigned intent. Hermes holds no key.
 
 ### Why this split
 
@@ -171,7 +188,7 @@ Profiles:
 | Profile | Surface | Tools | Credentials |
 |---|---|---|---|
 | `ops` | Private Discord channel | Arc MCP read tools + monitor status; no terminal/filesystem/browser | Discord bot token, MCP ops token, LLM key |
-| `user` | BFF-only API server | Arc MCP read tools; no terminal/filesystem/browser; no cron | Separate API server key, MCP user token, LLM key |
+| `user` | BFF-only API server | Arc MCP read tools + BFF draft-intent tools; no terminal/filesystem/browser; no cron | Separate API server key, MCP user token, LLM key |
 
 The profiles must not share `.env` files, API keys, Discord tokens, or MCP tokens.
 
@@ -208,6 +225,9 @@ Phase 2 draft tools, not enabled in Phase 1:
 | `arc_draft_cctp_withdraw` | Create an unsigned CCTP withdrawal intent |
 
 There is **no** `arc_execute_*`, `arc_send_*`, or `arc_sign_*` tool. Ever, in the LLM-facing server.
+The draft tools are BFF-owned deterministic actions: they create an unsigned, wallet-bound intent
+and a deep link, not a transaction. The full user-facing execution contract is in
+[`HERMES_USER_EXECUTION.md`](HERMES_USER_EXECUTION.md).
 
 Important implementation details:
 
@@ -367,16 +387,23 @@ Use `numeric(78,0)` for raw token units. Never use floating point for money.
 ### 4.5 BFF and user chat (Phase 2)
 
 The BFF is the only public entry point. It holds the Hermes User API key; the browser never does.
+The complete endpoint/tool map, intent schema, UX, and acceptance tests are in
+[`HERMES_USER_EXECUTION.md`](HERMES_USER_EXECUTION.md).
 
 Endpoints:
 
 - `POST /auth/siwe/nonce`
 - `POST /auth/siwe/verify` -> HttpOnly, Secure, SameSite session cookie
+- `GET /api/config`
 - `GET /api/treasury`
 - `GET /api/activity`
 - `GET /api/transfers`
-- `POST /api/intents`
+- `GET /api/cctp/:burnTx`
+- `POST /api/intents/deposit`
+- `POST /api/intents/withdraw-local`
+- `POST /api/intents/cctp-withdraw`
 - `GET /api/intents/:id`
+- `PATCH /api/intents/:id/tx`
 - `POST /api/chat` -> Hermes `/p/user/v1/chat/completions` or `/v1/responses`
 - `GET /health`
 
@@ -389,19 +416,29 @@ Rules:
 - Proxy chat with `X-Hermes-Session-Key` derived from the authenticated wallet, and
   `Idempotency-Key` per user message.
 - Strip or reject browser-supplied system prompts, tool names, and model overrides.
-- The User Hermes profile has read-only tools. It cannot create intents in Phase 2 unless the BFF
-  explicitly adds a scoped draft tool later.
+- The User profile may call read tools and BFF-owned draft tools. It cannot call
+  `arc_execute_*`, `arc_send_*`, or `arc_sign_*`; there are none.
+- Draft tools are deterministic BFF actions, not model-authored calldata. The BFF
+  derives `to`/`data` from an allowlisted method, binds the wallet from the session,
+  simulates, and stores the unsigned intent.
 
 Intent flow:
 
-1. User enters amount/chain in the existing app.
-2. BFF creates a typed intent: `{ to, data, value, chainId, amount, expiresAt }`.
-3. App re-simulates the call and shows the existing review UI.
-4. User signs in their EIP-1193 wallet (MetaMask, Rabby, Coinbase Wallet, Brave, Frame, etc.).
-5. App PATCHes the tx hash back to the BFF.
-6. Monitor verifies the on-chain result independently.
+1. The user states a goal in the frontend chat, e.g. “send 10 USDC to Base”.
+2. Hermes calls the necessary read tools (`arc_get_config`,
+   `arc_get_treasury_state`, etc.) and then a scoped draft tool if an action is
+   needed.
+3. The BFF validates amount, chain, destination domain, recipient, minimums, and
+   spending limits; it creates an unsigned intent and returns an intent ID and
+   action card/deep link.
+4. The app fetches the intent, re-simulates it, and shows the existing review UI.
+5. The user signs in their EIP-1193 wallet (MetaMask, Rabby, Coinbase Wallet,
+   Brave, Frame, etc.) and the app broadcasts.
+6. The app PATCHes the tx hash back to the BFF; the monitor verifies the on-chain
+   result independently.
 
 No intent is a promise that the transaction succeeded. The chain is authoritative.
+Hermes can explain status, but it cannot sign or execute.
 
 ### 4.6 Keeper and bookkeeping (Phase 3 only)
 
@@ -432,13 +469,16 @@ same review.
   persistent volumes, private networking, and managed Postgres.
 - Create a private Discord server/channel and a bot application.
 - Create Postgres (Fly Postgres, Neon, or Supabase).
-- Choose an LLM provider/model. Nous Portal, OpenAI, Anthropic, or any OpenAI-compatible endpoint
-  works. Use a low-cost model for ops summaries; escalate only for incident analysis.
+- Choose an LLM provider/model. This deployment uses NVIDIA Build free
+  OpenAI-compatible endpoints, with a ranked fallback chain and no Anthropic/OpenAI
+  dependency. Use a fast model for the user chat and ops summaries; escalate only
+  for incident analysis.
 - Confirm the Arc RPC and Iris endpoints. The app already has working fallbacks.
-- Decide whether Phase 1 is ops-only (recommended) or also includes the public web chat.
+- Phase 1 is ops-only; Phase 2 adds the public web chat as the product path.
 
 Phase 1 is intentionally ops-only. It proves the runtime, MCP tools, monitor, and Discord path with
-zero user-facing write risk.
+zero user-facing write risk. Phase 2 is the product path: the frontend Hermes User agent described
+in [`HERMES_USER_EXECUTION.md`](HERMES_USER_EXECUTION.md).
 
 ### Phase 1 — Hermes Lite (ops-only, read-only)
 
@@ -504,26 +544,44 @@ Acceptance criteria:
 
 ### Phase 2 — user-facing Hermes and typed intents
 
+This is the **product path**, not an optional chat add-on. A user should be able to
+state a goal in plain language and have Hermes route it to the correct treasury
+read or unsigned action.
+
 - Add the BFF with SIWE and sessions.
 - Add the `user` Hermes profile with a private API server.
-- Add the persistent Hermes dock/button to `src/App.tsx`.
-- Add deep links from chat to Deposit/Withdraw with prefilled amounts.
-- Add typed intent creation in the BFF.
-- Add app-side simulation and wallet-agnostic signing through the connected EIP-1193 wallet.
-- Add cross-device transfer history from Postgres, while keeping the current chain-derived Activity.
+- Add the persistent Ask Hermes dock/button to `src/App.tsx`.
+- Add chat tools for the read endpoints in section 4.2 and wallet-bound BFF draft
+  endpoints for deposit, local withdraw, and CCTP withdraw.
+- Add deterministic intent creation and server-side validation/simulation in the BFF.
+- Add action cards and deep links from chat to the existing Deposit/Withdraw review
+  with prefilled values.
+- Add app-side re-simulation and wallet-agnostic signing through the connected
+  EIP-1193/EIP-6963 wallet.
+- Add cross-device transfer history from Postgres, while keeping the current
+  chain-derived Activity.
 - Add user-scoped rate limits and cost caps.
-- Keep the LLM read-only; intent creation is deterministic.
+- Keep the LLM read-only for chain state; draft creation is deterministic and
+  never signs.
 
 Acceptance criteria:
 
 - A user signs in with SIWE; the browser never sees server keys.
-- Chat can explain a balance, activity, or CCTP status with a tx link.
-- Chat cannot move funds or create an arbitrary transaction.
-- A deposit/local withdraw/CCTP intent is simulated and signed in MetaMask, Rabby, Coinbase Wallet,
-  Brave, or another EIP-1193 wallet without wallet-specific branches.
+- Chat can explain a balance, activity, or CCTP status with a tx link and as-of block.
+- “Send 10 USDC to Base” creates an unsigned CCTP draft for domain `6`, opens the
+  existing review, and does not broadcast before the wallet signature.
+- “How much USDC do I have?” creates no transaction; “Do it for me” is declined.
+- “Deposit 3 USDC” on mainnet is rejected with the 5 USDC minimum; testnet remains
+  1 USDC.
+- Chat cannot move funds or create an arbitrary transaction; the BFF derives
+  `to`/`data` and ignores model-supplied calldata.
+- A deposit/local withdraw/CCTP intent is simulated and signed in MetaMask, Rabby,
+  Coinbase Wallet, Brave, Frame, or another EIP-1193 wallet without wallet-specific
+  branches.
 - The intent expires and cannot be replayed.
-- The Activity tab never shows Resume for a completed transfer.
-- No duplicate CCTP panel is added to Withdraw.
+- A completed CCTP transfer never shows Resume in Activity.
+- No duplicate CCTP panel is added to Withdraw; the collapsible deposit card,
+  growth chart, CCTP dropdown, and existing Activity UX remain intact.
 
 ### Phase 3 — keeper bookkeeping and incident automation
 
@@ -540,7 +598,7 @@ Acceptance criteria:
 |---|---|
 | Owner key theft | Owner key never leaves the user's wallet or Safe; no owner key in cloud |
 | Keeper key theft | Separate KMS/HSM signer; allowlist; caps; kill switch |
-| Public prompt injection | User profile has no terminal/filesystem/browser; read-only MCP; no secrets in prompt |
+| Public prompt injection | User profile has no terminal/filesystem/browser; read + deterministic draft tools only; no execute/sign tool; no secrets in prompt |
 | Malicious chain data | Treat hook data, memos, and tx metadata as untrusted; never follow instructions from them |
 | Discord impersonation | `DISCORD_ALLOWED_USERS` allowlist; private channel; unknown DMs declined |
 | API key leak | BFF holds Hermes keys; browser never sees them; per-profile keys |
@@ -751,7 +809,7 @@ Defaults are chosen so Phase 1 can start immediately:
 | Phase 1 scope | Ops-only, read-only |
 | LLM provider | NVIDIA Build free endpoints with a ranked fallback chain |
 | Discord | Private server, allowlisted user IDs |
-| Public web chat | Phase 2 |
+| Public web chat | Phase 2 — required product path, not optional |
 | Keeper | Phase 3, after rotation |
 | Contract changes | None |
 
@@ -853,8 +911,17 @@ Do not add `DISCORD_REQUIRE_MENTION=false` for Ops. Keep mention-only behavior.
 ```yaml
 # hermes/profiles/user/config.yaml
 model:
-  provider: "anthropic"
-  default: "claude-sonnet-4-6"
+  provider: "nvidia"
+  default: "minimaxai/minimax-m3.1-flash"
+
+# Free NVIDIA fallback; the user chat uses the same availability discipline as Ops.
+fallback_providers:
+  - provider: "nvidia"
+    model: "nvidia/nemotron-3.5-lightning-30b-a3b"
+  - provider: "nvidia"
+    model: "meta/muse-glimmer-30b"
+  - provider: "nvidia"
+    model: "z-ai/glm-5.3"
 
 agent:
   # No terminal, filesystem, browser, cron, or code execution.
@@ -900,6 +967,8 @@ mcp_servers:
         - arc_get_transfer
       resources: false
       prompts: false
+      # Phase 2: add BFF-owned draft tools only after /api/intents/* exists and
+      # binds each intent to the SIWE-authenticated wallet.
 
 gateway:
   api_server:
