@@ -6,7 +6,9 @@ FROM node:24-bookworm-slim AS build
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm ci
+# The frontend's Vite 6 / vite-plugin-node-polyfills peer range conflicts under
+# strict npm resolution. The lockfile and local build use this same override.
+RUN npm ci --legacy-peer-deps
 
 COPY index.html postcss.config.js tailwind.config.js tsconfig.json vite.config.ts ./
 COPY src ./src
