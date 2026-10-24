@@ -12,11 +12,15 @@ import {
 import { useAccount, useSwitchChain } from 'wagmi'
 import { useHermesChat } from '../hooks/useHermesChat'
 import { ARC_CHAIN, ARC_CHAIN_ID } from '../lib/contracts'
+import { intentReviewTab, type HermesIntent } from '../lib/hermes'
+import { useUiStore } from '../stores/ui'
+import { IntentActionCard } from './IntentActionCard'
 
 const SUGGESTIONS = [
   'How much USDC do I have?',
-  'What happened recently?',
-  'Is my treasury paused?',
+  'Send 10 USDC to Base',
+  'Put 25 USDC to work',
+  'Withdraw everything',
 ]
 
 export function HermesDock() {
@@ -50,10 +54,33 @@ function HermesPanel({ open, onClose }: { open: boolean; onClose: () => void }) 
   const { isConnected, chainId } = useAccount()
   const { switchChain, isPending: switching } = useSwitchChain()
   const { messages, busy, error, send, clear } = useHermesChat()
+  const setTab = useUiStore((state) => state.setTab)
+  const setReviewIntent = useUiStore((state) => state.setReviewIntent)
   const [input, setInput] = useState('')
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const wrongChain = isConnected && chainId !== ARC_CHAIN_ID
+
+  function openIntent(intent: HermesIntent) {
+    const tab = intentReviewTab(intent.kind)
+    const url = new URL(window.location.href)
+    url.searchParams.set('tab', tab)
+    url.searchParams.set('intent', intent.id)
+    window.history.pushState({}, '', url)
+    setReviewIntent(intent.id)
+    setTab(tab)
+    onClose()
+  }
+
+  function openActivity() {
+    const url = new URL(window.location.href)
+    url.searchParams.set('tab', 'activity')
+    url.searchParams.delete('intent')
+    window.history.pushState({}, '', url)
+    setReviewIntent(null)
+    setTab('activity')
+    onClose()
+  }
 
   useEffect(() => {
     if (!open) return
@@ -98,7 +125,7 @@ function HermesPanel({ open, onClose }: { open: boolean; onClose: () => void }) 
           </div>
           <div>
             <h2 className="text-sm font-semibold text-white">Ask Hermes</h2>
-            <p className="text-[11px] text-slate-500">Read-only · never signs</p>
+            <p className="text-[11px] text-slate-500">Drafts only · you always sign</p>
           </div>
         </div>
         <div className="flex items-center gap-1">
@@ -137,8 +164,8 @@ function HermesPanel({ open, onClose }: { open: boolean; onClose: () => void }) 
         {isConnected && messages.length === 0 && (
           <div className="space-y-3">
             <p className="text-sm text-slate-300">
-              Ask about your treasury, activity, or a CCTP transfer. Hermes answers from
-              live reads and never moves funds.
+              Ask about your treasury, or say what you want to do. Hermes can prepare an
+              unsigned draft and open the review screen. It never moves funds.
             </p>
             <div className="flex flex-wrap gap-2">
               {SUGGESTIONS.map((suggestion) => (
@@ -164,14 +191,28 @@ function HermesPanel({ open, onClose }: { open: boolean; onClose: () => void }) 
             key={`${message.role}-${index}`}
             className={message.role === 'user' ? 'flex justify-end' : 'flex justify-start'}
           >
-            <div
-              className={
-                message.role === 'user'
-                  ? 'max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-br-md bg-emerald-500/20 px-3 py-2 text-sm text-emerald-50'
-                  : 'max-w-[92%] whitespace-pre-wrap break-words rounded-2xl rounded-bl-md border border-slate-800 bg-slate-900/80 px-3 py-2 text-sm leading-relaxed text-slate-200'
-              }
-            >
-              {message.content}
+            <div className={message.role === 'user' ? 'max-w-[85%]' : 'max-w-[92%]'}>
+              <div
+                className={
+                  message.role === 'user'
+                    ? 'whitespace-pre-wrap break-words rounded-2xl rounded-br-md bg-emerald-500/20 px-3 py-2 text-sm text-emerald-50'
+                    : 'whitespace-pre-wrap break-words rounded-2xl rounded-bl-md border border-slate-800 bg-slate-900/80 px-3 py-2 text-sm leading-relaxed text-slate-200'
+                }
+              >
+                {message.content}
+              </div>
+              {message.role === 'assistant' && message.intent && (
+                <IntentActionCard
+                  intent={message.intent}
+                  onReview={openIntent}
+                  onActivity={openActivity}
+                />
+              )}
+              {message.role === 'assistant' && message.actionError && (
+                <p className="mt-1.5 rounded-lg border border-amber-500/20 bg-amber-500/5 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-300">
+                  {message.actionError}
+                </p>
+              )}
             </div>
           </div>
         ))}
@@ -234,7 +275,7 @@ function HermesPanel({ open, onClose }: { open: boolean; onClose: () => void }) 
             disabled={!isConnected || busy || wrongChain}
             placeholder={
               isConnected
-                ? 'Ask about balances, activity, or a CCTP transfer…'
+                ? 'Ask about balances, or say “send 10 USDC to Base”…'
                 : 'Connect a wallet to start'
             }
             className="min-h-[3.25rem] flex-1 resize-none rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:border-emerald-500/50 focus:outline-none disabled:opacity-60"
@@ -249,8 +290,8 @@ function HermesPanel({ open, onClose }: { open: boolean; onClose: () => void }) 
           </button>
         </div>
         <p className="mt-2 text-[10px] leading-relaxed text-slate-600">
-          Hermes can explain your treasury and point you to the right screen. It cannot
-          sign or move funds. You always sign in your own wallet.
+          Hermes prepares unsigned drafts. It cannot sign or move funds. Review every
+          value and sign in your own wallet.
         </p>
       </form>
     </section>

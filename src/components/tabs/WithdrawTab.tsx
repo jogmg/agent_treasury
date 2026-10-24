@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useAccount, usePublicClient, useSwitchChain, useWriteContract } from 'wagmi'
 import { useQueryClient } from '@tanstack/react-query'
 import { isAddress } from 'viem'
@@ -10,7 +10,10 @@ import { CCTP_DESTINATIONS } from '../../lib/cctp'
 import { parseOnchainError } from '../../lib/errors'
 import { useTreasuryStore } from '../../stores/treasury'
 import { useFlowStore } from '../../stores/flow'
+import { useIntentReview } from '../../hooks/useIntentReview'
+import { markHermesIntentSubmitted } from '../../lib/hermes'
 import { TxStep } from '../TxStep'
+import { IntentReviewCard } from '../IntentReviewCard'
 import { CctpCompletionCard } from '../CctpCompletionCard'
 
 const MAX_U256 = BigInt('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff')
@@ -34,6 +37,22 @@ export function WithdrawTab() {
   const { totalBalance } = useTreasuryStore()
   const { withdrawStep, withdrawHash, withdrawError, setWithdraw, resetWithdraw,
           cctpStep, cctpHash, cctpError, setCctp, resetCctp } = useFlowStore()
+  const cctpDetailsRef = useRef<HTMLDetailsElement>(null)
+  const review = useIntentReview(undefined, (intent) => {
+    if (intent.kind === 'withdrawLocal') {
+      setAmount(formatUsdc(BigInt(intent.amount), 6))
+      return
+    }
+    if (intent.kind !== 'cctpWithdraw') return
+    setCctpAmount(formatUsdc(BigInt(intent.amount), 6))
+    setDestDomain(
+      intent.destinationDomain === null ? '' : String(intent.destinationDomain),
+    )
+    setMintRecipient(intent.mintRecipient ?? '')
+    if (cctpDetailsRef.current) cctpDetailsRef.current.open = true
+  })
+  const localReview = review.intent?.kind === 'withdrawLocal' ? review.intent : null
+  const cctpReview = review.intent?.kind === 'cctpWithdraw' ? review.intent : null
 
   const { writeContractAsync: withdraw } = useWriteContract()
   const { writeContractAsync: requestWithdrawal } = useWriteContract()
@@ -90,6 +109,16 @@ export function WithdrawTab() {
 
       setWithdraw({ withdrawStep: 'success' })
       setAmount('')
+      const matchesLocalDraft =
+        localReview &&
+        (localReview.isMax
+          ? isMax
+          : !isMax && parsedAmount === BigInt(localReview.amount))
+      if (matchesLocalDraft) {
+        void markHermesIntentSubmitted(localReview.id, tx)
+          .catch((cause) => console.warn('Could not record Hermes draft tx', cause))
+          .finally(() => review.dismiss())
+      }
       toast.success('Withdrawal confirmed', {
         action: { label: 'Explorer', onClick: () => window.open(`${ARC_EXPLORER}/tx/${tx}`) },
       })
@@ -150,6 +179,16 @@ export function WithdrawTab() {
         cctpCompletionError: '',
       })
       setCctpAmount('')
+      const matchesCctpDraft =
+        cctpReview &&
+        parsed === BigInt(cctpReview.amount) &&
+        cctpReview.destinationDomain === domain &&
+        cctpReview.mintRecipient?.toLowerCase() === mintRecipient.toLowerCase()
+      if (matchesCctpDraft) {
+        void markHermesIntentSubmitted(cctpReview.id, tx)
+          .catch((cause) => console.warn('Could not record Hermes draft tx', cause))
+          .finally(() => review.dismiss())
+      }
       await queryClient.invalidateQueries()
       toast.success('CCTP burn confirmed. Fetching the Circle attestation…')
     } catch (e) {
@@ -182,6 +221,27 @@ export function WithdrawTab() {
       {/* Local withdraw */}
       <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-5">
         <h2 className="mb-4 text-sm font-semibold text-white">Withdraw to Wallet</h2>
+
+        {localReview && (
+          <div className="mb-4">
+            <IntentReviewCard intent={localReview} onDismiss={review.dismiss} />
+          </div>
+        )}
+        {review.loading && (
+          <p className="mb-3 text-xs text-slate-500">Loading the Hermes draft…</p>
+        )}
+        {review.error && (
+          <div className="mb-3 flex items-start justify-between gap-3 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-300">
+            <span>{review.error}</span>
+            <button
+              type="button"
+              onClick={review.retry}
+              className="shrink-0 font-medium underline underline-offset-2 hover:text-amber-200"
+            >
+              Retry
+            </button>
+          </div>
+        )}
 
         {/* Quick pct buttons */}
         <div className="mb-3 flex gap-2">
@@ -248,11 +308,17 @@ export function WithdrawTab() {
       </div>
 
       {/* CCTP advanced */}
-      <details className="rounded-xl border border-slate-800 bg-slate-900/40">
+      <details
+        ref={cctpDetailsRef}
+        className="rounded-xl border border-slate-800 bg-slate-900/40"
+      >
         <summary className="cursor-pointer px-5 py-4 text-sm font-medium text-slate-300 hover:text-white">
           Advanced: Cross-Chain Withdrawal (CCTP)
         </summary>
         <div className="space-y-4 border-t border-slate-800 p-5">
+          {cctpReview && (
+            <IntentReviewCard intent={cctpReview} onDismiss={review.dismiss} />
+          )}
           <div className="flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-300">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <span>

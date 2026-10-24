@@ -27,6 +27,8 @@ const envSchema = z.object({
   BFF_CHAT_TIMEOUT_MS: z.coerce.number().int().positive().default(90_000),
   BFF_CHAT_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(20),
   BFF_NONCE_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(30),
+  BFF_INTENT_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(12),
+  BFF_INTENT_TTL_SECONDS: z.coerce.number().int().positive().default(900),
   HERMES_USER_URL: optionalUrl,
   HERMES_USER_API_KEY: optionalString,
   HERMES_USER_CHAT_PATH: optionalString,
@@ -52,6 +54,8 @@ export interface BffConfig {
   chatTimeoutMs: number
   chatRateLimitPerMinute: number
   nonceRateLimitPerMinute: number
+  intentRateLimitPerMinute: number
+  intentTtlSeconds: number
   hermesUserUrl: string | undefined
   hermesUserApiKey: string | undefined
   hermesUserChatPath: string
@@ -144,6 +148,8 @@ export function loadBffConfig(env: NodeJS.ProcessEnv = process.env): BffConfig {
     chatTimeoutMs: parsed.BFF_CHAT_TIMEOUT_MS,
     chatRateLimitPerMinute: parsed.BFF_CHAT_RATE_LIMIT_PER_MINUTE,
     nonceRateLimitPerMinute: parsed.BFF_NONCE_RATE_LIMIT_PER_MINUTE,
+    intentRateLimitPerMinute: parsed.BFF_INTENT_RATE_LIMIT_PER_MINUTE,
+    intentTtlSeconds: parsed.BFF_INTENT_TTL_SECONDS,
     hermesUserUrl: parsed.HERMES_USER_URL?.replace(/\/$/, ''),
     hermesUserApiKey,
     hermesUserChatPath: chatPath,

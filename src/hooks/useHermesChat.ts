@@ -96,7 +96,15 @@ export function useHermesChat(): HermesChat {
       try {
         await ensureSession()
         const response = await sendHermesChat(next, conversationId.current)
-        setMessages((current) => [...current, { role: 'assistant', content: response.reply }])
+        setMessages((current) => [
+          ...current,
+          {
+            role: 'assistant',
+            content: response.reply,
+            ...(response.intent ? { intent: response.intent } : {}),
+            ...(response.actionError ? { actionError: response.actionError } : {}),
+          },
+        ])
       } catch (cause) {
         if (isHermesApiError(cause) && cause.code === 'unauthorized') {
           sessionWallet.current = null

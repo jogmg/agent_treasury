@@ -18,6 +18,14 @@ import {
 import { requestHermesChat, type ChatMessage } from './chat'
 import type { BffConfig } from './config'
 import { BffHttpError, isBffHttpError } from './errors'
+import {
+  ArcIntentChain,
+  extractActionProposal,
+  IntentService,
+  INTENT_CHAT_SYSTEM_PROMPT,
+  type BffIntentService,
+  type IntentDraftRequest,
+} from './intents'
 import { RateLimiter } from './rate-limit'
 import {
   BffReadService,
@@ -29,6 +37,7 @@ const ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/
 const TX_RE = /^0x[0-9a-fA-F]{64}$/
 const SIGNATURE_RE = /^0x[0-9a-fA-F]{2,}$/
 const IDEMPOTENCY_RE = /^[A-Za-z0-9._:-]{1,120}$/
+const INTENT_ID_RE = /^int_[a-f0-9]{32}$/
 
 const nonceBodySchema = z.object({
   address: z.string().regex(ADDRESS_RE),
@@ -55,6 +64,35 @@ const chatBodySchema = z.object({
     .optional(),
 })
 
+const depositIntentBodySchema = z.object({
+  amount: z.string().min(1).max(40),
+})
+
+const withdrawIntentBase = {
+  amount: z.string().min(1).max(40).optional(),
+  all: z.boolean().optional(),
+}
+
+const withdrawIntentBodySchema = z
+  .object(withdrawIntentBase)
+  .refine((body) => (body.all === true) !== (typeof body.amount === 'string'), {
+    message: 'Provide either an amount or all=true.',
+  })
+
+const cctpIntentBodySchema = z
+  .object({
+    ...withdrawIntentBase,
+    destinationDomain: z.number().int().nonnegative(),
+    mintRecipient: z.string().regex(ADDRESS_RE).optional(),
+  })
+  .refine((body) => (body.all === true) !== (typeof body.amount === 'string'), {
+    message: 'Provide either an amount or all=true.',
+  })
+
+const intentTxBodySchema = z.object({
+  txHash: z.string().regex(TX_RE),
+})
+
 export interface AuthedRequest extends Request {
   wallet?: `0x${string}`
   session?: VerifiedSession
@@ -62,6 +100,7 @@ export interface AuthedRequest extends Request {
 
 export interface BffDeps {
   reader?: BffReader
+  intents?: BffIntentService
   logger?: Logger
   now?: () => number
   fetchImpl?: typeof fetch
@@ -149,9 +188,19 @@ export function createBffApp(config: BffConfig, deps: BffDeps = {}): BffApp {
     : null
   const reader = deps.reader ?? new BffReadService(config.hermes, pool, logger)
   const publicClient = createArcClient(config.hermes)
+  const intents =
+    deps.intents ??
+    new IntentService(
+      config,
+      pool,
+      new ArcIntentChain(config.hermes, publicClient),
+      logger,
+      now,
+    )
   const nonceStore = new NonceStore(config.nonceTtlSeconds * 1000, now)
   const nonceLimiter = new RateLimiter(config.nonceRateLimitPerMinute, 60_000, now)
   const chatLimiter = new RateLimiter(config.chatRateLimitPerMinute, 60_000, now)
+  const intentLimiter = new RateLimiter(config.intentRateLimitPerMinute, 60_000, now)
 
   const app = express()
   app.disable('x-powered-by')
@@ -191,7 +240,7 @@ export function createBffApp(config: BffConfig, deps: BffDeps = {}): BffApp {
         sendError(res, 403, 'origin_not_allowed', 'This origin is not allowed.')
         return
       }
-      res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
+      res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,OPTIONS')
       res.setHeader(
         'Access-Control-Allow-Headers',
         'content-type,x-hermes-client,idempotency-key',
@@ -236,6 +285,40 @@ export function createBffApp(config: BffConfig, deps: BffDeps = {}): BffApp {
     ;(req as AuthedRequest).wallet = session.address
     ;(req as AuthedRequest).session = session
     next()
+  }
+
+  const requestIdempotencyKey = (req: Request): string | undefined => {
+    const value = req.get('idempotency-key')
+    return value && IDEMPOTENCY_RE.test(value) ? value : undefined
+  }
+
+  const freshIntentId = (req: Request): string => {
+    const id = String(req.params.id ?? '').toLowerCase()
+    if (!INTENT_ID_RE.test(id)) {
+      throw new BffHttpError(400, 'invalid_request', 'A valid draft id is required.')
+    }
+    return id
+  }
+
+  const draftIntent = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+    request: IntentDraftRequest,
+  ): Promise<void> => {
+    try {
+      const wallet = requestWallet(req)
+      const limit = intentLimiter.consume(`intent:${wallet.toLowerCase()}`)
+      if (!limit.allowed) {
+        res.setHeader('Retry-After', String(limit.retryAfterSeconds))
+        sendError(res, 429, 'rate_limited', 'Too many drafts. Try again shortly.')
+        return
+      }
+      const result = await intents.create(wallet, request, requestIdempotencyKey(req))
+      res.status(result.created ? 201 : 200).json({ intent: result.intent })
+    } catch (error) {
+      next(error)
+    }
   }
 
   app.get('/health', (_req, res) => {
@@ -414,6 +497,72 @@ export function createBffApp(config: BffConfig, deps: BffDeps = {}): BffApp {
     }
   })
 
+  app.post('/api/intents/deposit', requireSession, async (req, res, next) => {
+    const parsed = depositIntentBodySchema.safeParse(req.body)
+    if (!parsed.success) {
+      sendError(res, 400, 'invalid_request', 'Enter a USDC deposit amount.')
+      return
+    }
+    await draftIntent(req, res, next, {
+      kind: 'deposit',
+      amount: parsed.data.amount,
+    })
+  })
+
+  app.post('/api/intents/withdraw-local', requireSession, async (req, res, next) => {
+    const parsed = withdrawIntentBodySchema.safeParse(req.body)
+    if (!parsed.success) {
+      sendError(res, 400, 'invalid_request', 'Enter an amount or request all funds.')
+      return
+    }
+    await draftIntent(req, res, next, {
+      kind: 'withdrawLocal',
+      amount: parsed.data.amount,
+      all: parsed.data.all,
+    })
+  })
+
+  app.post('/api/intents/cctp-withdraw', requireSession, async (req, res, next) => {
+    const parsed = cctpIntentBodySchema.safeParse(req.body)
+    if (!parsed.success) {
+      sendError(res, 400, 'invalid_request', 'Enter an amount and a supported destination.')
+      return
+    }
+    await draftIntent(req, res, next, {
+      kind: 'cctpWithdraw',
+      amount: parsed.data.amount,
+      all: parsed.data.all,
+      destinationDomain: parsed.data.destinationDomain,
+      mintRecipient: parsed.data.mintRecipient,
+    })
+  })
+
+  app.get('/api/intents/:id', requireSession, async (req, res, next) => {
+    try {
+      const wallet = requestWallet(req)
+      res.json({ intent: await intents.get(freshIntentId(req), wallet) })
+    } catch (error) {
+      next(error)
+    }
+  })
+
+  app.patch('/api/intents/:id/tx', requireSession, async (req, res, next) => {
+    try {
+      const wallet = requestWallet(req)
+      const id = freshIntentId(req)
+      const parsed = intentTxBodySchema.safeParse(req.body)
+      if (!parsed.success) {
+        sendError(res, 400, 'invalid_request', 'A valid transaction hash is required.')
+        return
+      }
+      res.json({
+        intent: await intents.submit(id, wallet, parsed.data.txHash.toLowerCase()),
+      })
+    } catch (error) {
+      next(error)
+    }
+  })
+
   app.post('/api/chat', requireSession, async (req, res, next) => {
     const wallet = requestWallet(req)
     const limit = chatLimiter.consume(`chat:${wallet.toLowerCase()}`)
@@ -450,10 +599,46 @@ export function createBffApp(config: BffConfig, deps: BffDeps = {}): BffApp {
         messages,
         conversationId: parsed.data.conversationId,
         idempotencyKey,
+        system: INTENT_CHAT_SYSTEM_PROMPT,
         logger,
         fetchImpl: deps.fetchImpl,
       })
-      res.json(result)
+      const action = extractActionProposal(result.reply)
+      const fallbackReply = action.proposal
+        ? 'I prepared an unsigned draft for you to review.'
+        : 'I could not validate that draft. Ask again with the amount and destination.'
+      const reply = action.reply || fallbackReply
+
+      if (action.error) {
+        res.json({ ...result, reply, actionError: action.error })
+        return
+      }
+      if (!action.proposal) {
+        res.json({ ...result, reply })
+        return
+      }
+
+      try {
+        const created = await intents.create(
+          wallet,
+          action.proposal,
+          `chat:${idempotencyKey}`,
+        )
+        res.json({ ...result, reply, intent: created.intent })
+      } catch (error) {
+        const actionError = isBffHttpError(error) && error.status < 500
+          ? error.message
+          : 'Drafting is unavailable right now. You can still ask about your treasury.'
+        logger.warn(
+          { err: error, wallet, intentKind: action.proposal.kind },
+          'chat action could not be drafted',
+        )
+        res.json({
+          ...result,
+          reply: action.reply || 'I could not prepare that draft. Ask again in a moment.',
+          actionError,
+        })
+      }
     } catch (error) {
       next(error)
     }

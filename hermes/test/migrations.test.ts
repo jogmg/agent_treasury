@@ -3,10 +3,14 @@ import { fileURLToPath } from 'node:url'
 import { PGlite } from '@electric-sql/pglite'
 import { afterAll, describe, expect, it } from 'vitest'
 
-const migration = readFileSync(
-  fileURLToPath(new URL('../migrations/001_init.sql', import.meta.url)),
-  'utf8',
-)
+const migrations = ['001_init.sql', '002_intents.sql']
+  .map((file) =>
+    readFileSync(
+      fileURLToPath(new URL(`../migrations/${file}`, import.meta.url)),
+      'utf8',
+    ),
+  )
+  .join('\n')
 
 const db = new PGlite()
 
@@ -14,10 +18,10 @@ afterAll(async () => {
   await db.close()
 })
 
-describe('001_init.sql', () => {
-  it('creates the Phase 1 tables and is idempotent', async () => {
-    await db.exec(migration)
-    await db.exec(migration)
+describe('Hermes migrations', () => {
+  it('creates the Phase 1 and Phase 2 tables idempotently', async () => {
+    await db.exec(migrations)
+    await db.exec(migrations)
 
     const tables = await db.query<{ table_name: string }>(
       `select table_name
@@ -29,6 +33,7 @@ describe('001_init.sql', () => {
       'activity_events',
       'alerts',
       'audit_events',
+      'intents',
       'monitor_cursor',
       'transfers',
       'treasury_snapshots',

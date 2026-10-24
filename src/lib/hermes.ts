@@ -5,9 +5,47 @@
  * must never contain a secret: everything here is shipped in the client bundle.
  */
 
+export type IntentKind = 'deposit' | 'withdrawLocal' | 'cctpWithdraw'
+export type IntentStatus =
+  | 'draft'
+  | 'reviewed'
+  | 'submitted'
+  | 'confirmed'
+  | 'failed'
+  | 'expired'
+
+export interface HermesIntent {
+  id: string
+  wallet: `0x${string}`
+  kind: IntentKind
+  chainId: number
+  to: `0x${string}`
+  data: `0x${string}`
+  value: string
+  amount: string
+  isMax: boolean
+  destinationDomain: number | null
+  mintRecipient: `0x${string}` | null
+  status: IntentStatus
+  simulation: {
+    ok: boolean
+    warning?: 'approval_required'
+    error?: string
+  }
+  txHash: string | null
+  expiresAt: string
+  createdAt: string
+  updatedAt: string
+  submittedAt: string | null
+}
+
 export interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
+  /** Present when Hermes prepared an unsigned draft for this turn. */
+  intent?: HermesIntent
+  /** A safe explanation when the model proposed an action the BFF rejected. */
+  actionError?: string
 }
 
 export interface HermesSession {
@@ -26,6 +64,8 @@ export interface ChatResponse {
   reply: string
   model: string | null
   usage: Record<string, unknown> | null
+  intent?: HermesIntent
+  actionError?: string
 }
 
 export class HermesApiError extends Error {
@@ -162,6 +202,49 @@ export function sendHermesChat(
       ...(conversationId ? { conversationId } : {}),
     }),
   })
+}
+
+export function intentReviewTab(kind: IntentKind): 'deposit' | 'withdraw' {
+  return kind === 'deposit' ? 'deposit' : 'withdraw'
+}
+
+export async function createHermesIntent(
+  kind: IntentKind,
+  body: Record<string, unknown>,
+): Promise<HermesIntent> {
+  const path =
+    kind === 'deposit'
+      ? '/api/intents/deposit'
+      : kind === 'withdrawLocal'
+        ? '/api/intents/withdraw-local'
+        : '/api/intents/cctp-withdraw'
+  const response = await request<{ intent: HermesIntent }>(path, {
+    method: 'POST',
+    headers: { 'idempotency-key': idempotencyKey() },
+    body: JSON.stringify(body),
+  })
+  return response.intent
+}
+
+export async function getHermesIntent(id: string): Promise<HermesIntent> {
+  const response = await request<{ intent: HermesIntent }>(
+    `/api/intents/${encodeURIComponent(id)}`,
+  )
+  return response.intent
+}
+
+export async function markHermesIntentSubmitted(
+  id: string,
+  txHash: string,
+): Promise<HermesIntent> {
+  const response = await request<{ intent: HermesIntent }>(
+    `/api/intents/${encodeURIComponent(id)}/tx`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ txHash }),
+    },
+  )
+  return response.intent
 }
 
 export function isHermesApiError(error: unknown): error is HermesApiError {

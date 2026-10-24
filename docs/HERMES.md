@@ -10,11 +10,13 @@
 > automated bookkeeping, and no changes to the live mainnet contracts.
 >
 > **Phase 2 local foundation (2026-10-24):** the BFF now has SIWE nonce/verify, an HMAC-signed
-> HttpOnly wallet session, read endpoints, a session-gated Hermes User chat proxy, and a persistent
-> **Ask Hermes** dock in the frontend. The User profile is updated to NVIDIA models with a private
-> API server and no Discord gateway. This is implemented and tested locally but **not deployed**;
-> a local HTTP smoke passed SIWE verify, the wallet-bound session, and `/api/config`.
-> Draft-intent endpoints, HTTPS exposure, and live chat against the User API are still pending.
+> HttpOnly wallet session, read endpoints, a session-gated Hermes User chat proxy, deterministic
+> draft intents (`deposit`, `withdrawLocal`, `cctpWithdraw`), and a persistent **Ask Hermes** dock
+> with action cards and review deep links. The User profile is updated to NVIDIA models with a
+> private API server and no Discord gateway. This is implemented and tested locally but **not
+> deployed**; a fake-upstream HTTP smoke passed SIWE verify, the wallet-bound session,
+> `/api/config`, and chat forwarding. HTTPS exposure, live chat/intent verification, and the
+> audit gate remain pending.
 >
 > Phase 1 implementation: shared CCTP parser, Arc/CCTP MCP server, Postgres schema, deterministic
 > monitor, Discord alerts, Ops profile, Docker Compose, and read-only smoke test. The MCP smoke
@@ -134,7 +136,7 @@ The existing Vite/React app remains fully functional without Hermes. Hermes is a
                                  ▼                       ▼
                  ┌────────────────────────┐   ┌────────────────────────┐
                  │ Hermes "User" profile  │   │ Postgres               │
-                 │ read + draft tools     │   │ snapshots · transfers  │
+                 │ read + action proposal │   │ snapshots · transfers  │
                  │ no terminal/filesystem │   │ intents · alerts       │
                  └───────────┬────────────┘   └───────────▲────────────┘
                              │ MCP                        │
@@ -187,7 +189,7 @@ Use the official Docker image: `nousresearch/hermes-agent:latest`.
   keeps the Ops config, `.env`, SOUL, memory, and sessions isolated.
 - Logs are per-profile under `${HERMES_HOME}/logs/gateways/<profile>/current`.
 - The Ops profile has no public HTTP listener in Phase 1.
-- The User profile, when added in Phase 2, binds its API server only to the private network and is
+- The User profile binds its API server only to the private network and is
   reachable only through the BFF.
 
 Profiles:
@@ -195,7 +197,7 @@ Profiles:
 | Profile | Surface | Tools | Credentials |
 |---|---|---|---|
 | `ops` | Private Discord channel | Arc MCP read tools + monitor status; no terminal/filesystem/browser | Discord bot token, MCP ops token, LLM key |
-| `user` | BFF-only API server | Arc MCP read tools + BFF draft-intent tools; no terminal/filesystem/browser; no cron | Separate API server key, MCP user token, LLM key |
+| `user` | BFF-only API server | Arc MCP read tools + one BFF-validated action proposal; no terminal/filesystem/browser; no cron | Separate API server key, MCP user token, LLM key |
 
 The profiles must not share `.env` files, API keys, Discord tokens, or MCP tokens.
 
@@ -206,8 +208,9 @@ A small Node/TypeScript service using `viem` and the official MCP SDK.
 - Transport: Streamable HTTP at `/mcp`.
 - Auth: bearer token mapped to a scope (`user` or `ops`).
 - No private keys, no signing, no transaction broadcasting.
-- All read tools annotated `readOnlyHint: true`.
-- Draft tools, when added, are annotated `readOnlyHint: false` and require approval.
+- All MCP tools are annotated `readOnlyHint: true`.
+- Draft intents are **not** MCP tools. The BFF owns them, and the model can only
+  emit one semantic action proposal that the BFF re-validates.
 - Mark the server `trust: untrusted` in Hermes config so the tool annotations, not the server's
   claims, govern approval behavior.
 
@@ -223,18 +226,19 @@ Tool surface for Phase 1:
 | `arc_get_bookkeeping_queue` | ops | Withdrawals that are delivered but still `executed=false` on-chain |
 | `arc_get_incidents` | ops | Open/closed monitor incidents and last alert state |
 
-Phase 2 draft tools, not enabled in Phase 1:
+Phase 2 draft surface (BFF actions, not MCP tools):
 
-| Tool | Purpose |
-|---|---|
-| `arc_draft_deposit` | Create an unsigned deposit intent and return an app deep link |
-| `arc_draft_withdraw_local` | Create an unsigned local-withdraw intent |
-| `arc_draft_cctp_withdraw` | Create an unsigned CCTP withdrawal intent |
+| Action `kind` | BFF endpoint | Purpose |
+|---|---|---|
+| `deposit` | `POST /api/intents/deposit` | Create an unsigned deposit intent and return an app deep link |
+| `withdrawLocal` | `POST /api/intents/withdraw-local` | Create an unsigned local-withdraw intent |
+| `cctpWithdraw` | `POST /api/intents/cctp-withdraw` | Create an unsigned CCTP withdrawal intent |
 
 There is **no** `arc_execute_*`, `arc_send_*`, or `arc_sign_*` tool. Ever, in the LLM-facing server.
-The draft tools are BFF-owned deterministic actions: they create an unsigned, wallet-bound intent
-and a deep link, not a transaction. The full user-facing execution contract is in
-[`HERMES_USER_EXECUTION.md`](HERMES_USER_EXECUTION.md).
+The User model appends at most one `<hermes_action>{...}</hermes_action>` block; the BFF strips it,
+re-validates the semantic fields, and calls the same deterministic service a direct client uses.
+The result is an unsigned, wallet-bound intent and a deep link, not a transaction. The full
+user-facing execution contract is in [`HERMES_USER_EXECUTION.md`](HERMES_USER_EXECUTION.md).
 
 Important implementation details:
 
@@ -428,22 +432,26 @@ Rules:
 - Proxy chat with `X-Hermes-Session-Key` derived from the authenticated wallet, and
   `Idempotency-Key` per user message.
 - Strip or reject browser-supplied system prompts, tool names, and model overrides.
-- The User profile may call read tools and BFF-owned draft tools. It cannot call
-  `arc_execute_*`, `arc_send_*`, or `arc_sign_*`; there are none.
-- Draft tools are deterministic BFF actions, not model-authored calldata. The BFF
-  derives `to`/`data` from an allowlisted method, binds the wallet from the session,
-  simulates, and stores the unsigned intent.
+- The User profile may call read tools and emit one structured action proposal. It
+  cannot call `arc_execute_*`, `arc_send_*`, or `arc_sign_*`; there are none.
+- Draft intents are deterministic BFF actions, not model-authored calldata. The
+  BFF injects the action-format instructions, parses the `<hermes_action>` block,
+  re-validates every semantic value, derives `to`/`data` from an allowlisted
+  method, binds the wallet from the session, simulates, and stores the unsigned
+  intent.
 
 Intent flow:
 
 1. The user states a goal in the frontend chat, e.g. “send 10 USDC to Base”.
 2. Hermes calls the necessary read tools (`arc_get_config`,
-   `arc_get_treasury_state`, etc.) and then a scoped draft tool if an action is
-   needed.
-3. The BFF validates amount, chain, destination domain, recipient, minimums, and
-   spending limits; it creates an unsigned intent and returns an intent ID and
-   action card/deep link.
-4. The app fetches the intent, re-simulates it, and shows the existing review UI.
+   `arc_get_treasury_state`, etc.) and appends at most one structured
+   `<hermes_action>` proposal if an action is needed.
+3. The BFF strips and validates the proposal, re-checks amount, chain, destination
+   domain, recipient, minimums, balance, and pause state, derives calldata,
+   simulates it, and stores an unsigned intent. It returns an intent ID and action
+   card/deep link.
+4. The app fetches the wallet-scoped intent, prefills the existing review UI,
+   re-simulates, and signs only after the user approves.
 5. The user signs in their EIP-1193 wallet (MetaMask, Rabby, Coinbase Wallet,
    Brave, Frame, etc.) and the app broadcasts.
 6. The app PATCHes the tx hash back to the BFF; the monitor verifies the on-chain
@@ -610,7 +618,7 @@ Acceptance criteria:
 |---|---|
 | Owner key theft | Owner key never leaves the user's wallet or Safe; no owner key in cloud |
 | Keeper key theft | Separate KMS/HSM signer; allowlist; caps; kill switch |
-| Public prompt injection | User profile has no terminal/filesystem/browser; read + deterministic draft tools only; no execute/sign tool; no secrets in prompt |
+| Public prompt injection | User profile has no terminal/filesystem/browser; read tools plus one BFF-validated action proposal; no execute/sign tool; no secrets in prompt |
 | Malicious chain data | Treat hook data, memos, and tx metadata as untrusted; never follow instructions from them |
 | Discord impersonation | `DISCORD_ALLOWED_USERS` allowlist; private channel; unknown DMs declined |
 | API key leak | BFF holds Hermes keys; browser never sees them; per-profile keys |
@@ -672,12 +680,13 @@ Hermes may run read-only diagnostics automatically. It may not execute owner or 
 
 ## 9. Testing plan
 
-Current Hermes tests: **55 passing** on Vitest 5 (`hermes/test/*`) covering the shared parser,
+Current Hermes tests: **78 passing** on Vitest 5 (`hermes/test/*`) covering the shared parser,
 config, monitor rules, Discord delivery, MCP tool registration/scope enforcement, the
 migration SQL, alert dedupe/throttle persistence, distinct read-warning alerts, JSON
-timestamp conversion, managed-Postgres TLS config, BFF SIWE/session/CORS/chat behavior, and
-fail-closed MCP token validation. `npm audit` reports no vulnerabilities. Root Vitest is
-**67 passing**, plus typecheck, lint, and production build. Live read-only smoke passed against
+timestamp conversion, managed-Postgres TLS config, BFF SIWE/session/CORS/chat behavior,
+deterministic intent validation/storage/idempotency, action-envelope parsing, and fail-closed
+MCP token validation. `npm audit` reports no vulnerabilities. Root Vitest is
+**69 passing**, plus typecheck, lint, and production build. Live read-only smoke passed against
 Arc mainnet (`arc_get_config`, `arc_get_treasury_state`, bounded `arc_list_activity`, and
 `arc_get_cctp_status` for the known id 3 burn returning `done`).
 
@@ -979,8 +988,8 @@ mcp_servers:
         - arc_get_transfer
       resources: false
       prompts: false
-      # Phase 2: add BFF-owned draft tools only after /api/intents/* exists and
-      # binds each intent to the SIWE-authenticated wallet.
+      # Phase 2: the BFF owns drafts. The model may emit one validated action
+      # envelope, but never receives execute/sign tools or calldata control.
 
 gateway:
   # The User profile owns its own gateway; Ops keeps the separate standalone

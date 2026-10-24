@@ -105,10 +105,10 @@ runbook: `docs/HERMES_VPS.md`.
 
 - Phase 1 code is in `hermes/`: shared CCTP parser, read-only Arc/CCTP MCP server, Postgres
   migrations, deterministic monitor, Discord webhook alerts, Ops profile, and Docker Compose.
-  Hermes tests: 55 passing on Vitest 5 (including MCP tool registration/scope enforcement,
+  Hermes tests: 78 passing on Vitest 5 (including MCP tool registration/scope enforcement,
   migration SQL, alert dedupe/throttle persistence, distinct read-warning alerts, JSON
   timestamp conversion, managed-Postgres TLS config, BFF SIWE/session/CORS/chat tests, and
-  fail-closed MCP token validation). `npm audit` is clean. Root Vitest is 67 passing.
+  fail-closed MCP token validation). `npm audit` is clean. Root Vitest is 69 passing.
 - Live read-only MCP smoke passed against Arc mainnet: `arc_get_config`, `arc_get_treasury_state`,
   bounded `arc_list_activity`, and `arc_get_cctp_status` for burn `0x79006a…2b13` returned `done`
   with `delivered: true`. Mint tx links are best-effort and may be absent for manual mints.
@@ -126,16 +126,38 @@ runbook: `docs/HERMES_VPS.md`.
   origin allowlisting/CSRF checks, wallet/IP rate limits, session-gated read endpoints
   (`/api/config`, `/api/treasury`, `/api/activity`, `/api/cctp/:burnTx`,
   `/api/transfers?burnTx=`), `/api/session`, `/auth/logout`, and a session-gated `/api/chat`
-  proxy. The proxy derives `X-Hermes-Session-Key` from the SIWE wallet, forwards an
+  proxy. CORS allows `GET`, `POST`, and `PATCH` (the intent tx-hash callback), with credentials.
+  The proxy derives `X-Hermes-Session-Key` from the SIWE wallet, forwards an
   `Idempotency-Key`, strips browser `system`/`tools`/model fields, and tries
-  `/p/user/v1/chat/completions` then `/v1/chat/completions` on a route 404. The User profile is
-  `hermes/profiles/user/` (NVIDIA fallback chain, API server on private port 8642, five read-only
-  MCP tools, no Discord). `hermes/docker-compose.yml` adds opt-in `web` profile services
-  `hermes-user` and `bff`; neither publishes a host port. The frontend has `HermesDock` with
-  wallet-bound SIWE sign-in on first message, chain guard, and a read-only notice. Draft intents,
-  production HTTPS exposure, live chat verification, and the audit gate remain pending. BFF tests
-  cover auth/session/CORS/chat; root tests cover message trimming. A local HTTP smoke verified
-  SIWE verify, the wallet-bound session cookie, `/api/config`, and the chat-unconfigured 503.
+  `/p/user/v1/chat/completions` then `/v1/chat/completions` on a route 404. A fake-upstream local
+  smoke verified the forwarded bearer key, wallet-derived session key, idempotency header, and
+  browser-field stripping.
+- **Deterministic draft intents (local, 2026-10-24).** `hermes/migrations/002_intents.sql` adds a
+  wallet-bound `intents` table with expiry, idempotency, unique tx hash, simulation JSON, and
+  `draft/submitted/expired` lifecycle. `POST /api/intents/deposit|withdraw-local|cctp-withdraw`
+  validates paused/minimum/balance, CCTP domain allowlist and recipient checksum, derives
+  `to`/`data` with viem from `deposit`, `withdrawLocal`, or `requestWithdrawal`, simulates the
+  treasury call, and stores the unsigned intent. A missing USDC allowance is stored as an
+  `approval_required` warning, not a rejection. `GET /api/intents/:id` is wallet-scoped and
+  lazily expires drafts; `PATCH /api/intents/:id/tx` records one hash idempotently and rejects
+  reuse. CCTP drafts require an exact amount; only local withdraw-all uses `isMax` and the max
+  sentinel. Draft actions return `503 db_unavailable` without Postgres.
+- **Chat action bridge.** The BFF injects a server-owned system prompt as a
+  `system`-role message (Hermes ignores a top-level `system` field), and accepts at most one
+  `<hermes_action>{...}</hermes_action>` (or fenced `hermes-action`) envelope from the User
+  model. The BFF strips the envelope, re-validates every semantic value, and calls the same
+  intent service a direct client uses; the model never supplies `to`, `data`, a wallet, or a tx
+  hash. Invalid actions keep the chat answer and return `actionError`.
+- **Frontend review path.** `HermesDock` renders an action card with a review deep link
+  (`/?tab=deposit|withdraw&intent=int_...`). `useIntentReview` loads the draft, prefills the
+  existing Deposit/Withdraw form, and `IntentReviewCard` shows amount/route/simulation. The app
+  attaches the tx hash only if the submitted values still match the draft. No auto-sign; the
+  existing wallet flow signs.
+- The User profile is `hermes/profiles/user/` (NVIDIA fallback chain, API server on private port
+  8642, five read-only MCP tools, no Discord). `hermes/docker-compose.yml` adds opt-in `web`
+  profile services `hermes-user` and `bff`; neither publishes a host port. Local tests are root
+  69 and Hermes 78. Production HTTPS exposure, live chat/intent verification, and the audit gate
+  remain pending.
 - Transfer refresh runs four at a time. Delivery comes from destination `usedNonces` plus Iris; the
   mint tx link is only a forwarder-tx receipt when Iris supplies one, so manual mints may have no
   link. Two fresh monitor runs indexed 11 + 1 catch-up activity events and resolved withdrawal ids
@@ -534,8 +556,9 @@ where `vaultShareDecimals` is read live from `vault.decimals()`. USDC amounts re
     `BFF_SESSION_SECRET`, the correct cookie SameSite/Secure settings, and `HERMES_USER_API_KEY`
     matching `API_SERVER_KEY`. Verify live SIWE, read endpoints, and chat; do not publish
     `hermes-user`, MCP, monitor, or Postgres.
-12. Implement deterministic `/api/intents/*` draft endpoints, Postgres intents, simulation, action
-    cards, and review deep links. Keep the model limited to semantic parameters.
+12. ✅ Deterministic `/api/intents/*` draft endpoints, Postgres intents, simulation, action
+    cards, and review deep links are implemented and tested locally. Still needs live deployment
+    verification and any BFF-side intent confirmation/cleanup job.
 13. Re-run the frontend/BFF/mainnet builds after deployment and confirm completed CCTP Activity rows
     still show no **Resume**.
 

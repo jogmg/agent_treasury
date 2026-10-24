@@ -20,8 +20,11 @@ export interface UiState {
   activityLoading: boolean
   growthHistory:   GrowthSnapshot[]
   growthKey:       string
+  /** Draft selected from a chat action card or `?intent=` deep link. */
+  reviewIntentId:  string | null
 
   setTab:    (tab: TabId) => void
+  setReviewIntent: (id: string | null) => void
   setEvents: (events: ActivityEvent[]) => void
   setFilter: (f: ActivityEventType | 'all' | 'inflight' | 'deposits' | 'withdrawals') => void
   setActivityLoading: (b: boolean) => void
@@ -91,8 +94,10 @@ export const useUiStore = create<UiState>((setState) => ({
   activityLoading: false,
   growthHistory:   [],
   growthKey:       '',
+  reviewIntentId:  null,
 
   setTab:    (tab) => setState((s) => ({ ...s, activeTab: tab })),
+  setReviewIntent: (id) => setState((s) => ({ ...s, reviewIntentId: id })),
   setEvents: (events) => setState((s) => ({ ...s, activityEvents: events })),
   setFilter: (f) => setState((s) => ({ ...s, activityFilter: f })),
   setActivityLoading: (b) => setState((s) => ({ ...s, activityLoading: b })),

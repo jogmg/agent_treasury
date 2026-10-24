@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useAccount, useSwitchChain } from 'wagmi'
 import { Header } from './components/Header'
 import { TabBar } from './components/TabBar'
@@ -9,7 +10,7 @@ import { WithdrawTab }  from './components/tabs/WithdrawTab'
 import { ActivityTab }  from './components/tabs/ActivityTab'
 import { SettingsTab }  from './components/tabs/SettingsTab'
 import { useTreasuryData, useActivityEvents } from './hooks/useTreasuryData'
-import { useUiStore } from './stores/ui'
+import { useUiStore, type TabId } from './stores/ui'
 import { useFlowStore } from './stores/flow'
 import { getCctpDestination } from './lib/cctp'
 import { ARC_CHAIN, ARC_CHAIN_ID } from './lib/contracts'
@@ -63,9 +64,38 @@ function WrongNetworkBanner() {
   )
 }
 
+const TAB_IDS = new Set<TabId>([
+  'overview',
+  'deposit',
+  'yield',
+  'withdraw',
+  'activity',
+  'settings',
+])
+const INTENT_ID_RE = /^int_[a-f0-9]{32}$/
+
+function applyLocationLink(
+  setTab: (tab: TabId) => void,
+  setReviewIntent: (id: string | null) => void,
+) {
+  const params = new URLSearchParams(window.location.search)
+  const tab = params.get('tab')
+  if (tab && TAB_IDS.has(tab as TabId)) setTab(tab as TabId)
+
+  const intent = params.get('intent')
+  setReviewIntent(intent && INTENT_ID_RE.test(intent) ? intent : null)
+}
+
 // ── Main App ─────────────────────────────────────────────────────────────────
 export default function App() {
-  const { activeTab, setTab } = useUiStore()
+  const { activeTab, setTab, setReviewIntent } = useUiStore()
+
+  useEffect(() => {
+    const sync = () => applyLocationLink(setTab, setReviewIntent)
+    sync()
+    window.addEventListener('popstate', sync)
+    return () => window.removeEventListener('popstate', sync)
+  }, [setReviewIntent, setTab])
 
   const TAB_CONTENT: Record<string, JSX.Element> = {
     overview:  <OverviewTab />,

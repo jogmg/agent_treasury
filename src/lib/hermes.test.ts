@@ -3,6 +3,7 @@ import {
   MAX_CHAT_CONTENT,
   MAX_CHAT_MESSAGES,
   MAX_CHAT_TOTAL,
+  intentReviewTab,
   trimChatMessages,
   type ChatMessage,
 } from './hermes'
@@ -54,5 +55,42 @@ describe('Hermes chat client helpers', () => {
       { role: 'user', content: 'balance?' },
       { role: 'assistant', content: 'zero' },
     ])
+  })
+
+  it('sends only role and content, never draft metadata', () => {
+    const trimmed = trimChatMessages([
+      {
+        role: 'assistant',
+        content: 'Ready to review.',
+        actionError: 'not forwarded',
+        intent: {
+          id: 'int_x',
+          wallet: '0x0000000000000000000000000000000000000000',
+          kind: 'deposit',
+          chainId: 5042,
+          to: '0x0000000000000000000000000000000000000000',
+          data: '0x',
+          value: '0',
+          amount: '5000000',
+          isMax: false,
+          destinationDomain: null,
+          mintRecipient: null,
+          status: 'draft',
+          simulation: { ok: true },
+          txHash: null,
+          expiresAt: '2026-10-24T00:00:00.000Z',
+          createdAt: '2026-10-24T00:00:00.000Z',
+          updatedAt: '2026-10-24T00:00:00.000Z',
+          submittedAt: null,
+        },
+      },
+    ])
+    expect(trimmed).toEqual([{ role: 'assistant', content: 'Ready to review.' }])
+  })
+
+  it('routes draft kinds to the existing review tabs', () => {
+    expect(intentReviewTab('deposit')).toBe('deposit')
+    expect(intentReviewTab('withdrawLocal')).toBe('withdraw')
+    expect(intentReviewTab('cctpWithdraw')).toBe('withdraw')
   })
 })

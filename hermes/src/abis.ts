@@ -1,6 +1,9 @@
 import { parseAbi, parseAbiItem } from 'viem'
 
 export const TREASURY_ABI = parseAbi([
+  'function deposit(uint256 amount) external',
+  'function withdrawLocal(uint256 amount) external',
+  'function requestWithdrawal(address agent, uint256 amount, uint32 destinationDomain, bytes32 mintRecipient) external returns (uint256 withdrawalId)',
   'function getTotalBalance(address agent) view returns (uint256)',
   'function getPrincipal(address agent) view returns (uint256)',
   'function getVaultShares(address agent) view returns (uint256)',
@@ -27,6 +30,7 @@ export const ADAPTER_ABI = parseAbi([
 
 export const ERC20_ABI = parseAbi([
   'function balanceOf(address account) view returns (uint256)',
+  'function allowance(address owner, address spender) view returns (uint256)',
   'function decimals() view returns (uint8)',
 ])
 

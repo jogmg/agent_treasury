@@ -10,7 +10,10 @@ import { useTreasuryStore } from '../../stores/treasury'
 import { useFlowStore } from '../../stores/flow'
 import { useMinDeposit } from '../../hooks/useMinDeposit'
 import { useDepositShares } from '../../hooks/useDepositShares'
+import { useIntentReview } from '../../hooks/useIntentReview'
+import { markHermesIntentSubmitted } from '../../lib/hermes'
 import { TxStep } from '../TxStep'
+import { IntentReviewCard } from '../IntentReviewCard'
 import { CrossChainDepositCard } from '../CrossChainDepositCard'
 
 const MAX_U256 = BigInt('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff')
@@ -27,6 +30,9 @@ export function DepositTab() {
 
   const { usdcBalance, usdcBalanceLoaded, usdcAllowance } = useTreasuryStore()
   const { depositStep, depositHash, approveHash, depositError, setDeposit, resetDeposit } = useFlowStore()
+  const review = useIntentReview('deposit', (intent) => {
+    setAmount(formatUsdc(BigInt(intent.amount), 6))
+  })
 
   const { writeContractAsync: approve } = useWriteContract()
   const { writeContractAsync: deposit } = useWriteContract()
@@ -98,6 +104,11 @@ export function DepositTab() {
       setSubmittedAmount(amount)
       setDeposit({ depositStep: 'success' })
       setAmount('')
+      if (review.intent && parsedAmount === BigInt(review.intent.amount)) {
+        void markHermesIntentSubmitted(review.intent.id, depositTx)
+          .catch((cause) => console.warn('Could not record Hermes draft tx', cause))
+          .finally(() => review.dismiss())
+      }
       toast.success('Deposit confirmed', {
         description: `${amount} USDC → treasury`,
         action: {
@@ -134,6 +145,25 @@ export function DepositTab() {
           {!usdcBalanceLoaded ? '—' : formatUsdcDollar(usdcBalance)}
         </span>
       </div>
+
+      {review.intent && (
+        <IntentReviewCard intent={review.intent} onDismiss={review.dismiss} />
+      )}
+      {review.loading && (
+        <p className="text-center text-xs text-slate-500">Loading the Hermes draft…</p>
+      )}
+      {review.error && (
+        <div className="flex items-start justify-between gap-3 rounded-xl border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-300">
+          <span>{review.error}</span>
+          <button
+            type="button"
+            onClick={review.retry}
+            className="shrink-0 font-medium underline underline-offset-2 hover:text-amber-200"
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       {usdcBalanceLoaded && usdcBalance === 0n && (
         <div className="flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-300">

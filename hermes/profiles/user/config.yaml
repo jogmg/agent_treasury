@@ -1,12 +1,12 @@
-# Hermes User profile - Phase 2 (BFF-only, read-only chat)
+# Hermes User profile - Phase 2 (BFF-only, reads + unsigned draft actions)
 #
 # This is the user-facing agent behind the frontend Ask Hermes dock. It is
 # reached only through the authenticated BFF on the private Compose network.
 # It has no Discord gateway, terminal, filesystem, browser, or signing tool.
 #
-# The BFF owns SIWE sessions and (in the next slice) deterministic draft
-# intents. The model may call the read-only Arc/CCTP tools below but cannot
-# construct arbitrary calldata or move funds.
+# The BFF owns SIWE sessions and deterministic draft intents. The model may call
+# the read-only Arc/CCTP tools below and emit one semantic action proposal; it
+# cannot construct arbitrary calldata, choose a wallet, or move funds.
 
 model:
   provider: "nvidia"

@@ -1,9 +1,9 @@
 # Hermes User Execution Path
 
-> Status: **Phase 2 BFF/auth/read-chat foundation implemented locally; not
-> deployed yet. Draft intents are the next slice.** Phase 1 is the deployed
-> ops/read-only proving ground. The product surface is the in-app Hermes User
-> agent, not the private Discord Ops bot.
+> Status: **Phase 2 BFF/auth/read-chat/deterministic draft intents implemented
+> locally; not deployed yet. Deployment and live verification are the next
+> gate.** Phase 1 is the deployed ops/read-only proving ground. The product
+> surface is the in-app Hermes User agent, not the private Discord Ops bot.
 >
 > This document is the execution contract for that surface. It is intentionally
 > separate from the ops runbook so the user path cannot be lost again.
@@ -54,13 +54,13 @@ Frontend chat dock ── POST /api/chat ──► BFF (SIWE wallet session)
                                            │
                                            ▼
                                   Hermes User profile
-                                  read tools + draft tools
+                                  read tools + action proposal
                                            │
                     ┌──────────────────────┴──────────────────────┐
                     │                                             │
-             read: arc_get_*                              draft: arc_draft_*
-             balances, activity,                          create unsigned intent
-             CCTP status, config                          (no signing)
+             read: arc_get_*                         draft: <hermes_action>
+             balances, activity,                     semantic fields only
+             CCTP status, config                     (no calldata/signing)
                     │                                             │
                     └──────────────────────┬──────────────────────┘
                                            ▼
@@ -89,8 +89,8 @@ monitor are authoritative.
 
 ## 2.1 Implemented foundation (local, 2026-10-24)
 
-The first two implementation steps now exist in `hermes/src/bff/` and
-`src/components/HermesDock.tsx`:
+The build now has the SIWE/read/chat foundation plus deterministic draft
+intents:
 
 - `POST /auth/siwe/nonce` creates a one-time, expiring SIWE challenge.
 - `POST /auth/siwe/verify` verifies the signature with viem, consumes the nonce,
@@ -101,21 +101,40 @@ The first two implementation steps now exist in `hermes/src/bff/` and
   `GET /api/cctp/:burnTx`, and `GET /api/transfers?burnTx=...`. Activity and
   transfer-history queries are filtered to the SIWE wallet; `transfers` joins
   the burn hash to that wallet's indexed `WithdrawalRequested` event.
-- Session-gated `POST /api/chat`, which sends only user/assistant turns to the
-  Hermes User profile, derives `X-Hermes-Session-Key` from the wallet, forwards
-  an idempotency key, strips browser-supplied system/tool/model fields, and never
-  exposes the API key.
+- Session-gated `POST /api/chat`, which accepts only user/assistant turns from
+  the browser, prepends the server-owned prompt as a `system`-role message,
+  derives `X-Hermes-Session-Key` from the wallet, forwards an idempotency key,
+  strips browser-supplied system/tool/model fields, and never exposes the API
+  key. Hermes ignores a top-level `system` field, so the role message is required.
+- Session-gated `POST /api/intents/deposit`,
+  `POST /api/intents/withdraw-local`, and
+  `POST /api/intents/cctp-withdraw`. The BFF binds the wallet from SIWE, checks
+  paused/minimum/balance, validates the CCTP domain and recipient, derives
+  `to`/`data` with viem, simulates the contract call, and stores an expiring
+  unsigned intent in Postgres (`002_intents.sql`). Deposits with insufficient
+  allowance keep the draft and carry an `approval_required` warning.
+- `GET /api/intents/:id` is wallet-scoped and expires stale drafts.
+  `PATCH /api/intents/:id/tx` records one wallet-submitted hash, idempotently,
+  and rejects reuse of a hash by another intent.
+- The chat bridge is a **BFF-validated structured action proposal**. The BFF
+  injects a server-owned system prompt; Hermes may append one
+  `<hermes_action>{...}</hermes_action>` envelope. The BFF strips the envelope,
+  re-validates every semantic value, and calls the same deterministic intent
+  service. The model never supplies `to`, `data`, a tx hash, or a wallet.
 - Persistent **Ask Hermes** dock with wallet connection, chain guard, SIWE
-  sign-in on first message, bounded history, and a read-only notice.
+  sign-in on first message, bounded history, action cards, deep links
+  (`/?tab=deposit&intent=int_...`), and review-form prefill. The app attaches the
+  tx hash only when the submitted values still match the draft.
 - Separate `user` profile with NVIDIA fallback models and an API server on the
   private Compose network; no Discord gateway and no write tools.
 - Optional Compose `web` profile for `hermes-user` and `bff`. The BFF has no
   published port; an HTTPS tunnel/reverse proxy is still required for deployment.
 
-A local HTTP smoke passed SIWE verification, the wallet-bound session cookie, and
-`/api/config`; `/api/chat` correctly returned 503 without a configured User API.
-Draft/intent endpoints (`/api/intents/*`) and action cards remain pending, as do
-production deployment, live chat verification, and the audit/launch gate.
+A local HTTP smoke passed SIWE verification, the wallet-bound session cookie,
+`/api/config`, and a fake-upstream chat turn (bearer key, derived session key,
+idempotency forwarding, browser field stripping). The intent service and action
+envelope are covered by PGlite and HTTP tests. Production deployment, live chat
+verification, and the audit/launch gate remain pending.
 
 ## 3. Tool and endpoint map
 
@@ -134,19 +153,27 @@ The model does not invent endpoints. It calls this allowlisted surface.
 
 ### Draft surface — Phase 2 only
 
-| User goal | Hermes tool | BFF endpoint | Result |
+| User goal | Action `kind` | BFF endpoint | Result |
 |---|---|---|---|
-| Put USDC into the vault | `arc_draft_deposit` | `POST /api/intents/deposit` | Unsigned `deposit(amount)` intent + deep link |
-| Withdraw to my Arc wallet | `arc_draft_withdraw_local` | `POST /api/intents/withdraw-local` | Unsigned `withdrawLocal(amount)` intent + deep link |
-| Move USDC to another chain | `arc_draft_cctp_withdraw` | `POST /api/intents/cctp-withdraw` | Unsigned `requestWithdrawal(...)` intent + deep link |
+| Put USDC into the vault | `deposit` | `POST /api/intents/deposit` | Unsigned `deposit(amount)` intent + deep link |
+| Withdraw to my Arc wallet | `withdrawLocal` | `POST /api/intents/withdraw-local` | Unsigned `withdrawLocal(amount)` intent + deep link |
+| Move USDC to another chain | `cctpWithdraw` | `POST /api/intents/cctp-withdraw` | Unsigned `requestWithdrawal(...)` intent + deep link |
 
-There is no `arc_execute_*`, `arc_send_*`, or `arc_sign_*` tool. Draft tools are
-deterministic, wallet-bound BFF actions, not LLM-authored transactions. They must
-carry `readOnlyHint: false` and be available only to the User profile through the
-BFF session.
+There is no `arc_execute_*`, `arc_send_*`, or `arc_sign_*` tool. The selected
+bridge is a single structured action envelope appended to a Hermes chat reply;
+the BFF validates it and calls the deterministic, wallet-bound intent service.
+A direct browser call to the same endpoint follows the same validation. The User
+profile's MCP toolset remains read-only.
 
 ### Intent and status endpoints
 
+- `POST /api/intents/deposit` — body `{ "amount": "25" }` (USDC decimal).
+- `POST /api/intents/withdraw-local` — body `{ "amount": "10" }` or
+  `{ "all": true }`.
+- `POST /api/intents/cctp-withdraw` — body
+  `{ "amount": "10", "destinationDomain": 6, "mintRecipient": "0x..." }`.
+  `mintRecipient` is optional and defaults to the SIWE wallet. `all` is rejected
+  for CCTP; the user must choose an exact amount.
 - `GET /api/intents/:id` — return the stored intent, simulation, and status.
 - `PATCH /api/intents/:id/tx` — record the wallet-submitted tx hash.
 - `POST /api/chat` — proxy to the Hermes User profile with the wallet-derived
@@ -167,6 +194,7 @@ The BFF derives `to` and `data`; the model supplies only semantic parameters.
   "data": "0x...",
   "value": "0",
   "amount": "10000000",
+  "isMax": false,
   "destinationDomain": 6,
   "mintRecipient": "0x...",
   "expiresAt": "2026-10-24T10:15:00.000Z",
@@ -183,25 +211,36 @@ Rules:
 - `to` must be the configured `AgentTreasury` for the active network.
 - `data` is produced by an allowlisted encoder, never by the model.
 - `amount` is an integer string in USDC base units (`numeric(78,0)` in Postgres).
+- `isMax` is true only for a local withdraw-all draft. `amount` still records the
+  resolved balance at draft time; `data` uses the contract's max sentinel.
 - Mainnet deposits enforce the **5 USDC minimum**; testnet remains **1 USDC**.
 - Withdrawals enforce the contract's spending limits on the resolved amount.
 - CCTP destination domains come from the app's `CCTP_DESTINATIONS` map; unknown
-  domains are rejected.
+  domains and Arc itself are rejected. CCTP drafts need an exact amount.
 - `mintRecipient` defaults to the connected wallet. A different recipient
-  requires an explicit review confirmation and checksum validation.
+  requires checksum validation and is shown in the review card.
 - CCTP uses standard finality `2000` unless the existing app flow changes it.
-- The intent expires and cannot be replayed.
-- The app re-simulates immediately before showing the wallet prompt.
+- `simulation.warning = "approval_required"` means the draft is valid but the
+  existing review flow must approve USDC first. A failed simulation is not
+  stored; the endpoint returns `422 simulation_failed`.
+- Each draft expires (default 15 minutes) and is wallet-scoped.
+- `Idempotency-Key` is unique per wallet; a replay returns the original draft. A
+  different request with the same key returns `409 idempotency_conflict`.
+- `PATCH .../tx` accepts one hash per intent; reusing a hash is rejected.
+- Draft actions return `503 db_unavailable` when Postgres is not configured.
+- The app re-simulates immediately before showing the wallet prompt and attaches
+  the tx hash only when the submitted values match the draft.
 
 Status transitions:
 
 ```text
-draft -> reviewed -> submitted -> confirmed | failed | expired
+draft -> submitted -> confirmed | failed | expired
 ```
 
-`submitted` only means the wallet returned a tx hash. `confirmed` requires the
-deterministic chain/CCTP check. Activity must not show **Resume** for a completed
-row even while the intent record is still settling.
+`reviewed` is reserved for a future explicit review acknowledgement. `submitted`
+only means the wallet returned a tx hash. `confirmed` requires the deterministic
+chain/CCTP check. Activity must not show **Resume** for a completed row even while
+the intent record is still settling.
 
 ## 5. Conversation behavior
 
@@ -302,7 +341,8 @@ or keeper key because none exists in Hermes.
 - A prompt injection in a memo cannot call a tool or change the recipient.
 - The browser cannot see `API_SERVER_KEY`, `ARC_MCP_TOKEN_USER`, or
   `DATABASE_URL`.
-- Only the User profile can call draft tools; Ops remains read-only.
+- Only the User profile can emit a draft action proposal; the BFF validates it.
+  Ops remains read-only and has no draft bridge.
 - Existing frontend tests, typecheck, lint, and mainnet build continue to pass
   after the chat UI and BFF are added.
 
@@ -314,11 +354,13 @@ or keeper key because none exists in Hermes.
    action tools. **Implemented locally without streaming; live verification
    pending deployment.**
 3. **Deposit/local withdraw drafts:** deterministic intent creation, simulation,
-   review card, deep link, tx-hash patch, monitor reconciliation.
+   review card, deep link, tx-hash patch, monitor reconciliation. **Implemented
+   locally.**
 4. **CCTP drafts:** destination map, recipient confirmation, standard finality,
-   CCTP status follow-up.
+   CCTP status follow-up. **Implemented locally.**
 5. **Hardening:** idempotency, expiry, cost caps, audit events, prompt-injection
-   tests, and a mainnet launch gate.
+   tests, and a mainnet launch gate. **Idempotency, expiry, rate limits, and
+   action-envelope tests are in; deployment/audit verification remains.**
 
 The existing ops gateway is not the user-facing product. It remains the Phase 1
 proving ground for the same read tools, monitor, and security posture.

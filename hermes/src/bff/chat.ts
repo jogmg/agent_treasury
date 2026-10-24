@@ -60,6 +60,7 @@ export async function requestHermesChat(options: {
   messages: ChatMessage[]
   conversationId?: string
   idempotencyKey: string
+  system?: string
   logger: Logger
   fetchImpl?: typeof fetch
 }): Promise<ChatResult> {
@@ -73,8 +74,14 @@ export async function requestHermesChat(options: {
   }
 
   const fetchImpl = options.fetchImpl ?? fetch
+  // Hermes follows the OpenAI Chat Completions shape: server-owned instructions
+  // must be a `system` message, not a top-level `system` field. The latter is
+  // ignored by the upstream router, which would silently drop the action format.
+  const messages = options.system
+    ? [{ role: 'system' as const, content: options.system }, ...options.messages]
+    : options.messages
   const body: Record<string, unknown> = {
-    messages: options.messages,
+    messages,
     stream: false,
   }
   if (config.hermesUserModel) body.model = config.hermesUserModel
