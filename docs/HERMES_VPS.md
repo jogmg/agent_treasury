@@ -182,6 +182,12 @@ In the [Discord Developer Portal](https://discord.com/developers/applications):
    Right-click `#treasury-alerts` → **Edit Channel → Integrations → Webhooks →
    New Webhook** and copy the webhook URL.
 
+Hermes automatically creates a thread for an Ops mention and replies inside that
+thread, so check the thread rather than only the parent channel. Run `/sethome`
+inside the main `#treasury-ops` channel to use it for cron jobs and cross-platform
+messages; running `/sethome` inside a temporary auto-thread would make the thread
+the home target.
+
 Fill in `data/profiles/ops/.env` (on InstaBox:
 `/data/hermes-data/profiles/ops/.env`):
 

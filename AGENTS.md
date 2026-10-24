@@ -137,8 +137,13 @@ Full plan: `docs/HERMES.md`. VPS runbook: `docs/HERMES_VPS.md`.
   because Hermes otherwise expects the default profile to own the host gateway). NVIDIA MiniMax
   M3.1 Flash is primary because it returned tool calls quickly during setup; GLM-5.3 and
   DeepSeek-V4.1-Flash were timing out/over quota and sit later in the fallback chain. Hermes
-  one-shot tests returned `OK` and live `arc_get_treasury_state` values, and the Discord bot can
-  see `#treasury-ops`.
+  one-shot tests returned `OK` and live `arc_get_treasury_state` values. A live Discord mention at
+  `2026-10-24 01:15 UTC` produced a 1,966-character status reply at `01:16` in the auto-created
+  thread (70.8s, 5 model calls, 13 read-only tool calls). Hermes auto-threads mentions; check the
+  thread, not only the parent channel. The first `/sethome` was run inside that thread; the runtime
+  home channel was corrected to the main `#treasury-ops` channel (`1562985975234170940`). The
+  gateway logged transient Discord WebSocket 503s but reconnected and reported `discord=connected`
+  after restart.
 - **Secret-handling lesson (2026-10-23):** do not source `profiles/ops/.env` under `set -x` or
   `bash -x`; a debug trace printed the Discord bot token, NVIDIA key, and MCP token. All three were
   rotated (MCP token replaced on both service and profile), the gateway was stopped during
