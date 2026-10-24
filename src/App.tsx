@@ -1,6 +1,7 @@
 import { useAccount, useSwitchChain } from 'wagmi'
 import { Header } from './components/Header'
 import { TabBar } from './components/TabBar'
+import { HermesDock } from './components/HermesDock'
 import { OverviewTab }  from './components/tabs/OverviewTab'
 import { DepositTab }   from './components/tabs/DepositTab'
 import { YieldTab }     from './components/tabs/YieldTab'
@@ -84,6 +85,7 @@ export default function App() {
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
         {TAB_CONTENT[activeTab] ?? <OverviewTab />}
       </main>
+      <HermesDock />
     </div>
   )
 }

@@ -142,6 +142,9 @@ cd /opt/agent-treasury/hermes
 ## 3. Bootstrap the Hermes data directory
 
 ```bash
+# If you will use a custom HERMES_DATA_DIR, export it first. Compose does not
+# export .env values into this shell.
+export HERMES_DATA_DIR="${HERMES_DATA_DIR:-./data}"
 bash bootstrap.sh
 ```
 
@@ -246,7 +249,7 @@ POSTGRES_USER=treasury
 POSTGRES_PASSWORD=<long random>
 DATABASE_URL=postgresql://treasury:<same password>@localhost:5432/treasury
 ARC_MCP_TOKEN_OPS=<same as profile>
-ARC_MCP_TOKEN_USER=<different random token>
+ARC_MCP_TOKEN_USER=<same as profiles/user/.env>
 DISCORD_WEBHOOK_URL=<#treasury-alerts webhook>
 MONITOR_INTERVAL_SECONDS=60
 INDEX_CHUNKS_PER_RUN=20
@@ -293,6 +296,49 @@ docker compose logs -f hermes
 
 `migrate` must exit `0` before `arc-mcp` and `monitor` start. If it fails, the
 other services will not start.
+
+### 5.1 Phase 2 User profile and BFF (optional `web` profile)
+
+The Phase 2 services are opt-in so the Phase 1 stack can keep running unchanged:
+
+```bash
+cd /opt/agent-treasury/hermes
+# Compose reads HERMES_DATA_DIR from .env but the shell does not. If your
+# stack uses a custom path, export the same value before this block.
+export HERMES_DATA_DIR="${HERMES_DATA_DIR:-./data}"
+# Install the User profile under the persistent Hermes data directory:
+install -d -m 700 "$HERMES_DATA_DIR/profiles/user"
+cp profiles/user/config.yaml profiles/user/SOUL.md \
+  "$HERMES_DATA_DIR/profiles/user/"
+if [ ! -f profiles/user/.env ]; then
+  install -m 600 profiles/user/.env.example profiles/user/.env
+fi
+# Fill profiles/user/.env: NVIDIA_API_KEY (from NVIDIA Build),
+# ARC_MCP_TOKEN_USER and API_SERVER_KEY (each: openssl rand -hex 32).
+# Fill hermes/.env: BFF_PUBLIC_ORIGIN=https://your-app.example (the BFF's
+# public HTTPS origin and the SIWE domain; prefer the same origin as the app),
+# BFF_SESSION_SECRET=<openssl rand -hex 32>, and HERMES_USER_API_KEY=<same as
+# profiles/user/.env API_SERVER_KEY>. Then start:
+docker compose --profile web up -d --build
+```
+
+`hermes-user` listens only on the Compose network at `http://hermes-user:8642`.
+`bff` listens only on the Compose network at `http://bff:8789`. Do not add a
+`ports:` mapping for either. Terminate HTTPS at a tunnel or reverse proxy in
+front of `bff`; that proxy is the only public entry point. Route `/api/*` and
+`/auth/*` to `bff:8789`, or build the frontend with a `VITE_BFF_URL` that points
+at the HTTPS BFF origin. Set `BFF_TRUST_PROXY=true` when that proxy is the only
+ingress so per-IP sign-in limits use the real client address.
+
+The image runs with `NODE_ENV=production`: `BFF_PUBLIC_ORIGIN` must be an
+**https** origin, and session cookies are `Secure` by default. Prefer a
+same-origin reverse proxy at the app origin. If the BFF is on
+`https://bff.example` and the app is on `https://app.example`, set
+`BFF_PUBLIC_ORIGIN=https://bff.example`, `BFF_ALLOWED_ORIGINS=https://app.example`,
+and build the frontend with `VITE_BFF_URL=https://bff.example`. If the BFF and
+frontend are on different registrable domains, set
+`BFF_COOKIE_SAMESITE=none` and `BFF_COOKIE_SECURE=true`; prefer same-site
+subdomains so browser cookie policies do not block sign-in.
 
 ---
 
@@ -389,9 +435,12 @@ The Compose file publishes **no host ports**. Keep it that way.
   network.
 - `monitor` is reachable only as `http://monitor:8787/health`.
 - Postgres is reachable only as `postgres:5432`.
-- Hermes' OpenAI-compatible API server is off (`API_SERVER_ENABLED=false`). Do
-  not turn it on until a BFF/reverse proxy with SIWE/BFF authentication is in
-  front of it.
+- The Ops Hermes profile's OpenAI-compatible API server is off
+  (`API_SERVER_ENABLED=false`). Do not turn it on.
+- The User Hermes API server is reachable only as `http://hermes-user:8642`
+  inside the Compose network. Only the BFF may call it.
+- The BFF is reachable only as `http://bff:8789` inside the Compose network.
+  Publish it only through an HTTPS tunnel/reverse proxy; never add a host port.
 - For debugging from your laptop, use an SSH tunnel, not a public port:
 
 ```bash
@@ -411,7 +460,7 @@ Back up three things:
 
 1. Postgres business state.
 2. Hermes `data/` (sessions, profile config, memories).
-3. `.env` and `data/profiles/ops/.env` (secrets; store encrypted).
+3. `.env`, `data/profiles/ops/.env`, and `profiles/user/.env` (secrets; store encrypted).
 
 Daily example:
 
@@ -423,7 +472,7 @@ docker compose exec -T postgres pg_dump -U treasury -d treasury \
   | gzip > /var/backups/agent-treasury/treasury-$(date +%F).sql.gz
 
 tar -czf /var/backups/agent-treasury/hermes-data-$(date +%F).tar.gz \
-  data .env
+  data .env profiles/user/.env
 ```
 
 Copy backups off the VPS (object storage, another host, or an encrypted backup

@@ -233,7 +233,7 @@ export async function queryActivity(
 
   if (query.agent) {
     params.push(query.agent)
-    where.push(`agent_address = $${params.length}`)
+    where.push(`lower(agent_address) = lower($${params.length})`)
   }
   if (query.types && query.types.length > 0) {
     params.push(query.types)

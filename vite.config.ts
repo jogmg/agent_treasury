@@ -37,5 +37,10 @@ export default defineConfig({
   server: {
     allowedHosts: true,
     cors: true,
+    // Local BFF. In production VITE_BFF_URL points at the HTTPS BFF origin.
+    proxy: {
+      '/api': 'http://127.0.0.1:8789',
+      '/auth': 'http://127.0.0.1:8789',
+    },
   },
 })

@@ -1,14 +1,73 @@
-# Hermes User profile - Phase 1 (public, read-only)
+# Hermes User profile - Phase 2 (BFF-only, read-only chat)
 #
-# This profile is for the future public help surface. It uses a different
-# token, a different Discord bot, and a smaller tool set than Hermes Ops.
-# Phase 1 does not expose it publicly.
+# This is the user-facing agent behind the frontend Ask Hermes dock. It is
+# reached only through the authenticated BFF on the private Compose network.
+# It has no Discord gateway, terminal, filesystem, browser, or signing tool.
+#
+# The BFF owns SIWE sessions and (in the next slice) deterministic draft
+# intents. The model may call the read-only Arc/CCTP tools below but cannot
+# construct arbitrary calldata or move funds.
 
-# Pick one provider and put its key in ../.env. If you use OpenRouter, OpenAI,
-# Gemini, etc., change provider/default here and use that provider's key.
 model:
-  provider: "anthropic"
-  default: "claude-sonnet-4-6"
+  provider: "nvidia"
+  default: "minimaxai/minimax-m3.1-flash"
+
+model_aliases:
+  nvidia-minimax:
+    provider: "nvidia"
+    model: "minimaxai/minimax-m3.1-flash"
+  nvidia-lightning:
+    provider: "nvidia"
+    model: "nvidia/nemotron-3.5-lightning-30b-a3b"
+  nvidia-muse:
+    provider: "nvidia"
+    model: "meta/muse-glimmer-30b"
+  nvidia-glm:
+    provider: "nvidia"
+    model: "z-ai/glm-5.3"
+
+fallback_providers:
+  - provider: "nvidia"
+    model: "nvidia/nemotron-3.5-lightning-30b-a3b"
+  - provider: "nvidia"
+    model: "meta/muse-glimmer-30b"
+  - provider: "nvidia"
+    model: "z-ai/glm-5.3"
+  - provider: "nvidia"
+    model: "deepseek-ai/deepseek-v4.1-flash"
+  - provider: "nvidia"
+    model: "z-ai/glm-5.3-flash"
+  - provider: "nvidia"
+    model: "openai/gpt-oss-20b"
+  - provider: "nvidia"
+    model: "poolside/laguna-xs-2.1"
+  - provider: "nvidia"
+    model: "stepfun-ai/step-5-preview"
+
+# Fail over quickly; the BFF has its own request deadline.
+providers:
+  nvidia:
+    request_timeout_seconds: 45
+    stale_timeout_seconds: 60
+
+auxiliary:
+  compression:
+    provider: "nvidia"
+    model: "minimaxai/minimax-m3.1-flash"
+  title_generation:
+    provider: "nvidia"
+    model: "nvidia/nemotron-3.5-lightning-30b-a3b"
+
+# The BFF is the only caller. The API server is private to the Compose
+# network; do not publish port 8642.
+gateway:
+  standalone: true
+  api_server:
+    enabled: true
+    host: 0.0.0.0
+    port: 8642
+    key: ${API_SERVER_KEY}
+    max_concurrent_runs: 4
 
 mcp_servers:
   arc-treasury:
@@ -29,6 +88,8 @@ mcp_servers:
       prompts: false
 
 agent:
+  api_max_retries: 1
+  auto_recovery_cycles: 1
   disabled_toolsets:
     - terminal
     - file

@@ -27,7 +27,7 @@ async function keepalive(env) {
 }
 
 export default {
-  async scheduled(controller, env, ctx) {
+  async scheduled(_controller, env, _ctx) {
     await keepalive(env);
   },
 

@@ -9,6 +9,13 @@
 > [`HERMES_USER_EXECUTION.md`](HERMES_USER_EXECUTION.md). No cloud signer, no owner key, no
 > automated bookkeeping, and no changes to the live mainnet contracts.
 >
+> **Phase 2 local foundation (2026-10-24):** the BFF now has SIWE nonce/verify, an HMAC-signed
+> HttpOnly wallet session, read endpoints, a session-gated Hermes User chat proxy, and a persistent
+> **Ask Hermes** dock in the frontend. The User profile is updated to NVIDIA models with a private
+> API server and no Discord gateway. This is implemented and tested locally but **not deployed**;
+> a local HTTP smoke passed SIWE verify, the wallet-bound session, and `/api/config`.
+> Draft-intent endpoints, HTTPS exposure, and live chat against the User API are still pending.
+>
 > Phase 1 implementation: shared CCTP parser, Arc/CCTP MCP server, Postgres schema, deterministic
 > monitor, Discord alerts, Ops profile, Docker Compose, and read-only smoke test. The MCP smoke
 > test passed against Arc mainnet and the known id 3 burn resolved `done` from destination
@@ -394,23 +401,28 @@ Endpoints:
 
 - `POST /auth/siwe/nonce`
 - `POST /auth/siwe/verify` -> HttpOnly, Secure, SameSite session cookie
+- `POST /auth/logout`
+- `GET /api/session`
 - `GET /api/config`
 - `GET /api/treasury`
 - `GET /api/activity`
-- `GET /api/transfers`
+- `GET /api/transfers?burnTx=0x...`
 - `GET /api/cctp/:burnTx`
 - `POST /api/intents/deposit`
 - `POST /api/intents/withdraw-local`
 - `POST /api/intents/cctp-withdraw`
 - `GET /api/intents/:id`
 - `PATCH /api/intents/:id/tx`
-- `POST /api/chat` -> Hermes `/p/user/v1/chat/completions` or `/v1/responses`
+- `POST /api/chat` -> Hermes `/v1/chat/completions` (standalone profile) or
+  `/p/user/v1/chat/completions` (multiplexed), with a route-404 fallback
 - `GET /health`
 
 Rules:
 
 - Verify SIWE with `viem` and a one-time nonce.
 - Bind every session and intent to a wallet address.
+- Scope activity and persisted-transfer queries to the SIWE wallet; a transfer
+  is returned only when its `WithdrawalRequested` event belongs to that wallet.
 - Rate-limit by wallet and IP.
 - Never expose `API_SERVER_KEY`, `ARC_MCP_TOKEN_USER`, or `DATABASE_URL` to the browser.
 - Proxy chat with `X-Hermes-Session-Key` derived from the authenticated wallet, and
@@ -660,12 +672,12 @@ Hermes may run read-only diagnostics automatically. It may not execute owner or 
 
 ## 9. Testing plan
 
-Current Hermes tests: **29 passing** on Vitest 5 (`hermes/test/*`) covering the shared parser,
+Current Hermes tests: **55 passing** on Vitest 5 (`hermes/test/*`) covering the shared parser,
 config, monitor rules, Discord delivery, MCP tool registration/scope enforcement, the
 migration SQL, alert dedupe/throttle persistence, distinct read-warning alerts, JSON
-timestamp conversion, managed-Postgres TLS config, and fail-closed MCP token validation.
-`npm audit` reports no vulnerabilities. Root Vitest remains
-**63 passing**, plus typecheck, lint, and production build. Live read-only smoke passed against
+timestamp conversion, managed-Postgres TLS config, BFF SIWE/session/CORS/chat behavior, and
+fail-closed MCP token validation. `npm audit` reports no vulnerabilities. Root Vitest is
+**67 passing**, plus typecheck, lint, and production build. Live read-only smoke passed against
 Arc mainnet (`arc_get_config`, `arc_get_treasury_state`, bounded `arc_list_activity`, and
 `arc_get_cctp_status` for the known id 3 burn returning `done`).
 
@@ -971,11 +983,14 @@ mcp_servers:
       # binds each intent to the SIWE-authenticated wallet.
 
 gateway:
+  # The User profile owns its own gateway; Ops keeps the separate standalone
+  # gateway. Neither profile gets the owner/keeper key.
+  standalone: true
   api_server:
     enabled: true
     host: 0.0.0.0
     port: 8642
-    key: ${USER_API_SERVER_KEY}
+    key: ${API_SERVER_KEY}
     max_concurrent_runs: 4
 
 approvals:

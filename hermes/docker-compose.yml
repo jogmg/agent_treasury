@@ -122,6 +122,70 @@ services:
     networks:
       - internal
 
+  # Phase 2 user-facing Hermes API. It has no Discord gateway and no published
+  # port. The BFF is its only caller.
+  hermes-user:
+    image: nousresearch/hermes-agent:latest
+    restart: unless-stopped
+    command: ["--profile", "user", "gateway", "run"]
+    profiles: ["web"]
+    env_file:
+      - profiles/user/.env
+    environment:
+      HERMES_HOME: /opt/data
+      HERMES_UID: ${HERMES_UID:-1000}
+      HERMES_GID: ${HERMES_GID:-1000}
+      HERMES_DASHBOARD: "0"
+    volumes:
+      - ${HERMES_DATA_DIR:-./data}:/opt/data
+    expose:
+      - "8642"
+    depends_on:
+      arc-mcp:
+        condition: service_healthy
+    networks:
+      - internal
+
+  # Public-facing API surface. This is the only service that should be exposed
+  # through an HTTPS tunnel or reverse proxy. Do not publish 8789 directly.
+  # HERMES_USER_API_KEY in .env must equal API_SERVER_KEY in the User
+  # profile environment.
+  bff:
+    image: agent-treasury-hermes:local
+    build:
+      context: ..
+      dockerfile: hermes/Dockerfile
+    command: ["node", "dist/bff/server.js"]
+    restart: unless-stopped
+    profiles: ["web"]
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-treasury}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-treasury}
+      BFF_HOST: 0.0.0.0
+      BFF_PUBLIC_ORIGIN: ${BFF_PUBLIC_ORIGIN:?set BFF_PUBLIC_ORIGIN in hermes/.env}
+      BFF_SESSION_SECRET: ${BFF_SESSION_SECRET:?set BFF_SESSION_SECRET in hermes/.env}
+      HERMES_USER_URL: http://hermes-user:8642
+      HERMES_USER_CHAT_PATH: /v1/chat/completions
+    expose:
+      - "8789"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      hermes-user:
+        condition: service_started
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:8789/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 15s
+      timeout: 5s
+      retries: 12
+    networks:
+      - internal
+
 networks:
   internal:
     driver: bridge

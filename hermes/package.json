@@ -9,9 +9,11 @@
   "scripts": {
     "dev:mcp": "tsx --env-file-if-exists=.env watch src/mcp/server.ts",
     "dev:monitor": "tsx --env-file-if-exists=.env src/monitor/run.ts",
+    "dev:bff": "tsx --env-file-if-exists=.env watch src/bff/server.ts",
     "build": "tsup",
     "start:mcp": "node --env-file-if-exists=.env dist/mcp/server.js",
     "start:monitor": "node --env-file-if-exists=.env dist/monitor/run.js",
+    "start:bff": "node --env-file-if-exists=.env dist/bff/server.js",
     "migrate": "node --env-file-if-exists=.env dist/db/migrate.js",
     "smoke": "node --env-file-if-exists=.env scripts/smoke.mjs",
     "test": "vitest run",

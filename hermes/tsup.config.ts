@@ -5,6 +5,7 @@ export default defineConfig({
     'mcp/server': 'src/mcp/server.ts',
     'monitor/run': 'src/monitor/run.ts',
     'db/migrate': 'src/db/migrate.ts',
+    'bff/server': 'src/bff/server.ts',
   },
   format: ['esm'],
   platform: 'node',

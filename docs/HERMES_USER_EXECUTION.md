@@ -1,8 +1,9 @@
 # Hermes User Execution Path
 
-> Status: **Phase 2 design requirement; not deployed yet.** Phase 1 is the
-> deployed ops/read-only proving ground. The product surface is the in-app Hermes
-> User agent, not the private Discord Ops bot.
+> Status: **Phase 2 BFF/auth/read-chat foundation implemented locally; not
+> deployed yet. Draft intents are the next slice.** Phase 1 is the deployed
+> ops/read-only proving ground. The product surface is the in-app Hermes User
+> agent, not the private Discord Ops bot.
 >
 > This document is the execution contract for that surface. It is intentionally
 > separate from the ops runbook so the user path cannot be lost again.
@@ -86,6 +87,36 @@ The chat response is useful on its own for a read request. For an action, the
 draft is not a promise that the action happened. The chain and the deterministic
 monitor are authoritative.
 
+## 2.1 Implemented foundation (local, 2026-10-24)
+
+The first two implementation steps now exist in `hermes/src/bff/` and
+`src/components/HermesDock.tsx`:
+
+- `POST /auth/siwe/nonce` creates a one-time, expiring SIWE challenge.
+- `POST /auth/siwe/verify` verifies the signature with viem, consumes the nonce,
+  and sets an HMAC-signed, `HttpOnly` wallet session cookie. The wallet comes only
+  from the verified SIWE address.
+- `GET /api/session`, `POST /auth/logout`, and `GET /health`.
+- Session-gated `GET /api/config`, `GET /api/treasury`, `GET /api/activity`,
+  `GET /api/cctp/:burnTx`, and `GET /api/transfers?burnTx=...`. Activity and
+  transfer-history queries are filtered to the SIWE wallet; `transfers` joins
+  the burn hash to that wallet's indexed `WithdrawalRequested` event.
+- Session-gated `POST /api/chat`, which sends only user/assistant turns to the
+  Hermes User profile, derives `X-Hermes-Session-Key` from the wallet, forwards
+  an idempotency key, strips browser-supplied system/tool/model fields, and never
+  exposes the API key.
+- Persistent **Ask Hermes** dock with wallet connection, chain guard, SIWE
+  sign-in on first message, bounded history, and a read-only notice.
+- Separate `user` profile with NVIDIA fallback models and an API server on the
+  private Compose network; no Discord gateway and no write tools.
+- Optional Compose `web` profile for `hermes-user` and `bff`. The BFF has no
+  published port; an HTTPS tunnel/reverse proxy is still required for deployment.
+
+A local HTTP smoke passed SIWE verification, the wallet-bound session cookie, and
+`/api/config`; `/api/chat` correctly returned 503 without a configured User API.
+Draft/intent endpoints (`/api/intents/*`) and action cards remain pending, as do
+production deployment, live chat verification, and the audit/launch gate.
+
 ## 3. Tool and endpoint map
 
 The model does not invent endpoints. It calls this allowlisted surface.
@@ -97,7 +128,7 @@ The model does not invent endpoints. It calls this allowlisted surface.
 | What is my balance / is the treasury healthy? | `arc_get_treasury_state` | `GET /api/treasury` | Principal, total, shares, paused, keeper, as-of block |
 | What happened recently? | `arc_list_activity` | `GET /api/activity` | Bounded rows, block timestamps, tx links |
 | Did my withdrawal arrive? | `arc_get_cctp_status` | `GET /api/cctp/:burnTx` | Iris + destination `usedNonces`; `waiting`/`ready`/`done`/`error` |
-| What is my persisted transfer? | `arc_get_transfer` | `GET /api/transfers` | Postgres record, not a completion claim |
+| What is my persisted transfer? | `arc_get_transfer` | `GET /api/transfers?burnTx=0x...` | Postgres record, not a completion claim |
 | Which contracts/network is active? | `arc_get_config` | `GET /api/config` | Mainnet/testnet, chain ID, treasury, receiver, USDC |
 | What is waiting for bookkeeping? | `arc_get_bookkeeping_queue` | Ops-only | Never exposed to the User profile |
 
@@ -278,9 +309,10 @@ or keeper key because none exists in Hermes.
 ## 9. Implementation order
 
 1. **BFF foundation:** SIWE nonce/verify, HttpOnly session, wallet-bound rate
-   limits, read endpoints, Hermes User API proxy.
+   limits, read endpoints, Hermes User API proxy. **Implemented locally.**
 2. **Read-only chat:** persistent dock, streamed answers, tx/block links, no
-   action tools.
+   action tools. **Implemented locally without streaming; live verification
+   pending deployment.**
 3. **Deposit/local withdraw drafts:** deterministic intent creation, simulation,
    review card, deep link, tx-hash patch, monitor reconciliation.
 4. **CCTP drafts:** destination map, recipient confirmation, standard finality,
