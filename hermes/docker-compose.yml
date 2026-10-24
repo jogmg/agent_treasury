@@ -186,6 +186,49 @@ services:
     networks:
       - internal
 
+  # Static SPA plus same-origin reverse proxy for bff. Public HTTPS terminates
+  # at Cloudflare Tunnel; do not publish this port on the host.
+  frontend:
+    image: agent-treasury-web:local
+    build:
+      context: ..
+      dockerfile: hermes/Dockerfile.web
+    restart: unless-stopped
+    profiles: ["web"]
+    expose:
+      - "80"
+    depends_on:
+      bff:
+        condition: service_started
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "wget -q -O /dev/null http://127.0.0.1/ || exit 1"
+      interval: 15s
+      timeout: 5s
+      retries: 12
+    networks:
+      - internal
+
+  # Temporary Cloudflare Quick Tunnel. It gives this deployment a public HTTPS
+  # origin without a domain, but the hostname changes if the container is
+  # recreated. For a stable origin, create a named tunnel and replace this
+  # service with `cloudflared tunnel run --token ...` (see docs/HERMES_VPS.md).
+  cloudflared-quick:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    profiles: ["web"]
+    command:
+      - tunnel
+      - --no-autoupdate
+      - --url
+      - http://frontend:80
+    depends_on:
+      frontend:
+        condition: service_started
+    networks:
+      - internal
+
 networks:
   internal:
     driver: bridge

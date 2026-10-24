@@ -336,6 +336,33 @@ front of `bff`; that proxy is the only public entry point. Route `/api/*` and
 at the HTTPS BFF origin. Set `BFF_TRUST_PROXY=true` when that proxy is the only
 ingress so per-IP sign-in limits use the real client address.
 
+The `web` profile also includes `frontend`, an nginx container that serves the
+built SPA and proxies `/api/*`, `/auth/*`, and `/health` to `bff:8789`, plus
+`cloudflared-quick`, a Cloudflare Quick Tunnel pointed at `frontend:80`. Build
+the frontend with an empty `VITE_BFF_URL` so the browser stays same-origin:
+
+```bash
+cd /opt/agent-treasury/hermes
+export HERMES_DATA_DIR="${HERMES_DATA_DIR:-./data}"
+docker compose --profile web up -d --build
+docker compose logs --tail=100 cloudflared-quick
+```
+
+Copy the `https://<random>.trycloudflare.com` URL from the quick-tunnel log and
+put it in `BFF_PUBLIC_ORIGIN` and `BFF_ALLOWED_ORIGINS`, then recreate the BFF:
+
+```bash
+docker compose --profile web up -d bff
+```
+
+Quick Tunnel is suitable for verification only: the hostname changes if the
+container is recreated, and it does not give you a stable SIWE domain. For a
+stable deployment, create a named tunnel in Cloudflare, route a hostname in a
+zone you control to it, and replace `cloudflared-quick` with a service that runs
+`cloudflared tunnel --no-autoupdate run --token "$CLOUDFLARE_TUNNEL_TOKEN"`.
+Keep `BFF_PUBLIC_ORIGIN` set to that hostname, keep `BFF_TRUST_PROXY=true`, and
+leave `BFF_COOKIE_SECURE=true`.
+
 The image runs with `NODE_ENV=production`: `BFF_PUBLIC_ORIGIN` must be an
 **https** origin, and session cookies are `Secure` by default. Prefer a
 same-origin reverse proxy at the app origin. If the BFF is on
