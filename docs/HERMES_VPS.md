@@ -322,6 +322,12 @@ fi
 docker compose --profile web up -d --build
 ```
 
+The BFF also runs a background intent sweep every
+`BFF_INTENT_MAINTENANCE_SECONDS` (default `60`; set `0` to disable). It expires
+stale drafts and resolves `submitted` intents only when a successful receipt
+matches the stored transaction (`from`/`to`/`data`/`value`/`chainId`). Keep it
+enabled in production so the intent store does not depend on a later page view.
+
 `hermes-user` listens only on the Compose network at `http://hermes-user:8642`.
 `bff` listens only on the Compose network at `http://bff:8789`. Do not add a
 `ports:` mapping for either. Terminate HTTPS at a tunnel or reverse proxy in

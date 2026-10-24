@@ -3,6 +3,8 @@ import {
   encodeFunctionData,
   formatUnits,
   getAddress,
+  TransactionNotFoundError,
+  TransactionReceiptNotFoundError,
   type PublicClient,
 } from 'viem'
 import { z } from 'zod'
@@ -202,6 +204,44 @@ export class ArcIntentChain implements IntentChain {
         recipient,
       ],
     })
+  }
+
+  async getTransaction(
+    hash: `0x${string}`,
+  ): Promise<{
+    from: `0x${string}`
+    to: `0x${string}` | null
+    data: `0x${string}`
+    value: bigint
+    chainId?: number
+  } | null> {
+    try {
+      const transaction = await this.client.getTransaction({ hash })
+      return {
+        from: transaction.from,
+        to: transaction.to,
+        data: transaction.input,
+        value: transaction.value,
+        chainId: transaction.chainId,
+      }
+    } catch (error) {
+      if (error instanceof TransactionNotFoundError) return null
+      throw error
+    }
+  }
+
+  async getTransactionReceipt(
+    hash: `0x${string}`,
+  ): Promise<{ status: 'success' | 'reverted' } | null> {
+    try {
+      const receipt = await this.client.getTransactionReceipt({ hash })
+      return { status: receipt.status }
+    } catch (error) {
+      // A missing receipt is expected while the transaction is pending or the
+      // RPC has not indexed it yet. Other RPC failures remain visible.
+      if (error instanceof TransactionReceiptNotFoundError) return null
+      throw error
+    }
   }
 }
 

@@ -105,10 +105,11 @@ runbook: `docs/HERMES_VPS.md`.
 
 - Phase 1 code is in `hermes/`: shared CCTP parser, read-only Arc/CCTP MCP server, Postgres
   migrations, deterministic monitor, Discord webhook alerts, Ops profile, and Docker Compose.
-  Hermes tests: 78 passing on Vitest 5 (including MCP tool registration/scope enforcement,
+  Hermes tests: 82 passing on Vitest 5 (including MCP tool registration/scope enforcement,
   migration SQL, alert dedupe/throttle persistence, distinct read-warning alerts, JSON
-  timestamp conversion, managed-Postgres TLS config, BFF SIWE/session/CORS/chat tests, and
-  fail-closed MCP token validation). `npm audit` is clean. Root Vitest is 69 passing.
+  timestamp conversion, managed-Postgres TLS config, BFF SIWE/session/CORS/chat tests,
+  intent receipt/transaction reconciliation and expiry, and fail-closed MCP token validation).
+  `npm audit` is clean after the zod 4.6.7 / MCP SDK 1.32.2 upgrade. Root Vitest is 69 passing.
 - Live read-only MCP smoke passed against Arc mainnet: `arc_get_config`, `arc_get_treasury_state`,
   bounded `arc_list_activity`, and `arc_get_cctp_status` for burn `0x79006a…2b13` returned `done`
   with `delivered: true`. Mint tx links are best-effort and may be absent for manual mints.
@@ -141,7 +142,13 @@ runbook: `docs/HERMES_VPS.md`.
   `approval_required` warning, not a rejection. `GET /api/intents/:id` is wallet-scoped and
   lazily expires drafts; `PATCH /api/intents/:id/tx` records one hash idempotently and rejects
   reuse. CCTP drafts require an exact amount; only local withdraw-all uses `isMax` and the max
-  sentinel. Draft actions return `503 db_unavailable` without Postgres.
+  sentinel. Draft actions return `503 db_unavailable` without Postgres. A background sweep
+  (`BFF_INTENT_MAINTENANCE_SECONDS`, default 60, `0` disables) expires stale drafts and
+  reconciles submitted transactions. It confirms only when the receipt succeeded and the
+  transaction's `from`/`to`/`data`/`value`/`chainId` match the stored intent; a reverted or
+  mismatched transaction becomes `failed`, and missing/pending stays `submitted`. Both
+  transitions write `audit_events`; every sweep is best-effort and never confirms from a user
+  supplied hash alone.
 - **Chat action bridge.** The BFF injects a server-owned system prompt as a
   `system`-role message (Hermes ignores a top-level `system` field), and accepts at most one
   `<hermes_action>{...}</hermes_action>` (or fenced `hermes-action`) envelope from the User
@@ -156,7 +163,7 @@ runbook: `docs/HERMES_VPS.md`.
 - The User profile is `hermes/profiles/user/` (NVIDIA fallback chain, API server on private port
   8642, five read-only MCP tools, no Discord). `hermes/docker-compose.yml` adds opt-in `web`
   profile services `hermes-user` and `bff`; neither publishes a host port. Local tests are root
-  69 and Hermes 78. Production HTTPS exposure, live chat/intent verification, and the audit gate
+  69 and Hermes 82. Production HTTPS exposure, live chat/intent verification, and the audit gate
   remain pending.
 - Transfer refresh runs four at a time. Delivery comes from destination `usedNonces` plus Iris; the
   mint tx link is only a forwarder-tx receipt when Iris supplies one, so manual mints may have no
@@ -557,8 +564,8 @@ where `vaultShareDecimals` is read live from `vault.decimals()`. USDC amounts re
     matching `API_SERVER_KEY`. Verify live SIWE, read endpoints, and chat; do not publish
     `hermes-user`, MCP, monitor, or Postgres.
 12. ✅ Deterministic `/api/intents/*` draft endpoints, Postgres intents, simulation, action
-    cards, and review deep links are implemented and tested locally. Still needs live deployment
-    verification and any BFF-side intent confirmation/cleanup job.
+    cards, review deep links, and the background receipt/expiry sweep are implemented and tested
+    locally. Still needs live deployment verification of the sweep against real receipts.
 13. Re-run the frontend/BFF/mainnet builds after deployment and confirm completed CCTP Activity rows
     still show no **Resume**.
 

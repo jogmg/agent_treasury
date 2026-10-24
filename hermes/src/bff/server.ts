@@ -3,8 +3,12 @@ import { loadBffConfig } from './config'
 import { createBffApp } from './app'
 
 const config = loadBffConfig()
-const { app, close } = createBffApp(config)
+const { app, maintenance, close } = createBffApp(config)
 const server = createServer(app)
+
+if (config.intentMaintenanceSeconds > 0) {
+  maintenance.start(config.intentMaintenanceSeconds * 1_000)
+}
 
 server.requestTimeout = 120_000
 server.headersTimeout = 15_000

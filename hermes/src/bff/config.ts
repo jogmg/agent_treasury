@@ -29,6 +29,7 @@ const envSchema = z.object({
   BFF_NONCE_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(30),
   BFF_INTENT_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(12),
   BFF_INTENT_TTL_SECONDS: z.coerce.number().int().positive().default(900),
+  BFF_INTENT_MAINTENANCE_SECONDS: z.coerce.number().int().nonnegative().default(60),
   HERMES_USER_URL: optionalUrl,
   HERMES_USER_API_KEY: optionalString,
   HERMES_USER_CHAT_PATH: optionalString,
@@ -56,6 +57,7 @@ export interface BffConfig {
   nonceRateLimitPerMinute: number
   intentRateLimitPerMinute: number
   intentTtlSeconds: number
+  intentMaintenanceSeconds: number
   hermesUserUrl: string | undefined
   hermesUserApiKey: string | undefined
   hermesUserChatPath: string
@@ -150,6 +152,7 @@ export function loadBffConfig(env: NodeJS.ProcessEnv = process.env): BffConfig {
     nonceRateLimitPerMinute: parsed.BFF_NONCE_RATE_LIMIT_PER_MINUTE,
     intentRateLimitPerMinute: parsed.BFF_INTENT_RATE_LIMIT_PER_MINUTE,
     intentTtlSeconds: parsed.BFF_INTENT_TTL_SECONDS,
+    intentMaintenanceSeconds: parsed.BFF_INTENT_MAINTENANCE_SECONDS,
     hermesUserUrl: parsed.HERMES_USER_URL?.replace(/\/$/, ''),
     hermesUserApiKey,
     hermesUserChatPath: chatPath,

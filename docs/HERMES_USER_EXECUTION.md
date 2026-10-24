@@ -239,7 +239,14 @@ draft -> submitted -> confirmed | failed | expired
 
 `reviewed` is reserved for a future explicit review acknowledgement. `submitted`
 only means the wallet returned a tx hash. `confirmed` requires the deterministic
-chain/CCTP check. Activity must not show **Resume** for a completed row even while
+chain/CCTP check. The BFF runs a background sweep every
+`BFF_INTENT_MAINTENANCE_SECONDS` (default 60, `0` disables): it marks
+`draft`/`reviewed` records past `expires_at` as `expired`, and resolves
+`submitted` records from `eth_getTransactionReceipt` plus `eth_getTransaction`.
+It confirms only when the receipt succeeded and the transaction's
+`from`/`to`/`data`/`value`/`chainId` match the stored intent; a reverted or
+mismatched transaction becomes `failed`. Missing or pending receipts stay
+`submitted`. Activity must not show **Resume** for a completed row even while
 the intent record is still settling.
 
 ## 5. Conversation behavior
@@ -354,12 +361,13 @@ or keeper key because none exists in Hermes.
    action tools. **Implemented locally without streaming; live verification
    pending deployment.**
 3. **Deposit/local withdraw drafts:** deterministic intent creation, simulation,
-   review card, deep link, tx-hash patch, monitor reconciliation. **Implemented
-   locally.**
+   review card, deep link, tx-hash patch, background receipt/transaction
+   reconciliation and expiry cleanup. **Implemented locally; live deployment verification remains.**
 4. **CCTP drafts:** destination map, recipient confirmation, standard finality,
    CCTP status follow-up. **Implemented locally.**
-5. **Hardening:** idempotency, expiry, cost caps, audit events, prompt-injection
-   tests, and a mainnet launch gate. **Idempotency, expiry, rate limits, and
+5. **Hardening:** idempotency, expiry, receipt/transaction reconciliation, cost
+   caps, audit events, prompt-injection tests, and a mainnet launch gate.
+   **Idempotency, expiry, receipt/transaction reconciliation, rate limits, and
    action-envelope tests are in; deployment/audit verification remains.**
 
 The existing ops gateway is not the user-facing product. It remains the Phase 1

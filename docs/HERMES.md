@@ -455,7 +455,12 @@ Intent flow:
 5. The user signs in their EIP-1193 wallet (MetaMask, Rabby, Coinbase Wallet,
    Brave, Frame, etc.) and the app broadcasts.
 6. The app PATCHes the tx hash back to the BFF; the monitor verifies the on-chain
-   result independently.
+   result independently, and the BFF maintenance sweep marks the intent
+   `confirmed` only when the receipt succeeded and the transaction's
+   `from`/`to`/`data`/`value`/`chainId` match the stored intent. A reverted or
+   mismatched transaction becomes `failed`; a missing receipt stays `submitted`.
+   Stale `draft`/`reviewed` intents expire on the same sweep and on
+   `GET /api/intents/:id`.
 
 No intent is a promise that the transaction succeeded. The chain is authoritative.
 Hermes can explain status, but it cannot sign or execute.
@@ -680,12 +685,13 @@ Hermes may run read-only diagnostics automatically. It may not execute owner or 
 
 ## 9. Testing plan
 
-Current Hermes tests: **78 passing** on Vitest 5 (`hermes/test/*`) covering the shared parser,
+Current Hermes tests: **82 passing** on Vitest 5 (`hermes/test/*`) covering the shared parser,
 config, monitor rules, Discord delivery, MCP tool registration/scope enforcement, the
 migration SQL, alert dedupe/throttle persistence, distinct read-warning alerts, JSON
 timestamp conversion, managed-Postgres TLS config, BFF SIWE/session/CORS/chat behavior,
-deterministic intent validation/storage/idempotency, action-envelope parsing, and fail-closed
-MCP token validation. `npm audit` reports no vulnerabilities. Root Vitest is
+deterministic intent validation/storage/idempotency, intent receipt/transaction
+reconciliation and expiry, action-envelope parsing, and fail-closed MCP token validation. `npm audit` reports no
+vulnerabilities after the zod 4.6.7 / MCP SDK 1.32.2 upgrade. Root Vitest is
 **69 passing**, plus typecheck, lint, and production build. Live read-only smoke passed against
 Arc mainnet (`arc_get_config`, `arc_get_treasury_state`, bounded `arc_list_activity`, and
 `arc_get_cctp_status` for the known id 3 burn returning `done`).
@@ -1111,7 +1117,9 @@ The actual split is:
 
 - `hermes/.env` (service): `ARC_NETWORK`, `TRACKED_AGENTS`, `POSTGRES_*`, `DATABASE_URL`
   (host-only), `DATABASE_SSL` (managed Postgres only), `ARC_MCP_TOKEN_*`,
-  `DISCORD_WEBHOOK_URL`, monitor intervals.
+  `DISCORD_WEBHOOK_URL`, monitor intervals, and the Phase 2 BFF keys
+  (`BFF_PUBLIC_ORIGIN`, `BFF_SESSION_SECRET`, `BFF_INTENT_*`,
+  `HERMES_USER_URL`, `HERMES_USER_API_KEY`).
 - `data/profiles/ops/.env` (Hermes profile): `DISCORD_BOT_TOKEN`, `DISCORD_ALLOWED_USERS`,
   `DISCORD_ALLOWED_CHANNELS` (recommended), `ARC_MCP_TOKEN_OPS`, `NVIDIA_API_KEY`,
   `NVIDIA_BASE_URL` (optional), and `API_SERVER_ENABLED=false`.

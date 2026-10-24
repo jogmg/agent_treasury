@@ -26,6 +26,7 @@ import {
   type BffIntentService,
   type IntentDraftRequest,
 } from './intents'
+import { IntentMaintenance } from './maintenance'
 import { RateLimiter } from './rate-limit'
 import {
   BffReadService,
@@ -108,6 +109,7 @@ export interface BffDeps {
 
 export interface BffApp {
   app: express.Express
+  maintenance: IntentMaintenance
   close: () => Promise<void>
 }
 
@@ -188,15 +190,21 @@ export function createBffApp(config: BffConfig, deps: BffDeps = {}): BffApp {
     : null
   const reader = deps.reader ?? new BffReadService(config.hermes, pool, logger)
   const publicClient = createArcClient(config.hermes)
+  const intentChain = new ArcIntentChain(config.hermes, publicClient)
   const intents =
     deps.intents ??
     new IntentService(
       config,
       pool,
-      new ArcIntentChain(config.hermes, publicClient),
+      intentChain,
       logger,
       now,
     )
+  const maintenance = new IntentMaintenance({
+    pool,
+    chain: intentChain,
+    logger,
+  })
   const nonceStore = new NonceStore(config.nonceTtlSeconds * 1000, now)
   const nonceLimiter = new RateLimiter(config.nonceRateLimitPerMinute, 60_000, now)
   const chatLimiter = new RateLimiter(config.chatRateLimitPerMinute, 60_000, now)
@@ -667,7 +675,9 @@ export function createBffApp(config: BffConfig, deps: BffDeps = {}): BffApp {
 
   return {
     app,
+    maintenance,
     close: async () => {
+      maintenance.stop()
       await reader.close()
     },
   }
