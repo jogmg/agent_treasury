@@ -229,6 +229,25 @@ services:
     networks:
       - internal
 
+  # Named Cloudflare Tunnel for a stable public hostname. Enable the `tunnel`
+  # profile after creating a tunnel and putting its token in .env. Stop
+  # cloudflared-quick first so only one public origin is active.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    profiles: ["tunnel"]
+    command:
+      - tunnel
+      - --no-autoupdate
+      - run
+      - --token
+      - ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on:
+      frontend:
+        condition: service_started
+    networks:
+      - internal
+
 networks:
   internal:
     driver: bridge

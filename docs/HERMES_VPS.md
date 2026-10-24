@@ -358,8 +358,22 @@ docker compose --profile web up -d bff
 Quick Tunnel is suitable for verification only: the hostname changes if the
 container is recreated, and it does not give you a stable SIWE domain. For a
 stable deployment, create a named tunnel in Cloudflare, route a hostname in a
-zone you control to it, and replace `cloudflared-quick` with a service that runs
-`cloudflared tunnel --no-autoupdate run --token "$CLOUDFLARE_TUNNEL_TOKEN"`.
+zone you control to it, and put its token in `hermes/.env`:
+
+```bash
+cd /opt/agent-treasury/hermes
+# Keep the token out of shell history and chat.
+read -rsp 'Cloudflare Tunnel token: ' CLOUDFLARE_TUNNEL_TOKEN; echo
+printf '\nCLOUDFLARE_TUNNEL_TOKEN=%s\n' "$CLOUDFLARE_TUNNEL_TOKEN" >> .env
+chmod 600 .env
+# Set these to the public hostname in the same edit.
+# BFF_PUBLIC_ORIGIN=https://treasury.example.com
+# BFF_ALLOWED_ORIGINS=https://treasury.example.com
+docker compose --profile web stop cloudflared-quick
+docker compose --profile web --profile tunnel up -d --force-recreate bff cloudflared
+```
+
+Configure the named tunnel's public hostname to point at `http://frontend:80`.
 Keep `BFF_PUBLIC_ORIGIN` set to that hostname, keep `BFF_TRUST_PROXY=true`, and
 leave `BFF_COOKIE_SECURE=true`.
 
