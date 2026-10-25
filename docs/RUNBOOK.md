@@ -17,7 +17,7 @@ deploying a new stack:
 VITE_ARC_NETWORK=mainnet
 VITE_TREASURY_ADDRESS=0xf71b5d1a19d72b98675785123fae811698be6f63
 VITE_ADAPTER_ADDRESS=0x5102057330f5bb5f3e4eb0925b7d1eac8a563c23
-VITE_RECEIVER_ADDRESS=0x91f1eb97a40fdab05d150c10566cf9aa3546a375
+VITE_RECEIVER_ADDRESS=0x847F55221F30675791d2fAaf84f93B1fa86399E2
 VITE_VAULT_ADDRESS=0x8E357432CC12ff425c36432F312968aEb16112AF
 VITE_USDC_ADDRESS=0x3600000000000000000000000000000000000000
 VITE_TREASURY_DEPLOY_BLOCK=27153175
@@ -133,7 +133,8 @@ cast call $V "previewMint(uint256)(uint256)" 1 --rpc-url $RPC
 cast call $T "getTotalBalance(address)(uint256)" $OWNER --rpc-url $RPC
 ```
 
-Expected: adapter `0x5102…`, receiver `0x91f1…`, keeper/owner `0xD00f…`, paused `false`, default vault
+Expected: adapter `0x5102…`, corrected receiver `0x847F…99E2`, keeper
+`0x72Cbd56507699F5002A10aCdDC5D20b4C2207a75`, owner `0xD00f…`, paused `false`, default vault
 `1`, domain `26`, vault active with `minDeposit = 5000000` and APY `26500000000000000`, vault asset
 USDC, `previewDeposit(5 USDC) > 0`, `previewMint(1) >= 1`.
 
@@ -155,11 +156,11 @@ Expected after wiring: adapter/receiver non-zero, paused `false`, vault active, 
 
 Observed E2E on the hotfix stack (Oct 2026):
 
-| Step | Value |
-|---|---|
-| Deposit 10 USDC | balance `9999999`, shares `9989427554595819468` (18 dec) |
+| Step                             | Value                                                                                |
+| -------------------------------- | ------------------------------------------------------------------------------------ |
+| Deposit 10 USDC                  | balance `9999999`, shares `9989427554595819468` (18 dec)                             |
 | CCTP withdraw 1 USDC to domain 0 | withdrawal id `1`, burned `999999`, `MessageSent` finality `2000`, balance `9000000` |
-| Iris attestation | `status: complete`, `finalityThresholdExecuted: 2000` |
+| Iris attestation                 | `status: complete`, `finalityThresholdExecuted: 2000`                                |
 
 `withdrawLocal(max)` redeems every share and uses the actual redeemed amount, so the 1-unit ERC-4626 rounding difference is not stranded.
 
@@ -277,13 +278,13 @@ that used the legacy stack and call `withdrawLocal(type(uint256).max)` on
 
 ## Troubleshooting
 
-| Symptom | Cause | Fix |
-|---|---|---|
-| `deposit` reverts | Adapter/vault not wired, or below the vault minimum | Run the smoke tests above; mainnet minimum is 5 USDC, testnet 1 USDC. |
-| Owner tx fails with insufficient funds | Owner has no gas | Mainnet: send USDC on Arc to the wallet. Testnet: https://faucet.circle.com. |
-| `getVaultConfig(1)` reverts | Vault not registered | Run the deploy/wiring script; check `morphoAdapter()` is non-zero. |
-| Activity empty | No events since the configured deploy block, or RPC limit | Check `VITE_TREASURY_DEPLOY_BLOCK`; refresh. The scanner skips failed chunks. |
-| Wrong network banner | Wallet on another chain | Switch to the build's network: Arc mainnet `5042` or testnet `5042002`. |
+| Symptom                                            | Cause                                                     | Fix                                                                                                                                                         |
+| -------------------------------------------------- | --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `deposit` reverts                                  | Adapter/vault not wired, or below the vault minimum       | Run the smoke tests above; mainnet minimum is 5 USDC, testnet 1 USDC.                                                                                       |
+| Owner tx fails with insufficient funds             | Owner has no gas                                          | Mainnet: send USDC on Arc to the wallet. Testnet: https://faucet.circle.com.                                                                                |
+| `getVaultConfig(1)` reverts                        | Vault not registered                                      | Run the deploy/wiring script; check `morphoAdapter()` is non-zero.                                                                                          |
+| Activity empty                                     | No events since the configured deploy block, or RPC limit | Check `VITE_TREASURY_DEPLOY_BLOCK`; refresh. The scanner skips failed chunks.                                                                               |
+| Wrong network banner                               | Wallet on another chain                                   | Switch to the build's network: Arc mainnet `5042` or testnet `5042002`.                                                                                     |
 | CCTP withdrawal burns but destination not credited | Attestation not relayed, or destination wallet has no gas | The app polls Iris and submits `receiveMessage`; otherwise use `scripts/complete-cctp.ts`. Mainnet uses `https://iris-api.circle.com`, testnet the sandbox. |
 
 ## Mainnet
@@ -291,23 +292,27 @@ that used the legacy stack and call `withdrawLocal(type(uint256).max)` on
 **Deployed and wired October 21, 2026.** Chain `5042`, RPC `https://rpc.mainnet.arc.io`, explorer
 `https://explorer.arc.io`.
 
-| Contract | Address |
-|---|---|
-| AgentTreasury | `0xf71b5d1a19d72b98675785123fae811698be6f63` |
+| Contract           | Address                                      |
+| ------------------ | -------------------------------------------- |
+| AgentTreasury      | `0xf71b5d1a19d72b98675785123fae811698be6f63` |
 | MorphoVaultAdapter | `0x5102057330f5bb5f3e4eb0925b7d1eac8a563c23` |
-| CCTPReceiver | `0x91f1eb97a40fdab05d150c10566cf9aa3546a375` |
+| CCTPReceiver       | `0x91f1eb97a40fdab05d150c10566cf9aa3546a375` |
 
 Galaxy USDC vault `0x8E357432CC12ff425c36432F312968aEb16112AF`, APY `2.65%`, minimum `5 USDC`,
-spending limit `25 USDC/day / 50 USDC/week`, owner/keeper
-`0xD00fD0B006c01342522cAf4FA04D5f8910aB268c`. Full record: `deployments/arc-mainnet.json`.
+spending limit `25 USDC/day / 50 USDC/week`, owner
+`0xD00fD0B006c01342522cAf4FA04D5f8910aB268c`, current keeper
+`0x72Cbd56507699F5002A10aCdDC5D20b4C2207a75` on both treasury and adapter. Full record:
+`deployments/arc-mainnet.json`.
 
 Post-deploy policy:
 
 - Keep the 5 USDC minimum and 25/50 limits until the external audit is booked and passed.
-- Rotate the keeper from the owner EOA to a dedicated key before scaling volume.
+- Keeper rotation completed October 25, 2026. Keep the dedicated keeper key separate from the owner
+  and retain owner control for recovery.
 - Do not raise caps, accept third-party deposits, or add vaults without an audit.
 - Live E2E passed October 21, 2026: 5 USDC deposit → 1 USDC `withdrawLocal`, then a full CCTP round
   trip (two Arc→Base withdrawals attested and minted; Base→Arc 5 USDC minted and deposited). Hashes,
   nonces, and state are in `deployments/arc-mainnet.json` (`liveE2E`, `liveCctpE2E`).
-- Bookkeeping follow-up: withdrawal ids 1–2 are still `executed=false`. Call keeper
-  `executeWithdrawal(1)` and `executeWithdrawal(2)` to clear them; funds are unaffected.
+- Withdrawal bookkeeping follow-up completed October 25, 2026: IDs 1–3 are `executed=true` and
+  `cancelled=false`. This only updates treasury bookkeeping; it moves no funds. Transaction hashes
+  and blocks are recorded in `deployments/arc-mainnet.json`.

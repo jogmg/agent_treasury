@@ -5,13 +5,13 @@
 
 ## Trust model
 
-| Actor | Can | Cannot |
-|---|---|---|
-| Agent (end user) | Deposit, withdraw locally, request CCTP withdrawal, change its own vault, set its own spending limits | Touch another agent's account |
-| Owner | Act for any agent, pause, set adapter/receiver, set keeper, set max delay, set default vault/fee | Mint USDC, bypass a funded balance |
-| Keeper | Rebalance, execute withdrawal bookkeeping, record message hashes | Initiate withdrawals, change limits, move funds to itself |
-| CCTP MessageTransmitter | Call `CCTPReceiver.handleReceiveMessage` | Call treasury directly except through the receiver |
-| Anyone | `deposit()` for themselves | Withdraw for anyone else |
+| Actor                   | Can                                                                                                   | Cannot                                                    |
+| ----------------------- | ----------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| Agent (end user)        | Deposit, withdraw locally, request CCTP withdrawal, change its own vault, set its own spending limits | Touch another agent's account                             |
+| Owner                   | Act for any agent, pause, set adapter/receiver, set keeper, set max delay, set default vault/fee      | Mint USDC, bypass a funded balance                        |
+| Keeper                  | Rebalance, execute withdrawal bookkeeping, record message hashes                                      | Initiate withdrawals, change limits, move funds to itself |
+| CCTP MessageTransmitter | Call `CCTPReceiver.handleReceiveMessage`                                                              | Call treasury directly except through the receiver        |
+| Anyone                  | `deposit()` for themselves                                                                            | Withdraw for anyone else                                  |
 
 The keeper separation is enforced and covered by regression tests: a keeper cannot call `requestWithdrawal` or `setSpendingLimit` for another agent.
 
@@ -19,11 +19,11 @@ The keeper separation is enforced and covered by regression tests: a keeper cann
 
 Deployed and independently verified on Arc mainnet (`5042`):
 
-| Contract | Address |
-|---|---|
-| AgentTreasury | `0xf71b5d1a19d72b98675785123fae811698be6f63` |
+| Contract           | Address                                      |
+| ------------------ | -------------------------------------------- |
+| AgentTreasury      | `0xf71b5d1a19d72b98675785123fae811698be6f63` |
 | MorphoVaultAdapter | `0x5102057330f5bb5f3e4eb0925b7d1eac8a563c23` |
-| CCTPReceiver | `0x91f1eb97a40fdab05d150c10566cf9aa3546a375` |
+| CCTPReceiver       | `0x91f1eb97a40fdab05d150c10566cf9aa3546a375` |
 
 Verified: bytecode, owner/keeper, adapter/receiver links, mainnet CCTP and domain `26`, default vault
 `1`, unpaused, vault asset USDC, active with `minDeposit = 5 USDC`, APY `2.65%`, and positive previews.
@@ -63,7 +63,13 @@ Real USDC on Arc mainnet, signed by the owner wallet through the app:
 - Both Base mints were submitted by relayer `0xecfe41…c717`, not the owner wallet, so relay is permissionless as designed.
 - Base→Arc deposit: Base burn [`0xadf19a…b280`](https://basescan.org/tx/0xadf19a348fcb122f1052e717870290db6cc351b13a5338f72c6ac288cf61b280) for 5 USDC; Arc `receiveMessage` [`0xb2a7ba…246c`](https://explorer.arc.io/tx/0xb2a7ba0096aefaed2dfd959162a66bca2c6f781909a3cd80a132581420ab246c); treasury `deposit` [`0xb1e34e…026b`](https://explorer.arc.io/tx/0xb1e34e0a075037523a8eb0bb48b9813d8e247f78da37b4cb7402fb2aa9ed026b) → `4,996,555,771,054,222,485` shares.
 - Post-state: principal `9.000003`, shares `8,993,822,921,076,662,356`, total `9.000028` USDC. Nonces are marked used on both Base and Arc.
-- Bookkeeping gap: withdrawal ids 1–2 remain `executed=false`; the app does not call `executeWithdrawal`. Funds are unaffected.
+- Withdrawal bookkeeping is manual: mainnet withdrawal IDs 1–3 were verified delivered and marked
+  `executed=true`, `cancelled=false` on October 25, 2026. The owner-signed calls only update
+  bookkeeping and move no funds; user-facing completion must continue to use Iris and destination
+  delivery checks, not the `executed` flag. See `deployments/arc-mainnet.json` for receipts.
+- The keeper is a separate EOA on both AgentTreasury and MorphoVaultAdapter
+  (`0x72Cbd56507699F5002A10aCdDC5D20b4C2207a75`); ownership remains with the owner EOA. The
+  keeper can rebalance, claim yield, and update cached APY, but cannot withdraw an agent's funds.
 
 The mainnet stack includes the zero-share guard and was rehearsed on a mainnet fork. The testnet
 destination Sepolia mint for the remaining 1 USDC transfer is pending gas; see

@@ -9,14 +9,34 @@
 > [`HERMES_USER_EXECUTION.md`](HERMES_USER_EXECUTION.md). No cloud signer, no owner key, no
 > automated bookkeeping, and no changes to the live mainnet contracts.
 >
-> **Phase 2 local foundation (2026-10-24):** the BFF now has SIWE nonce/verify, an HMAC-signed
-> HttpOnly wallet session, read endpoints, a session-gated Hermes User chat proxy, deterministic
-> draft intents (`deposit`, `withdrawLocal`, `cctpWithdraw`), and a persistent **Ask Hermes** dock
-> with action cards and review deep links. The User profile is updated to NVIDIA models with a
-> private API server and no Discord gateway. This is implemented and tested locally but **not
-> deployed**; a fake-upstream HTTP smoke passed SIWE verify, the wallet-bound session,
-> `/api/config`, and chat forwarding. HTTPS exposure, live chat/intent verification, and the
-> audit gate remain pending.
+> **Phase 2 deployed on InstaBox (2026-10-25):** the BFF provides SIWE nonce/verify, an
+> HMAC-signed HttpOnly wallet session, read endpoints, a session-gated Hermes User chat proxy,
+> deterministic draft intents (`deposit`, `withdrawLocal`, `cctpWithdraw`), and the persistent
+> **Ask Hermes** dock with action cards and review deep links. The User profile is isolated on the
+> private Compose network with no Discord gateway or write tools. The public app is
+> [https://8080-agqvtg5gwokf3k7e5easq4hd5e.instabox.tech](https://8080-agqvtg5gwokf3k7e5easq4hd5e.instabox.tech)
+> through InstaBox's persistent HTTPS port 8080; the expired Cloudflare Quick Tunnel was removed.
+> On 2026-10-25, public `/health` returned `ok: true` and `/api/session` returned the expected
+> unauthenticated session response. Earlier SIWE/chat smoke passed on the temporary tunnel; rerun
+> the authenticated SIWE/chat/intent smoke against this hostname after its origin change. Never
+> broadcast a test transaction without the user's approval; the audit/launch gate remains pending.
+
+> **Mainnet keeper maintenance completed (2026-10-25):** the owner confirmed completed Base deliveries
+> and signed `executeWithdrawal(1..3)`; all three receipts succeeded and on-chain state now reports
+> `executed=true`, `cancelled=false`. The keeper was then changed on both AgentTreasury and
+> MorphoVaultAdapter from the owner EOA to `0x72Cbd56507699F5002A10aCdDC5D20b4C2207a75`; ownership
+> remains with the owner. Receipt hashes, blocks, and post-state are in `deployments/arc-mainnet.json`.
+> These bookkeeping writes move no funds. The keeper can rebalance, claim yield, and update cached
+> APY; it cannot withdraw agent funds.
+
+> **Arc Studio sync (2026-10-25):** current contract/frontend sources, Hermes services/tests,
+> deployment JSON, documentation, and safe setup files are present in the existing Studio project
+> `459b639e-b500-4f59-b057-aa17f5446888`. Studio-reported checks: Foundry 104 passing, root
+> Vitest 69 passing, Hermes Vitest 82 passing. The Studio deployment registry still contains six
+> historical Arc Testnet deployments; Arc mainnet deployment evidence is in
+> `deployments/arc-mainnet.json` and was originally signed outside the Studio CLI. Do not claim or
+> fabricate Studio mainnet deployment records. Studio usage after the keeper-maintenance sync:
+> 28% of the reported window (2026-10-25).
 >
 > Phase 1 implementation: shared CCTP parser, Arc/CCTP MCP server, Postgres schema, deterministic
 > monitor, Discord alerts, Ops profile, Docker Compose, and read-only smoke test. The MCP smoke
@@ -25,8 +45,9 @@
 > mints; Hermes reports one only when Circle supplies a forwarder transaction.
 >
 > Deployment: the free InstaBox 4 vCPU / 8 GiB / 20 GiB machine is running Postgres, `arc-mcp`, and
-> the monitor. The database verified 3 snapshots, 12 activity events, 3 completed transfers, 3
-> bookkeeping rows, and the open `keeper-is-owner` alert. The real Hermes runtime registered the
+> the monitor. The database initially verified 3 snapshots, 12 activity events, 3 completed
+> transfers, 3 bookkeeping rows, and the `keeper-is-owner` alert before the keeper rotation. The
+> real Hermes runtime registered the
 > Ops profile and `hermes -p ops mcp test arc-treasury` connected with seven tools. The standalone
 > Ops gateway is running with NVIDIA MiniMax primary and verified MCP tool calls; the Discord bot
 > has access to `#treasury-ops`. InstaBox auto-pauses after 30 minutes idle. The primary keepalive
@@ -65,23 +86,23 @@ We will still build a small domain backend because Hermes cannot be the source o
 - a deterministic monitor and alert worker
 - Postgres for treasury snapshots, transfer state, alerts, and audit records
 - a thin authenticated BFF before any public user chat or transaction intent flow
-- an isolated keeper signer only after the keeper is rotated away from the owner EOA
+- an isolated keeper signer only after the rotated keeper address and its authorization are reviewed
 
 The existing Vite/React app remains fully functional without Hermes. Hermes is additive.
 
 ### Implemented Phase 1 files
 
-| Path | Purpose |
-|---|---|
-| `shared/cctp-message.ts` | Shared CCTP v2 parser (header, nonce, amount, recipient, hook agent) |
-| `hermes/src/arc.ts` | Read-only treasury, adapter, USDC, withdrawal reads |
-| `hermes/src/cctp.ts` | Iris attestation + destination `usedNonces` / `MessageReceived` |
-| `hermes/src/activity.ts` | Chunked Arc scanner, Postgres event index, bounded live fallback |
-| `hermes/src/monitor/` | Rules, Discord delivery, dedupe, snapshots, transfer refresh, health |
-| `hermes/src/mcp/` | Streamable HTTP MCP server, bearer scopes, seven read-only tools |
-| `hermes/migrations/001_init.sql` | Business state, separate from Hermes `state.db` |
-| `hermes/profiles/ops/` | Private Ops profile with terminal/file/browser/web disabled |
-| `hermes/docker-compose.yml` | Private Postgres, migrate, MCP, monitor, Hermes services |
+| Path                             | Purpose                                                              |
+| -------------------------------- | -------------------------------------------------------------------- |
+| `shared/cctp-message.ts`         | Shared CCTP v2 parser (header, nonce, amount, recipient, hook agent) |
+| `hermes/src/arc.ts`              | Read-only treasury, adapter, USDC, withdrawal reads                  |
+| `hermes/src/cctp.ts`             | Iris attestation + destination `usedNonces` / `MessageReceived`      |
+| `hermes/src/activity.ts`         | Chunked Arc scanner, Postgres event index, bounded live fallback     |
+| `hermes/src/monitor/`            | Rules, Discord delivery, dedupe, snapshots, transfer refresh, health |
+| `hermes/src/mcp/`                | Streamable HTTP MCP server, bearer scopes, seven read-only tools     |
+| `hermes/migrations/001_init.sql` | Business state, separate from Hermes `state.db`                      |
+| `hermes/profiles/ops/`           | Private Ops profile with terminal/file/browser/web disabled          |
+| `hermes/docker-compose.yml`      | Private Postgres, migrate, MCP, monitor, Hermes services             |
 
 ### What Phase 1 intentionally does not do
 
@@ -194,10 +215,10 @@ Use the official Docker image: `nousresearch/hermes-agent:latest`.
 
 Profiles:
 
-| Profile | Surface | Tools | Credentials |
-|---|---|---|---|
-| `ops` | Private Discord channel | Arc MCP read tools + monitor status; no terminal/filesystem/browser | Discord bot token, MCP ops token, LLM key |
-| `user` | BFF-only API server | Arc MCP read tools + one BFF-validated action proposal; no terminal/filesystem/browser; no cron | Separate API server key, MCP user token, LLM key |
+| Profile | Surface                 | Tools                                                                                           | Credentials                                      |
+| ------- | ----------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| `ops`   | Private Discord channel | Arc MCP read tools + monitor status; no terminal/filesystem/browser                             | Discord bot token, MCP ops token, LLM key        |
+| `user`  | BFF-only API server     | Arc MCP read tools + one BFF-validated action proposal; no terminal/filesystem/browser; no cron | Separate API server key, MCP user token, LLM key |
 
 The profiles must not share `.env` files, API keys, Discord tokens, or MCP tokens.
 
@@ -216,23 +237,23 @@ A small Node/TypeScript service using `viem` and the official MCP SDK.
 
 Tool surface for Phase 1:
 
-| Tool | Scope | Purpose |
-|---|---|---|
-| `arc_get_config` | user, ops | Network, chain ID, contract addresses, vault, deploy block, Iris endpoint |
-| `arc_get_treasury_state` | user, ops | Principal, total balance, shares, vault, paused, owner, keeper, deposits by chain |
-| `arc_list_activity` | user, ops | Normalized Arc events with block timestamps and tx links |
-| `arc_get_cctp_status` | user, ops | Iris + destination status for a burn tx: `waiting`, `ready`, `done`, `error` |
-| `arc_get_transfer` | user, ops | Persisted transfer record from Postgres |
-| `arc_get_bookkeeping_queue` | ops | Withdrawals that are delivered but still `executed=false` on-chain |
-| `arc_get_incidents` | ops | Open/closed monitor incidents and last alert state |
+| Tool                        | Scope     | Purpose                                                                           |
+| --------------------------- | --------- | --------------------------------------------------------------------------------- |
+| `arc_get_config`            | user, ops | Network, chain ID, contract addresses, vault, deploy block, Iris endpoint         |
+| `arc_get_treasury_state`    | user, ops | Principal, total balance, shares, vault, paused, owner, keeper, deposits by chain |
+| `arc_list_activity`         | user, ops | Normalized Arc events with block timestamps and tx links                          |
+| `arc_get_cctp_status`       | user, ops | Iris + destination status for a burn tx: `waiting`, `ready`, `done`, `error`      |
+| `arc_get_transfer`          | user, ops | Persisted transfer record from Postgres                                           |
+| `arc_get_bookkeeping_queue` | ops       | Withdrawals that are delivered but still `executed=false` on-chain                |
+| `arc_get_incidents`         | ops       | Open/closed monitor incidents and last alert state                                |
 
 Phase 2 draft surface (BFF actions, not MCP tools):
 
-| Action `kind` | BFF endpoint | Purpose |
-|---|---|---|
-| `deposit` | `POST /api/intents/deposit` | Create an unsigned deposit intent and return an app deep link |
-| `withdrawLocal` | `POST /api/intents/withdraw-local` | Create an unsigned local-withdraw intent |
-| `cctpWithdraw` | `POST /api/intents/cctp-withdraw` | Create an unsigned CCTP withdrawal intent |
+| Action `kind`   | BFF endpoint                       | Purpose                                                       |
+| --------------- | ---------------------------------- | ------------------------------------------------------------- |
+| `deposit`       | `POST /api/intents/deposit`        | Create an unsigned deposit intent and return an app deep link |
+| `withdrawLocal` | `POST /api/intents/withdraw-local` | Create an unsigned local-withdraw intent                      |
+| `cctpWithdraw`  | `POST /api/intents/cctp-withdraw`  | Create an unsigned CCTP withdrawal intent                     |
 
 There is **no** `arc_execute_*`, `arc_send_*`, or `arc_sign_*` tool. Ever, in the LLM-facing server.
 The User model appends at most one `<hermes_action>{...}</hermes_action>` block; the BFF strips it,
@@ -467,9 +488,9 @@ Hermes can explain status, but it cannot sign or execute.
 
 ### 4.6 Keeper and bookkeeping (Phase 3 only)
 
-Blocked until:
+Automated execution remains blocked until:
 
-- the keeper is rotated from the owner EOA to a dedicated key
+- the dedicated keeper address and its key custody arrangement are reviewed
 - the keeper key is held in KMS/HSM or a dedicated signer service
 - the monitor has been stable in production
 - the external audit is booked or the owner explicitly accepts the remaining risk
@@ -610,8 +631,9 @@ Acceptance criteria:
 
 ### Phase 3 — keeper bookkeeping and incident automation
 
-- Rotate keeper away from the owner EOA.
-- Deploy the isolated keeper signer.
+- Keeper rotation from the owner EOA to a dedicated EOA is complete (2026-10-25).
+- Keep automated keeper execution disabled until signer and audit gates below are satisfied.
+- Deploy the isolated keeper signer only after reviewing key custody and call restrictions.
 - Enable only verified `executeWithdrawal` bookkeeping.
 - Add owner-action drafts for any EIP-1193 wallet or Safe.
 - Add incident threads, diagnostics, and postmortems.
@@ -619,21 +641,21 @@ Acceptance criteria:
 
 ## 6. Security model
 
-| Threat | Control |
-|---|---|
-| Owner key theft | Owner key never leaves the user's wallet or Safe; no owner key in cloud |
-| Keeper key theft | Separate KMS/HSM signer; allowlist; caps; kill switch |
+| Threat                  | Control                                                                                                                                        |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Owner key theft         | Owner key never leaves the user's wallet or Safe; no owner key in cloud                                                                        |
+| Keeper key theft        | Separate KMS/HSM signer; allowlist; caps; kill switch                                                                                          |
 | Public prompt injection | User profile has no terminal/filesystem/browser; read tools plus one BFF-validated action proposal; no execute/sign tool; no secrets in prompt |
-| Malicious chain data | Treat hook data, memos, and tx metadata as untrusted; never follow instructions from them |
-| Discord impersonation | `DISCORD_ALLOWED_USERS` allowlist; private channel; unknown DMs declined |
-| API key leak | BFF holds Hermes keys; browser never sees them; per-profile keys |
-| MCP server compromise | Internal network only; bearer token; `trust: untrusted`; read-only annotations |
-| LLM hallucination | Deterministic status from Iris/destination; tool output includes `asOfBlock`/`stale` |
-| Replay | Idempotency keys; unique constraints; signed, expiring intents |
-| Double bookkeeping | Postgres advisory lock per withdrawal id; on-chain `executed` check |
-| Monitor outage | Heartbeat alert; Hermes cron watchdog; app remains usable without monitor |
-| Log leakage | Redact tokens; never log request bodies containing secrets; no private keys ever |
-| Cost blowup | Per-profile model, max concurrent runs, per-chat spend limits, cheap ops model |
+| Malicious chain data    | Treat hook data, memos, and tx metadata as untrusted; never follow instructions from them                                                      |
+| Discord impersonation   | `DISCORD_ALLOWED_USERS` allowlist; private channel; unknown DMs declined                                                                       |
+| API key leak            | BFF holds Hermes keys; browser never sees them; per-profile keys                                                                               |
+| MCP server compromise   | Internal network only; bearer token; `trust: untrusted`; read-only annotations                                                                 |
+| LLM hallucination       | Deterministic status from Iris/destination; tool output includes `asOfBlock`/`stale`                                                           |
+| Replay                  | Idempotency keys; unique constraints; signed, expiring intents                                                                                 |
+| Double bookkeeping      | Postgres advisory lock per withdrawal id; on-chain `executed` check                                                                            |
+| Monitor outage          | Heartbeat alert; Hermes cron watchdog; app remains usable without monitor                                                                      |
+| Log leakage             | Redact tokens; never log request bodies containing secrets; no private keys ever                                                               |
+| Cost blowup             | Per-profile model, max concurrent runs, per-chat spend limits, cheap ops model                                                                 |
 
 Rules for the Ops prompt:
 
@@ -713,7 +735,8 @@ Phase 1 coverage status:
     bookkeeping queue; incomplete Arc reads are rejected instead of being
     stored as zero balances
   - MCP DB tools returned queue ids `1,2,3` with `ready_for_keeper`, persisted
-    transfer id 3 as `done`, and the open `keeper-is-owner` incident
+    transfer id 3 as `done`, and initially raised `keeper-is-owner`; this predates
+    the on-chain keeper rotation completed 2026-10-25
 - Still pending on a machine with Docker:
   - full Compose bring-up with real Postgres, `migrate`, MCP, and monitor
   - Hermes profile launch, `mcp test arc-treasury`, and Discord allowlist check
@@ -829,16 +852,16 @@ summaries and cap concurrent runs.
 
 Defaults are chosen so Phase 1 can start immediately:
 
-| Decision | Default |
-|---|---|
-| Cloud | Fly.io |
-| Postgres | Fly Postgres or Neon |
-| Phase 1 scope | Ops-only, read-only |
-| LLM provider | NVIDIA Build free endpoints with a ranked fallback chain |
-| Discord | Private server, allowlisted user IDs |
-| Public web chat | Phase 2 — required product path, not optional |
-| Keeper | Phase 3, after rotation |
-| Contract changes | None |
+| Decision         | Default                                                  |
+| ---------------- | -------------------------------------------------------- |
+| Cloud            | Fly.io                                                   |
+| Postgres         | Fly Postgres or Neon                                     |
+| Phase 1 scope    | Ops-only, read-only                                      |
+| LLM provider     | NVIDIA Build free endpoints with a ranked fallback chain |
+| Discord          | Private server, allowlisted user IDs                     |
+| Public web chat  | Phase 2 — required product path, not optional            |
+| Keeper           | Phase 3, after rotation                                  |
+| Contract changes | None                                                     |
 
 If any default is wrong, only the deployment section changes; the architecture and Phase 1 code do not.
 
@@ -1023,9 +1046,13 @@ server.registerTool(
   "arc_get_treasury_state",
   {
     title: "Get Agent Treasury state",
-    description: "Read-only Arc treasury balances and configuration. Never signs.",
+    description:
+      "Read-only Arc treasury balances and configuration. Never signs.",
     inputSchema: {
-      agent: z.string().regex(/^0x[0-9a-fA-F]{40}$/).optional(),
+      agent: z
+        .string()
+        .regex(/^0x[0-9a-fA-F]{40}$/)
+        .optional(),
     },
     annotations: {
       readOnlyHint: true,
@@ -1034,13 +1061,13 @@ server.registerTool(
     },
   },
   async ({ agent }) => {
-    const state = await readTreasuryState(agent)
+    const state = await readTreasuryState(agent);
     return {
       content: [{ type: "text", text: JSON.stringify(state) }],
       structuredContent: state,
-    }
-  },
-)
+    };
+  }
+);
 ```
 
 Read tools must carry `readOnlyHint: true`. Any future draft/intent tool must carry

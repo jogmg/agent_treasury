@@ -15,7 +15,8 @@
     "note": "Arc mainnet CCTP addresses differ from testnet. Verified on-chain: testnet addresses have no code on mainnet."
   },
   "owner": "0xD00fD0B006c01342522cAf4FA04D5f8910aB268c",
-  "keeper": "0xD00fD0B006c01342522cAf4FA04D5f8910aB268c",
+  "initialKeeper": "0xD00fD0B006c01342522cAf4FA04D5f8910aB268c",
+  "keeper": "0x72Cbd56507699F5002A10aCdDC5D20b4C2207a75",
   "contracts": {
     "MorphoVaultAdapter": {
       "address": "0x5102057330f5bb5f3e4eb0925b7d1eac8a563c23",
@@ -100,7 +101,7 @@
   "guardrails": {
     "minDeposit": "5 USDC (economics-based; also enforced >= previewMint(1))",
     "spendingLimit": "25 USDC/day, 50 USDC/week for the owner agent",
-    "keeper": "same EOA as owner for launch; rotate to a dedicated keeper key before scaling",
+    "keeper": "Dedicated EOA 0x72Cbd56507699F5002A10aCdDC5D20b4C2207a75; rotated from owner EOA on 2026-10-25. Owner remains unchanged.",
     "audit": "Unaudited. Owner accepted shipping with guardrails; external audit planned."
   },
   "verification": {
@@ -108,11 +109,21 @@
     "allChecksPassed": true,
     "allReceiptsSuccess": true,
     "decodedWiring": {
-      "adapter.addVault": ["1", "0x8E357432CC12ff425c36432F312968aEb16112AF", "Galaxy USDC", "arcUSDC", "5000000"],
+      "adapter.addVault": [
+        "1",
+        "0x8E357432CC12ff425c36432F312968aEb16112AF",
+        "Galaxy USDC",
+        "arcUSDC",
+        "5000000"
+      ],
       "adapter.setVaultAPY": ["1", "26500000000000000"],
       "adapter.setKeeper": "0xD00fD0B006c01342522cAf4FA04D5f8910aB268c",
       "treasury.setKeeper": "0xD00fD0B006c01342522cAf4FA04D5f8910aB268c",
-      "treasury.setSpendingLimit": ["0xD00fD0B006c01342522cAf4FA04D5f8910aB268c", "25000000", "50000000"]
+      "treasury.setSpendingLimit": [
+        "0xD00fD0B006c01342522cAf4FA04D5f8910aB268c",
+        "25000000",
+        "50000000"
+      ]
     },
     "codePresent": {
       "adapter": true,
@@ -406,16 +417,63 @@
     },
     "notes": [
       "Withdrawals 1 and 2 were minted by a relayer (0xecfe...) rather than the owner wallet, demonstrating permissionless relay of the attested message. Withdrawal 3 was minted by the owner wallet.",
-      "The treasury withdrawal requests are still unexecuted on-chain (executed=false) because the app does not call executeWithdrawal(). Funds are unaffected, but keeper bookkeeping should clear pending ids 1, 2, and 3.",
+      "The three withdrawal requests were subsequently marked executed by the owner; see postDeploymentMaintenance for transaction receipts. This is bookkeeping only and does not move funds.",
       "After the latest round trip, Base USDC is 1.999997: 1.999998 + 4.999999 minted minus 5.000000 burned.",
       "Withdrawal 3 burned 4.999999 USDC (id 3, block 27317380); Iris reports status complete with nonce 0xfb087f..., and Base minted 4.999999 USDC to the owner.",
       "The receiver-path 5 USDC deposit (Arc tx 0xdd79d20a...) is the proof that CCTPReceiverV2 records the true source domain: DepositRecorded.sourceDomain = 6, amount 5000000, shares 4996190411368419803, receiver balance 0.",
       "This closes the mainnet CCTP proof: Arc burn -> production Iris attestation -> Base mint, and Base burn -> Arc atomic receiver -> Galaxy USDC deposit with source domain 6."
     ]
   },
+  "postDeploymentMaintenance": {
+    "date": "2026-10-25",
+    "verifiedAtBlock": 27721045,
+    "operator": "Owner-signed through the temporary local wallet helper; no private key was handled by the repo or agent.",
+    "withdrawalBookkeeping": [
+      {
+        "id": 1,
+        "txHash": "0x9a47cdd2c2380080eaab994552ebda437b3c71bdead103f61d85d7b952e80d00",
+        "block": 27720889,
+        "status": "success",
+        "executed": true,
+        "cancelled": false
+      },
+      {
+        "id": 2,
+        "txHash": "0xb04b56354236ff2cb72322f1f4bb935e8ecc6fea692fce349a48a939981188fe",
+        "block": 27720907,
+        "status": "success",
+        "executed": true,
+        "cancelled": false
+      },
+      {
+        "id": 3,
+        "txHash": "0x1ab7357f8d25bb0304d9cbd2489d0e13bd31d1d034eafa6b29a0006e1bf0216a",
+        "block": 27720923,
+        "status": "success",
+        "executed": true,
+        "cancelled": false
+      }
+    ],
+    "keeperRotation": {
+      "oldKeeper": "0xD00fD0B006c01342522cAf4FA04D5f8910aB268c",
+      "newKeeper": "0x72Cbd56507699F5002A10aCdDC5D20b4C2207a75",
+      "treasuryTxHash": "0xc3cc16198c9035a01b82adcc421c7c4e9041164fa5ac51f6f8b6164ed6467bdc",
+      "treasuryBlock": 27721007,
+      "adapterTxHash": "0x0f640d8d2fb74499f556d02dbda6bb0c2245703b660012e9a8e0a407b6b491df",
+      "adapterBlock": 27721045,
+      "status": "success",
+      "ownerUnchanged": "0xD00fD0B006c01342522cAf4FA04D5f8910aB268c"
+    },
+    "verification": {
+      "withdrawals1To3Executed": true,
+      "withdrawals1To3Cancelled": false,
+      "treasuryKeeper": "0x72Cbd56507699F5002A10aCdDC5D20b4C2207a75",
+      "adapterKeeper": "0x72Cbd56507699F5002A10aCdDC5D20b4C2207a75",
+      "treasuryOwner": "0xD00fD0B006c01342522cAf4FA04D5f8910aB268c",
+      "adapterOwner": "0xD00fD0B006c01342522cAf4FA04D5f8910aB268c"
+    }
+  },
   "pendingActions": [
-    "Run keeper executeWithdrawal(1), executeWithdrawal(2), and executeWithdrawal(3) to clear the completed cross-chain requests (bookkeeping only).",
-    "Rotate the keeper role to a dedicated hot key before scaling real volume.",
     "External audit before raising caps or onboarding third-party agents.",
     "Verify contract source on the Arc mainnet explorer."
   ],

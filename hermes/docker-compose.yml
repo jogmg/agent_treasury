@@ -7,8 +7,8 @@ name: agent-treasury-hermes
 #   monitor   - deterministic scanner, private only
 #   hermes    - Discord gateway, private only (no published ports)
 #
-# Nothing in this file publishes a host port. Hermes talks to arc-mcp over the
-# internal network, and Discord is an outbound connection.
+# Only the frontend publishes a host port for InstaBox's HTTPS public-port
+# gateway. Hermes talks to arc-mcp over the internal network; Discord is outbound.
 
 services:
   postgres:
@@ -146,8 +146,8 @@ services:
     networks:
       - internal
 
-  # Public-facing API surface. This is the only service that should be exposed
-  # through an HTTPS tunnel or reverse proxy. Do not publish 8789 directly.
+  # Private API surface. The frontend proxies to this service; do not publish
+  # 8789 directly.
   # HERMES_USER_API_KEY in .env must equal API_SERVER_KEY in the User
   # profile environment.
   bff:
@@ -186,8 +186,8 @@ services:
     networks:
       - internal
 
-  # Static SPA plus same-origin reverse proxy for bff. Public HTTPS terminates
-  # at Cloudflare Tunnel; do not publish this port on the host.
+  # Static SPA plus same-origin reverse proxy for bff. InstaBox publishes the
+  # host port over HTTPS; keep all backend services private.
   frontend:
     image: agent-treasury-web:local
     build:
@@ -195,6 +195,8 @@ services:
       dockerfile: hermes/Dockerfile.web
     restart: unless-stopped
     profiles: ["web"]
+    ports:
+      - "8080:80"
     expose:
       - "80"
     depends_on:
@@ -210,28 +212,8 @@ services:
     networks:
       - internal
 
-  # Temporary Cloudflare Quick Tunnel. It gives this deployment a public HTTPS
-  # origin without a domain, but the hostname changes if the container is
-  # recreated. For a stable origin, create a named tunnel and replace this
-  # service with `cloudflared tunnel run --token ...` (see docs/HERMES_VPS.md).
-  cloudflared-quick:
-    image: cloudflare/cloudflared:latest
-    restart: unless-stopped
-    profiles: ["web"]
-    command:
-      - tunnel
-      - --no-autoupdate
-      - --url
-      - http://frontend:80
-    depends_on:
-      frontend:
-        condition: service_started
-    networks:
-      - internal
-
-  # Named Cloudflare Tunnel for a stable public hostname. Enable the `tunnel`
-  # profile after creating a tunnel and putting its token in .env. Stop
-  # cloudflared-quick first so only one public origin is active.
+  # Optional named Cloudflare Tunnel. Enable the `tunnel` profile after
+  # creating a tunnel and putting its token in .env.
   cloudflared:
     image: cloudflare/cloudflared:latest
     restart: unless-stopped

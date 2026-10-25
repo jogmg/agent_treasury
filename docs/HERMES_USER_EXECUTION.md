@@ -1,9 +1,15 @@
 # Hermes User Execution Path
 
-> Status: **Phase 2 BFF/auth/read-chat/deterministic draft intents implemented
-> locally; not deployed yet. Deployment and live verification are the next
-> gate.** Phase 1 is the deployed ops/read-only proving ground. The product
-> surface is the in-app Hermes User agent, not the private Discord Ops bot.
+> Status: **Phase 2 BFF/auth/read-chat/deterministic draft intents are deployed on
+> InstaBox.** The public frontend is
+> [https://8080-agqvtg5gwokf3k7e5easq4hd5e.instabox.tech](https://8080-agqvtg5gwokf3k7e5easq4hd5e.instabox.tech);
+> only nginx is public, while the BFF and Hermes services remain private. On
+> 2026-10-25, public `/health` and same-origin `/api/session` were verified. The
+> earlier authenticated SIWE/chat smoke used the retired Quick Tunnel, so repeat
+> authenticated SIWE, chat, and intent verification on this hostname before
+> treating the updated origin as fully E2E verified. Phase 1 remains the deployed
+> ops/read-only proving ground. The product surface is the in-app Hermes User
+> agent, not the private Discord Ops bot.
 >
 > This document is the execution contract for that surface. It is intentionally
 > separate from the ops runbook so the user path cannot be lost again.
@@ -87,7 +93,7 @@ The chat response is useful on its own for a read request. For an action, the
 draft is not a promise that the action happened. The chain and the deterministic
 monitor are authoritative.
 
-## 2.1 Implemented foundation (local, 2026-10-24)
+## 2.1 Implemented foundation (2026-10-24; deployed 2026-10-25)
 
 The build now has the SIWE/read/chat foundation plus deterministic draft
 intents:
@@ -127,14 +133,16 @@ intents:
   tx hash only when the submitted values still match the draft.
 - Separate `user` profile with NVIDIA fallback models and an API server on the
   private Compose network; no Discord gateway and no write tools.
-- Optional Compose `web` profile for `hermes-user` and `bff`. The BFF has no
-  published port; an HTTPS tunnel/reverse proxy is still required for deployment.
+- Compose `web` profile for `hermes-user` and `bff`. The BFF has no published
+  port; InstaBox publishes only frontend/nginx machine port `8080` over HTTPS.
 
 A local HTTP smoke passed SIWE verification, the wallet-bound session cookie,
 `/api/config`, and a fake-upstream chat turn (bearer key, derived session key,
 idempotency forwarding, browser field stripping). The intent service and action
-envelope are covered by PGlite and HTTP tests. Production deployment, live chat
-verification, and the audit/launch gate remain pending.
+envelope are covered by PGlite and HTTP tests. Production HTTPS and public health
+are live; rerun authenticated SIWE/chat/intent verification after the public
+origin changed from Quick Tunnel to InstaBox's stable machine port. Audit/launch
+gate remains pending.
 
 ## 3. Tool and endpoint map
 
@@ -142,22 +150,22 @@ The model does not invent endpoints. It calls this allowlisted surface.
 
 ### Read surface
 
-| User goal | Hermes tool | BFF endpoint | Notes |
-|---|---|---|---|
-| What is my balance / is the treasury healthy? | `arc_get_treasury_state` | `GET /api/treasury` | Principal, total, shares, paused, keeper, as-of block |
-| What happened recently? | `arc_list_activity` | `GET /api/activity` | Bounded rows, block timestamps, tx links |
-| Did my withdrawal arrive? | `arc_get_cctp_status` | `GET /api/cctp/:burnTx` | Iris + destination `usedNonces`; `waiting`/`ready`/`done`/`error` |
-| What is my persisted transfer? | `arc_get_transfer` | `GET /api/transfers?burnTx=0x...` | Postgres record, not a completion claim |
-| Which contracts/network is active? | `arc_get_config` | `GET /api/config` | Mainnet/testnet, chain ID, treasury, receiver, USDC |
-| What is waiting for bookkeeping? | `arc_get_bookkeeping_queue` | Ops-only | Never exposed to the User profile |
+| User goal                                     | Hermes tool                 | BFF endpoint                      | Notes                                                             |
+| --------------------------------------------- | --------------------------- | --------------------------------- | ----------------------------------------------------------------- |
+| What is my balance / is the treasury healthy? | `arc_get_treasury_state`    | `GET /api/treasury`               | Principal, total, shares, paused, keeper, as-of block             |
+| What happened recently?                       | `arc_list_activity`         | `GET /api/activity`               | Bounded rows, block timestamps, tx links                          |
+| Did my withdrawal arrive?                     | `arc_get_cctp_status`       | `GET /api/cctp/:burnTx`           | Iris + destination `usedNonces`; `waiting`/`ready`/`done`/`error` |
+| What is my persisted transfer?                | `arc_get_transfer`          | `GET /api/transfers?burnTx=0x...` | Postgres record, not a completion claim                           |
+| Which contracts/network is active?            | `arc_get_config`            | `GET /api/config`                 | Mainnet/testnet, chain ID, treasury, receiver, USDC               |
+| What is waiting for bookkeeping?              | `arc_get_bookkeeping_queue` | Ops-only                          | Never exposed to the User profile                                 |
 
 ### Draft surface — Phase 2 only
 
-| User goal | Action `kind` | BFF endpoint | Result |
-|---|---|---|---|
-| Put USDC into the vault | `deposit` | `POST /api/intents/deposit` | Unsigned `deposit(amount)` intent + deep link |
-| Withdraw to my Arc wallet | `withdrawLocal` | `POST /api/intents/withdraw-local` | Unsigned `withdrawLocal(amount)` intent + deep link |
-| Move USDC to another chain | `cctpWithdraw` | `POST /api/intents/cctp-withdraw` | Unsigned `requestWithdrawal(...)` intent + deep link |
+| User goal                  | Action `kind`   | BFF endpoint                       | Result                                               |
+| -------------------------- | --------------- | ---------------------------------- | ---------------------------------------------------- |
+| Put USDC into the vault    | `deposit`       | `POST /api/intents/deposit`        | Unsigned `deposit(amount)` intent + deep link        |
+| Withdraw to my Arc wallet  | `withdrawLocal` | `POST /api/intents/withdraw-local` | Unsigned `withdrawLocal(amount)` intent + deep link  |
+| Move USDC to another chain | `cctpWithdraw`  | `POST /api/intents/cctp-withdraw`  | Unsigned `requestWithdrawal(...)` intent + deep link |
 
 There is no `arc_execute_*`, `arc_send_*`, or `arc_sign_*` tool. The selected
 bridge is a single structured action envelope appended to a Hermes chat reply;
@@ -317,18 +325,18 @@ the Deposit, Withdraw, Activity, or Settings tabs.
 
 ## 7. Security and isolation
 
-| Risk | Control |
-|---|---|
-| Model invents a transaction | BFF derives `to`/`data`; allowlist `kind`, treasury, method, chain, domain |
-| Model chooses another wallet | Wallet comes from SIWE session, never from the model |
-| Prompt injection | Untrusted chain data is data; no terminal/browser/web tools in User profile |
-| API key leakage | BFF holds Hermes keys; browser never sees them |
-| Replay / double-submit | Intent expiry, idempotency key, unique tx hash, status checks |
-| Unauthorized spending | Existing contract spending limits; resolve max before enforcing |
-| Mainnet minimum bypass | Server-side 5 USDC check plus app `previewMint`/zero-share guard |
-| False completion | Iris + destination `usedNonces`; ignore `executed` for user-facing status |
-| Cross-user data leak | Wallet-bound sessions and queries; rate limit by wallet and IP |
-| Public abuse | Per-wallet rate limits, cost caps, and a launch gate after audit/cap review |
+| Risk                         | Control                                                                     |
+| ---------------------------- | --------------------------------------------------------------------------- |
+| Model invents a transaction  | BFF derives `to`/`data`; allowlist `kind`, treasury, method, chain, domain  |
+| Model chooses another wallet | Wallet comes from SIWE session, never from the model                        |
+| Prompt injection             | Untrusted chain data is data; no terminal/browser/web tools in User profile |
+| API key leakage              | BFF holds Hermes keys; browser never sees them                              |
+| Replay / double-submit       | Intent expiry, idempotency key, unique tx hash, status checks               |
+| Unauthorized spending        | Existing contract spending limits; resolve max before enforcing             |
+| Mainnet minimum bypass       | Server-side 5 USDC check plus app `previewMint`/zero-share guard            |
+| False completion             | Iris + destination `usedNonces`; ignore `executed` for user-facing status   |
+| Cross-user data leak         | Wallet-bound sessions and queries; rate limit by wallet and IP              |
+| Public abuse                 | Per-wallet rate limits, cost caps, and a launch gate after audit/cap review |
 
 The User profile has no terminal, filesystem, browser, web, search, code
 execution, cron, or permission to call Ops-only tools. It cannot access the owner

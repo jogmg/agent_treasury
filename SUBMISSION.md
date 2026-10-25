@@ -21,15 +21,19 @@ The dashboard makes the agent's balance sheet legible: total value, principal, y
 
 ## Arc Studio
 
-The entire project was built in Arc Studio: contracts, Foundry tests, deployment scripts, frontend, and docs. The app is a Vite + React + wagmi client that reads Arc directly; there is no backend or server-held key.
+The project originated in Arc Studio, where the core treasury contracts, tests, deployment work, and app were developed. The repository now also contains later local work, including the Hermes User/BFF service and production hosting integration. Before submission, verify the final submitted contracts and app are represented in the existing Arc Studio project; do not claim later local-only work was built there until that is confirmed. This keeps the project's Arc Studio provenance clear and protects hackathon eligibility.
+
+The browser app is Vite + React + wagmi. The optional Hermes User path uses a backend-for-frontend for SIWE sessions, read-only chat, and unsigned intent drafts. It has no user transaction signer or owner private key; users review and sign in their own EVM wallet.
+
+On October 25, 2026, the current contract/frontend sources, Hermes service, tests, deployment evidence, and project documentation were synchronized into the existing Arc Studio app above. The Studio deployment registry still shows six historical Arc Testnet deployments; the Arc mainnet deployment evidence is included in `deployments/arc-mainnet.json`, but those mainnet deployments were signed through the user's external MetaMask flow and are not Arc Studio CLI deployment records. Keep that provenance explicit in the walkthrough and submission; do not imply those mainnet deployments were performed by the Studio CLI.
 
 ## Circle products
 
-| Product | How it is used |
-|---|---|
-| **CCTP v2** | Outbound `depositForBurnWithHook` with standard finality (`2000`) for reliable Arc-origin attestations; inbound source-chain burn → mint to the Arc wallet → treasury `deposit()`. CCTP v2 hooks are opaque metadata, so the app does not rely on automatic hook execution; `CCTPReceiver` is a tested relayer adapter for future source-domain accounting. |
-| **Earn Kit (Morpho on Arc)** | Mainnet vault 1 is Galaxy USDC (`0x8E357432...12AF`, ~2.65% net APY), deposited/redeemed through the adapter. The testnet build uses the ~4.2% demo vault `0xAabbeF1D...8E88`. |
-| **Gateway** | `gatewayReceiver` hook and UI surface are present, but live unified balances need a server-side API key and are not faked. Roadmap item. |
+| Product                      | How it is used                                                                                                                                                                                                                                                                                                                                              |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **CCTP v2**                  | Outbound `depositForBurnWithHook` with standard finality (`2000`) for reliable Arc-origin attestations; inbound source-chain burn → mint to the Arc wallet → treasury `deposit()`. CCTP v2 hooks are opaque metadata, so the app does not rely on automatic hook execution; `CCTPReceiver` is a tested relayer adapter for future source-domain accounting. |
+| **Earn Kit (Morpho on Arc)** | Mainnet vault 1 is Galaxy USDC (`0x8E357432...12AF`, ~2.65% net APY), deposited/redeemed through the adapter. The testnet build uses the ~4.2% demo vault `0xAabbeF1D...8E88`.                                                                                                                                                                              |
+| **Gateway**                  | `gatewayReceiver` hook and UI surface are present, but live unified balances need a server-side API key and are not faked. Roadmap item.                                                                                                                                                                                                                    |
 
 ## What is live
 
@@ -44,7 +48,8 @@ The entire project was built in Arc Studio: contracts, Foundry tests, deployment
   mainnet CCTP (`0x28b5...cf5d` / `0x81D4...B64`), domain `26`, default vault `1`, both contracts
   unpaused, vault asset USDC, APY `2.65%`.
 - **Guardrails (unaudited):** vault minimum **5 USDC**, owner spending limit **25 USDC/day,
-  50 USDC/week**, keeper = owner EOA for launch.
+  50 USDC/week**. The owner retains control; the keeper role was rotated to a dedicated EOA on
+  October 25, 2026 (see `deployments/arc-mainnet.json`).
 - **Deploy rehearsal:** the exact 10-tx sequence passed on a live Arc mainnet fork
   (`MainnetDeploy.t.sol`, 5,761,118 gas).
 - **Live mainnet E2E:** 5 USDC deposited into Galaxy USDC (tx
@@ -87,20 +92,20 @@ The entire project was built in Arc Studio: contracts, Foundry tests, deployment
 
 ## Judging map
 
-| Criterion | Evidence |
-|---|---|
-| **Functionality (25%)** | Deposit → yield → withdraw loop; spending limits; pause; keeper separation; CCTP outbound; 81 contract tests. |
-| **Arc Studio usage (25%)** | Contracts, tests, deploy scripts, frontend, and docs all generated iteratively in one Arc Studio project; deployment records in `deployments/arc-mainnet.json` and `deployments/arc-testnet-fixed.json`. |
-| **Real USDC on Arc (30%)** | **Both networks proven with real USDC, including cross-chain.** Mainnet: local deposit/withdraw plus a full CCTP round trip — Arc→Base withdrawals attested and minted, Base→Arc 5 USDC burn/mint/deposit. Testnet: 10 USDC deposited into the live Morpho vault, then 1 USDC withdrawn from yield through CCTP to domain 0; source burn and finalized Iris attestation confirmed, with a completed Sepolia destination mint. |
-| **Circle product depth (20%)** | CCTP v2 inbound/outbound on both networks; Earn Kit/Morpho vault; Gateway-ready receiver hook. |
+| Criterion                      | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Functionality (25%)**        | Deposit → yield → withdraw loop; spending limits; pause; keeper separation; CCTP outbound; 81 contract tests.                                                                                                                                                                                                                                                                                                                 |
+| **Arc Studio usage (25%)**     | Contracts, tests, deploy scripts, frontend, and docs all generated iteratively in one Arc Studio project; deployment records in `deployments/arc-mainnet.json` and `deployments/arc-testnet-fixed.json`.                                                                                                                                                                                                                      |
+| **Real USDC on Arc (30%)**     | **Both networks proven with real USDC, including cross-chain.** Mainnet: local deposit/withdraw plus a full CCTP round trip — Arc→Base withdrawals attested and minted, Base→Arc 5 USDC burn/mint/deposit. Testnet: 10 USDC deposited into the live Morpho vault, then 1 USDC withdrawn from yield through CCTP to domain 0; source burn and finalized Iris attestation confirmed, with a completed Sepolia destination mint. |
+| **Circle product depth (20%)** | CCTP v2 inbound/outbound on both networks; Earn Kit/Morpho vault; Gateway-ready receiver hook.                                                                                                                                                                                                                                                                                                                                |
 
 ## Honest limitations
 
 - Contracts are **unaudited**. Mainnet is live with deliberately low limits and only the owner's funds.
   Do not custody third-party funds before an audit.
-- **Withdrawal bookkeeping is not automatic.** The two completed mainnet CCTP requests are still
-  `executed=false` on-chain because the app never calls `executeWithdrawal`; funds are unaffected, but
-  a keeper call is needed to clear pending ids 1–2. The app has no button for this yet.
+- **Withdrawal bookkeeping is manual.** Mainnet withdrawal IDs 1–3 were confirmed delivered on Base
+  and marked `executed=true` on October 25, 2026. The owner-signed keeper bookkeeping calls move no
+  funds; the app still derives user-facing completion from CCTP status rather than this flag.
 - **Destination mints still need destination-chain gas or a relayer.** The app polls Iris and can
   submit `receiveMessage`, but cannot pay destination gas. In the live mainnet round trip an external
   relayer submitted both Base mints. The 4.999999 USDC Sepolia mint is complete; the earlier testnet
@@ -117,7 +122,8 @@ The entire project was built in Arc Studio: contracts, Foundry tests, deployment
 ## Repo / demo
 
 - Code: this repository
-- App preview: https://studio.arc.io/app/459b639e-b500-4f59-b057-aa17f5446888
+- Arc Studio project: https://studio.arc.io/app/459b639e-b500-4f59-b057-aa17f5446888
+- Live app: https://8080-agqvtg5gwokf3k7e5easq4hd5e.instabox.tech
 - Demo video: _link_
 - Deck: _link_
 

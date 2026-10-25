@@ -220,7 +220,7 @@ defaults to the same URL.
 
 - **Automatic:** `fallback_providers` is tried in order on HTTP 429/5xx,
   timeouts, auth/not-found errors, and invalid responses. `agent.api_max_retries:
-  1` and `providers.nvidia.request_timeout_seconds: 45` keep failover quick.
+1` and `providers.nvidia.request_timeout_seconds: 45` keep failover quick.
 - **For one chat:** use an alias in Discord or the CLI:
   `/model nvidia-minimax`, `/model nvidia-lightning`, `/model nvidia-muse`,
   `/model nvidia-glm`, `/model nvidia-deepseek`, or `/model nvidia-fast`.
@@ -231,7 +231,7 @@ defaults to the same URL.
   `hermes -p ops model` picks the primary.
 - **List current IDs:** with `NVIDIA_API_KEY` loaded in the profile shell,
   `curl -s https://integrate.api.nvidia.com/v1/models -H "Authorization: Bearer
-  $NVIDIA_API_KEY"` (or use the Build catalog UI).
+$NVIDIA_API_KEY"` (or use the Build catalog UI).
 
 The Compose service runs `hermes -p ops gateway run`. Hermes' default
 multiplexing expects the default profile to own the host gateway, so the Ops
@@ -277,13 +277,13 @@ docker compose ps
 
 Expected services:
 
-| Service | State | Purpose |
-|---|---|---|
-| `postgres` | healthy | business state |
-| `migrate` | exited 0 | schema migration |
-| `arc-mcp` | healthy | read-only MCP |
-| `monitor` | healthy | scan + alerts |
-| `hermes` | running | Discord gateway |
+| Service    | State    | Purpose          |
+| ---------- | -------- | ---------------- |
+| `postgres` | healthy  | business state   |
+| `migrate`  | exited 0 | schema migration |
+| `arc-mcp`  | healthy  | read-only MCP    |
+| `monitor`  | healthy  | scan + alerts    |
+| `hermes`   | running  | Discord gateway  |
 
 Watch the first run:
 
@@ -336,29 +336,40 @@ front of `bff`; that proxy is the only public entry point. Route `/api/*` and
 at the HTTPS BFF origin. Set `BFF_TRUST_PROXY=true` when that proxy is the only
 ingress so per-IP sign-in limits use the real client address.
 
-The `web` profile also includes `frontend`, an nginx container that serves the
-built SPA and proxies `/api/*`, `/auth/*`, and `/health` to `bff:8789`, plus
-`cloudflared-quick`, a Cloudflare Quick Tunnel pointed at `frontend:80`. Build
-the frontend with an empty `VITE_BFF_URL` so the browser stays same-origin:
+The `web` profile includes `frontend`, an nginx container that serves the built
+SPA and proxies `/api/*`, `/auth/*`, and `/health` to `bff:8789`. Compose maps
+machine port `8080` to nginx port `80`; publish that port with InstaBox to get
+a persistent HTTPS URL without owning a domain. The BFF, Hermes, MCP, monitor,
+and Postgres remain private. Build the frontend with an empty `VITE_BFF_URL` so
+the browser stays same-origin:
 
 ```bash
 cd /opt/agent-treasury/hermes
 export HERMES_DATA_DIR="${HERMES_DATA_DIR:-./data}"
 docker compose --profile web up -d --build
-docker compose logs --tail=100 cloudflared-quick
+instabox port publish agent-browser-lq29 8080 --name 'Agent Treasury frontend'
+instabox port ls agent-browser-lq29
 ```
 
-Copy the `https://<random>.trycloudflare.com` URL from the quick-tunnel log and
-put it in `BFF_PUBLIC_ORIGIN` and `BFF_ALLOWED_ORIGINS`, then recreate the BFF:
+Use the HTTPS URL returned by InstaBox for both `BFF_PUBLIC_ORIGIN` and
+`BFF_ALLOWED_ORIGINS` in `hermes/.env`, then recreate the BFF:
 
 ```bash
 docker compose --profile web up -d bff
 ```
 
-Quick Tunnel is suitable for verification only: the hostname changes if the
-container is recreated, and it does not give you a stable SIWE domain. For a
-stable deployment, create a named tunnel in Cloudflare, route a hostname in a
-zone you control to it, and put its token in `hermes/.env`:
+InstaBox keeps the public URL when the same machine port is published again.
+The URL belongs to the machine, so deleting/replacing the machine requires
+publishing the port again and updating both BFF origin settings. Anyone with
+the URL can reach the frontend. Do not publish the BFF, Hermes, MCP, monitor,
+or Postgres ports. A named Cloudflare Tunnel remains an alternative if you
+later have a Cloudflare-managed domain:
+
+Current deployment (verified 2026-10-25):
+`https://8080-agqvtg5gwokf3k7e5easq4hd5e.instabox.tech`. The InstaBox port is
+published and survives Compose reconciliation. The old `cloudflared-quick`
+service was removed after Cloudflare began rejecting its expired temporary
+tunnel identity. Public `/health` and same-origin `/api/session` both respond.
 
 ```bash
 cd /opt/agent-treasury/hermes
@@ -369,7 +380,6 @@ chmod 600 .env
 # Set these to the public hostname in the same edit.
 # BFF_PUBLIC_ORIGIN=https://treasury.example.com
 # BFF_ALLOWED_ORIGINS=https://treasury.example.com
-docker compose --profile web stop cloudflared-quick
 docker compose --profile web --profile tunnel up -d --force-recreate bff cloudflared
 ```
 
@@ -643,24 +653,26 @@ Use `ALERT_COOLDOWN_SECONDS` and resolve rules. The monitor dedupes by
       link is returned only when Iris supplies a forwarder tx.
 - [ ] `arc_get_treasury_state` includes a fresh `asOfBlock` and `asOfTime`.
 - [ ] Discord Ops bot responds only to allowlisted users.
-- [ ] `#treasury-alerts` receives the expected `keeper-is-owner` warning.
-- [ ] No host ports are published (`docker compose ps` has no `0.0.0.0:...`).
+- [ ] `#treasury-alerts` receives configured monitor alerts.
+- [ ] Only frontend/nginx machine port 8080 is public; BFF, Hermes, MCP, monitor, and Postgres stay private.
 - [ ] Backups run and a restore has been tested.
-- [ ] Keeper is still owner; no automated bookkeeping is enabled.
+- [x] Keeper is separate from owner on AgentTreasury and MorphoVaultAdapter (rotated 2026-10-25).
+- [x] Mainnet withdrawal bookkeeping IDs 1–3 was completed after delivery verification (2026-10-25).
 - [ ] Owner key never entered the VPS, chat, repo, or Postgres.
 
 ---
 
 ## 12. What comes next
 
-Phase 1 is deliberately read-only. Before Phase 2/3:
+Phase 1 Ops and the Phase 2 Hermes User/BFF are deployed. Remaining operational work:
 
-1. Rotate the keeper away from the owner EOA.
-2. Add the BFF/SIWE layer before exposing any Hermes API.
-3. Add typed transaction intents and review cards; users sign in their own
-   EIP-1193 wallet (MetaMask, Rabby, Coinbase Wallet, Brave, Frame, etc.).
-4. Add keeper bookkeeping only for transfers verified complete by Iris and
-   destination delivery.
-5. Add incident threads and owner-action drafts for wallet/Safe approval.
+1. Repeat authenticated SIWE, read, chat, and draft-intent verification against the current
+   InstaBox HTTPS origin after its origin change.
+2. Verify the deployed intent-maintenance sweep against a real receipt without initiating a new
+   transaction; use an already-submitted known transaction if its intent match is available.
+3. Keep owner-controlled actions behind the user's wallet/Safe approval. Do not enable automated
+   bookkeeping or keeper write workflows beyond the completed manual `executeWithdrawal` calls
+   unless their authorization and delivery checks are separately reviewed.
+4. Complete external contract audit before raising caps or onboarding third-party funds.
 
 See `docs/HERMES.md` for the full phased plan.

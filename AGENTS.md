@@ -8,14 +8,32 @@ This is the **project memory** - what Arc Studio remembers about building this a
 
 ## Session discipline (IMPORTANT for future agent sessions)
 
-This project is being built for a hackathon on a metered Arc Studio AI quota. Every session must conserve it:
+This project originated in Arc Studio and is being submitted to the Arc Microgrants: Built with Arc Studio hackathon. The user is on Arc Studio's free plan; conserve its limited credits in every session:
 
-- **Never run `arc-studio upgrade`** or any other quota-consuming Arc Studio CLI flow unless the user explicitly asks.
-- **Do all local work (code, tests, lint, build, docs, git) directly in this repo without touching Arc Studio.**
+- **Never run `arc-studio upgrade`.** Do not spend Arc Studio AI credits or invoke quota-consuming hosted generation/audit/deploy flows unless the user explicitly asks or the task requires it and the user confirms.
+- Routine code inspection, tests, lint, builds, docs, and git work should happen locally in this repository to conserve credits.
+- Preserve the existing Arc Studio project as the project's provenance and keep substantive submitted app/contract changes synchronized with it through the existing workflow. Before claiming a change was built in Arc Studio, verify that it is present there; do not recreate or migrate the project outside Arc Studio.
+- Do not assume local-only work automatically appears in Arc Studio. Call out any sync/provenance gap that could affect hackathon eligibility before submission.
+- Hackathon submission gates (verified from the [official rules](https://dorahacks.io/hackathon/arc-microgrants-2/detail), 2026-10-25): provide the Arc Studio project URL, a working public app link, Arc mainnet contract addresses and a real USDC transaction, a public source repository, a walkthrough showing the Studio build and mainnet transaction, and a short project/Studio-use description. The project must be Arc Studio-built and deployed to Arc mainnet; testnet-only work is ineligible. Recheck the live rules and deadline before submission.
 - **Prefer reading this file first** over re-exploring the codebase; it already documents architecture, addresses, cul-de-sacs (CCTP uint64 return bug, hooks are not automatic, etc.), and current status.
 - **Keep edits small and targeted**; batch verification (typecheck + lint + tests + build in one command) instead of cycling on each file.
 - **Write findings back here** so the next session does not need to rediscover them.
 - The user will compact conversations before context usage gets high; do not restart work that this file already covers.
+
+## Continuity and project-state updates
+
+- Keep this file and the relevant project Markdown current whenever implementation, deployment, test status, architectural decisions, or known blockers change. Update the owning runbook/design document as well as this file when the change affects operational instructions; avoid duplicating long technical detail.
+- Record verified state, date, checks actually run, unresolved issues, and the concrete next step. Distinguish repository-verified facts from user reports or remote state that could not be checked.
+- Before handing work to another agent, leave enough context here or in the relevant document for it to continue without replaying completed tasks. Never put credentials, private keys, tokens, or secret values in project notes.
+- The user prefers to continue development in the current conversation and requests context compaction when usage approaches roughly 60–80%. If the platform exposes a compaction control or reliable usage indicator, use it in that range after updating project notes. If it does not, do not claim to have compacted or guess at usage; keep updates concise and rely on the platform's automatic compaction and these project notes.
+
+## Arc Studio synchronization status (2026-10-25)
+
+- Existing Arc Studio app: `https://studio.arc.io/app/459b639e-b500-4f59-b057-aa17f5446888` (`Agent Treasury Contract Builder`). Current contracts/frontend, Hermes services and tests, migrations, profiles without env files, docs, deployment evidence, and safe build/deployment support files were synchronized and verified in this same app. Do not create a replacement app.
+- Arc Studio CLI usage after project sync and keeper-maintenance record update: **28%** of the reported rolling window (2026-10-25). Studio-reported checks during source sync: Foundry 104 passing, root Vitest 69 passing, Hermes Vitest 82 passing. Treat these as Studio-reported; run local checks for subsequent changes.
+- `arc-studio deployments --app ...` still lists six historical Arc Testnet deployments. Mainnet contracts are already live and documented in `deployments/arc-mainnet.json`, but were deployed through the user's external MetaMask flow, not registered by the Arc Studio CLI. Never fabricate Studio deployment records or redeploy the treasury to make the panel look current.
+- Live frontend: `https://8080-agqvtg5gwokf3k7e5easq4hd5e.instabox.tech` via InstaBox public port 8080. Only nginx is public; BFF/Hermes/MCP/monitor/Postgres remain private. Public `/health` and unauthenticated `/api/session` were verified 2026-10-25. Authenticated SIWE/chat/intent E2E must be repeated after the origin changed from the expired Cloudflare Quick Tunnel.
+- Secret/env files, generated output, caches, vendor dependencies, and the supplied `agent_treasury.json` OpenCode export were intentionally excluded from Studio sync. The license is present as `LICENSE.txt` because the app's canonical `LICENSE` destination was ambiguous.
 
 ## What This App Does
 
@@ -26,12 +44,12 @@ Cross-chain USDC treasury for AI agents. Accepts USDC from any CCTP-supported ch
 The app defaults to **Arc mainnet** (`VITE_ARC_NETWORK=mainnet`, chain `5042`). Testnet remains
 available by building with `VITE_ARC_NETWORK=testnet`.
 
-| Contract | Address | Explorer |
-|---|---|---|
-| AgentTreasury | `0xf71b5d1a19d72b98675785123fae811698be6f63` | [link](https://explorer.arc.io/address/0xf71b5d1a19d72b98675785123fae811698be6f63) |
-| MorphoVaultAdapter | `0x5102057330f5bb5f3e4eb0925b7d1eac8a563c23` | [link](https://explorer.arc.io/address/0x5102057330f5bb5f3e4eb0925b7d1eac8a563c23) |
-| CCTPReceiver (abandoned) | `0x91f1eb97a40fdab05d150c10566cf9aa3546a375` | [link](https://explorer.arc.io/address/0x91f1eb97a40fdab05d150c10566cf9aa3546a375) |
-| CCTPReceiverV2 #1 (superseded) | `0x54776bc9551b0dC8c1c83c21F81F11eF3A59Da98` | [link](https://explorer.arc.io/address/0x54776bc9551b0dC8c1c83c21F81F11eF3A59Da98) |
+| Contract                       | Address                                          | Explorer                                                                           |
+| ------------------------------ | ------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| AgentTreasury                  | `0xf71b5d1a19d72b98675785123fae811698be6f63`     | [link](https://explorer.arc.io/address/0xf71b5d1a19d72b98675785123fae811698be6f63) |
+| MorphoVaultAdapter             | `0x5102057330f5bb5f3e4eb0925b7d1eac8a563c23`     | [link](https://explorer.arc.io/address/0x5102057330f5bb5f3e4eb0925b7d1eac8a563c23) |
+| CCTPReceiver (abandoned)       | `0x91f1eb97a40fdab05d150c10566cf9aa3546a375`     | [link](https://explorer.arc.io/address/0x91f1eb97a40fdab05d150c10566cf9aa3546a375) |
+| CCTPReceiverV2 #1 (superseded) | `0x54776bc9551b0dC8c1c83c21F81F11eF3A59Da98`     | [link](https://explorer.arc.io/address/0x54776bc9551b0dC8c1c83c21F81F11eF3A59Da98) |
 | **CCTPReceiverV2 (corrected)** | **`0x847F55221F30675791d2fAaf84f93B1fa86399E2`** | [link](https://explorer.arc.io/address/0x847F55221F30675791d2fAaf84f93B1fa86399E2) |
 
 `CCTPReceiverV2` #1 deployed at block `27199918` (tx
@@ -47,14 +65,15 @@ earlier mainnet Base→Arc 5 USDC inbound used the legacy mint-to-wallet path an
 recorded domain 26. The corrected mainnet receiver path passed live on 2026-10-22
 (5 USDC Base→Arc, `0xdd79d20a…d873b86`, `DepositRecorded.sourceDomain = 6`).
 
-- Deploy block `27153175` (adapter), treasury `27153209`. Owner/keeper:
-  `0xD00fD0B006c01342522cAf4FA04D5f8910aB268c`.
+- Deploy block `27153175` (adapter), treasury `27153209`. Owner remains
+  `0xD00fD0B006c01342522cAf4FA04D5f8910aB268c`; current keeper on both contracts is
+  `0x72Cbd56507699F5002A10aCdDC5D20b4C2207a75` (rotated 2026-10-25; see maintenance receipts).
 - Vault 1: **Galaxy USDC** `0x8E357432CC12ff425c36432F312968aEb16112AF` (`arcUSDC`), 18-dec shares,
   ~2.65% net APY, 0 fees, ~12.2M USDC instant liquidity. Fallback: Steakhouse Prime
   `0xbeef0016cb2Fd5C352ea7CA08a9f54739DFa7298` (~1.97% APY).
 - **Mainnet minimum deposit is 5 USDC** (`5_000_000`), economics-based. It is far above the
   zero-share threshold; `previewDeposit(5 USDC)` > 0 and `previewMint(1 wei)` = 1 wei.
-- Spending limit for the owner agent: **25 USDC/day, 50 USDC/week**. Keeper = owner EOA for launch.
+- Spending limit for the owner agent: **25 USDC/day, 50 USDC/week**. Initial keeper was the owner EOA; on 2026-10-25 it was rotated to dedicated EOA `0x72Cbd56507699F5002A10aCdDC5D20b4C2207a75` on both treasury and adapter.
 - Mainnet CCTP differs from testnet: TokenMessengerV2 `0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d`,
   MessageTransmitterV2 `0x81D40F21F12A8F0E3252Bccb954D722d4c464B64`, domain `26`.
   The testnet CCTP addresses have **no code** on mainnet.
@@ -77,8 +96,9 @@ recorded domain 26. The corrected mainnet receiver path passed live on 2026-10-2
   (`0xb2a7ba…246c`), followed by `deposit()` (`0xb1e34e…026b`, `4,996,555,771,054,222,485` shares).
   Post-state: principal `9.000003`, shares `8,993,822,921,076,662,356`, total `9.000028` USDC.
   Note: `DepositRecorded` shows source domain `26` (the app deposits from the Arc wallet after mint);
-  source-domain accounting is still TODO #10. Withdrawal ids 1–2 are still `executed=false` on-chain —
-  run keeper `executeWithdrawal` to clear them.
+  source-domain accounting was still TODO #10 at that time. Withdrawal ids 1–2 were later marked
+  executed with owner-signed bookkeeping transactions on 2026-10-25 (see
+  `deployments/arc-mainnet.json`).
 - **Live mainnet receiver inbound proof passed (Oct 22, 2026)**: withdrawal id 3 burned
   `4.999999` USDC on Arc (`0x79006a…2b13`, block `27317380`); Iris status `complete`
   (nonce `0xfb087f…bf75`) and Base minted `4.999999` USDC to the owner (`0x875d82…8a94`,
@@ -88,8 +108,8 @@ recorded domain 26. The corrected mainnet receiver path passed live on 2026-10-2
   amount `5000000`, vault id `1`, shares `4,996,190,411,368,419,803`; receiver and treasury
   USDC both returned to `0`. Post-state: principal `10.000001`, shares
   `9,992,387,766,924,438,899`, total `10.000011`, `depositsByChain(6) = 5000000`,
-  `depositsByChain(26) = 27000000`. Withdrawal id 3 remains `executed=false` (bookkeeping
-  only; the app derives completion from Iris/destination state).
+  `depositsByChain(26) = 27000000`. Withdrawal id 3 was subsequently marked executed on
+  2026-10-25; user-facing completion continues to derive from Iris/destination state.
 - **Mainnet treasury is now fully withdrawn (observed 2026-10-22, block `27346931`)**:
   `WithdrawalToWallet` tx `0x181942ba…5aa2c`, amount `10.000156` USDC, shares burned
   `9,992,387,005,757,887,292`. Current view: principal `0`, total `0`, vault dust
@@ -245,8 +265,9 @@ runbook: `docs/HERMES_VPS.md`.
   deep link, not a broadcast. Support is wallet-agnostic across EIP-1193/EIP-6963 wallets (MetaMask,
   Rabby, Coinbase Wallet, Brave, Frame, etc.); never branch on `window.ethereum.isMetaMask` or
   assume a specific wallet UI. Hermes may explain or deep-link; it never signs.
-- Keeper automation (Phase 3) stays blocked until the keeper is rotated from the owner EOA to a
-  dedicated KMS/HSM-backed key. `executeWithdrawal` is bookkeeping only, but still a write.
+- Keeper role rotation is complete; automated keeper execution (Phase 3) stays blocked until
+  dedicated key custody and call restrictions are reviewed. `executeWithdrawal` is bookkeeping only,
+  but still an owner-authorized write.
 - Current deployment: InstaBox free machine with a persistent `/data` volume and private Postgres.
   Fly.io/Railway remains reference material. No public InstaBox port for Hermes API, MCP, monitor,
   Postgres, or the keepalive path; only SSH is reachable, and all service traffic is outbound or on
@@ -256,6 +277,7 @@ runbook: `docs/HERMES_VPS.md`.
 ## Stage 2 + Hardening Pass Contract Summary
 
 ### Contract files (contracts/src/)
+
 - `AgentTreasury.sol` - Per-agent accounting, Morpho vault deployment, two withdrawal paths (see below), spending limits, pause
 - `MorphoVaultAdapter.sol` - Whitelisted ERC-4626 vault management (deposit/withdraw/preview/APY cache)
 - `CCTPReceiver.sol` - inbound CCTP relayer adapter; tolerant BurnMessageV2 decoder (Layout A versioned + Layout B); routes malformed hookData to defaultBeneficiary. CCTP v2 hooks are opaque metadata, so the frontend does **not** rely on automatic hook execution; it mints to the user's Arc wallet and calls `deposit()`.
@@ -267,14 +289,17 @@ runbook: `docs/HERMES_VPS.md`.
 ### AgentTreasury public interface (frontend-facing functions)
 
 **Arc-local MVP fast path (no bridging):**
+
 - `deposit(uint256 amount)` — pull USDC from msg.sender, credit principal, deploy to active vault
 - `withdrawLocal(uint256 amount)` — redeem shares, enforce spending limit, transfer USDC to msg.sender. Pass `type(uint256).max` for everything.
 
 **CCTP cross-chain path (burn on Arc, mint on destination):**
+
 - `requestWithdrawal(agent, amount, destinationDomain, mintRecipient)` — CCTP burn. `amount == type(uint256).max` withdraws all. Spending limits enforced on the RESOLVED amount (fix A).
 - `executeWithdrawal(id)` / `cancelWithdrawal(id)` — keeper/owner bookkeeping
 
 **Shared:**
+
 - `recordDeposit(agent, amount, sourceDomain)` — called by CCTPReceiver after CCTP mint
 - `getTotalBalance(agent)` — view, never reverts; idle + vault value (try/catch fallback)
 - `getPrincipal / getVaultShares / getDepositsByChain / getActiveVault / getWithdrawal`
@@ -282,12 +307,15 @@ runbook: `docs/HERMES_VPS.md`.
 - `pause() / unpause()`
 
 ### Security properties
+
 - `onlyAgentOrOwner`: requestWithdrawal, withdrawLocal, setSpendingLimit, setYieldStrategy, claimYield — keeper excluded
 - `onlyKeeperOrOwner`: rebalance, executeWithdrawal, setWithdrawalMessageHash
 - Spending limit bypass fixed: `_redeemAndAccount` resolves the actual amount first; `_enforceSpendingLimit` is called on the resolved amount for BOTH max and partial withdrawals, in both CCTP and local paths
 
 ### Test results (forge test) — latest pass
+
 104 tests PASS, 1 skipped (mainnet fork) across:
+
 - AgentTreasury.t.sol (39 tests)
 - MorphoVaultAdapter.t.sol (22 tests)
 - CCTPReceiver.t.sol (11 tests)
@@ -295,7 +323,9 @@ runbook: `docs/HERMES_VPS.md`.
 - Invariants.t.sol (9 tests)
 
 ### Test results (vitest / frontend) — latest pass
+
 63 tests PASS, 0 fail across:
+
 - src/lib/decimals.test.ts (29 tests) — includes formatShares 18-dec coverage
 - src/lib/cctp.test.ts (6 tests) — destination map + message nonce
 - src/stores/flow.test.ts (12 tests) — flow steps + persisted outbound CCTP transfer history
@@ -306,12 +336,14 @@ Tests use `vi.restoreAllMocks()` + `Object.defineProperty` for the
 Studio sandbox runs Vitest 5, where the stubGlobal API was removed.
 
 ### Deploy scripts
+
 - `contracts/script/Deploy.s.sol` - Deploys all 3 contracts; reads addresses from ArcConfig + env
 - `contracts/script/Configure.s.sol` - Wires references, sets keeper, registers vaults, initiates Ownable2Step transfer
 - `contracts/script/DeployFixedTestnet.s.sol` - **current** full-stack hotfix deployment + wiring + handoff
 - `scripts/complete-cctp.ts` - fetch Iris attestation and call `receiveMessage` on Sepolia
 
 ### Resolved constants (contracts/script/ArcConfig.sol)
+
 - Arc testnet chain ID: 5042002 / mainnet: 5042
 - CCTP domain (both networks): 26
 - USDC (both networks): 0x3600000000000000000000000000000000000000 (ERC-20, 6 dec)
@@ -326,13 +358,13 @@ Studio sandbox runs Vitest 5, where the stubGlobal API was removed.
 
 ## CCTP Hotfix Deployment (testnet, Oct 2026) — WIRED + E2E VERIFIED
 
-| Contract | Address | Explorer |
-|---|---|---|
-| MorphoVaultAdapter | `0x333deccbf9091540e849b7af80f2f10b72197b71` | [link](https://explorer.testnet.arc.io/address/0x333deccbf9091540e849b7af80f2f10b72197b71) |
-| CCTPReceiver (abandoned) | `0x8066bcf8e6b17e2d84082179a89f0972cc6e31c1` | [link](https://explorer.testnet.arc.io/address/0x8066bcf8e6b17e2d84082179a89f0972cc6e31c1) |
-| CCTPReceiverV2 #1 (superseded) | `0xa0d233e24B7B2280bC4f9a2447F59860050aCb4D` | [link](https://explorer.testnet.arc.io/address/0xa0d233e24B7B2280bC4f9a2447F59860050aCb4D) |
+| Contract                       | Address                                          | Explorer                                                                                   |
+| ------------------------------ | ------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| MorphoVaultAdapter             | `0x333deccbf9091540e849b7af80f2f10b72197b71`     | [link](https://explorer.testnet.arc.io/address/0x333deccbf9091540e849b7af80f2f10b72197b71) |
+| CCTPReceiver (abandoned)       | `0x8066bcf8e6b17e2d84082179a89f0972cc6e31c1`     | [link](https://explorer.testnet.arc.io/address/0x8066bcf8e6b17e2d84082179a89f0972cc6e31c1) |
+| CCTPReceiverV2 #1 (superseded) | `0xa0d233e24B7B2280bC4f9a2447F59860050aCb4D`     | [link](https://explorer.testnet.arc.io/address/0xa0d233e24B7B2280bC4f9a2447F59860050aCb4D) |
 | **CCTPReceiverV2 (corrected)** | **`0x344466B00BED1BD5bdFa3E21392E776144323f4c`** | [link](https://explorer.testnet.arc.io/address/0x344466B00BED1BD5bdFa3E21392E776144323f4c) |
-| AgentTreasury | `0x5e2e3da19533ebf85bc916612eff5cdc7bf4d489` | [link](https://explorer.testnet.arc.io/address/0x5e2e3da19533ebf85bc916612eff5cdc7bf4d489) |
+| AgentTreasury                  | `0x5e2e3da19533ebf85bc916612eff5cdc7bf4d489`     | [link](https://explorer.testnet.arc.io/address/0x5e2e3da19533ebf85bc916612eff5cdc7bf4d489) |
 
 `CCTPReceiverV2` #1 deployed at block `68434709` (tx
 `0x3aa59c55cca7e1f8b1614ac78dd6d818d786bc2cb15db05eee92985a0c8add91`) and wired at
@@ -348,12 +380,14 @@ Deploy block: `68193025`. Owner/keeper: `0xD00fD0B006c01342522cAf4FA04D5f8910aB2
 Full record: `deployments/arc-testnet-fixed.json`.
 
 ### CCTP root cause + fix
+
 Arc's `TokenMessengerV2.depositForBurnWithHook` returns **no data**. The original
 `ITokenMessengerV2` declared `returns (uint64 nonce)`, so every burn succeeded and
 then the treasury reverted while decoding the empty return buffer, rolling back the
 whole withdrawal. Fix: no return values; `CCTP_MIN_FINALITY_THRESHOLD = 2000`.
 
 ### Live E2E proof (real testnet USDC)
+
 - Approve 10 USDC: `0x158ed9048899e22ef6d087bdd2489cf70a215ae6b6ca602e6828e997a2df69fe`
 - Deposit 10 USDC: `0xbab5877074904d17fb21b49aed8c3d2a956ee8d16d3ddc3ec523046d464a04c4`
   → balance `9999999`, shares `9989427554595819468`
@@ -363,6 +397,7 @@ whole withdrawal. Fix: no return values; `CCTP_MIN_FINALITY_THRESHOLD = 2000`.
 - Use `scripts/complete-cctp.ts` to finish the Sepolia mint once funded.
 
 ### Live inbound CCTP proof (2026-10-22) — PASS
+
 - Base Sepolia -> Arc, 3 USDC, source domain `6`.
 - Burn `0xf07a1cff21a97fa89bd53fc45c2ae6a967e2887f62a3c609195e94e53f198750`
   block `48561808`; Iris status `complete`; nonce
@@ -377,6 +412,7 @@ whole withdrawal. Fix: no return values; `CCTP_MIN_FINALITY_THRESHOLD = 2000`.
   mint-to-wallet path, not `CCTPReceiverV2`.
 
 ### Frontend hotfix additions
+
 - `LegacyRecoveryCard` in the Withdraw tab recovered funds from the old stack via `withdrawLocal`. **Removed Oct 2026** (no user funds remain in the legacy treasury for the current wallet); the legacy addresses below are kept only as a historical record.
 - `OwnershipCard` in Settings accepts the Ownable2Step handoff on all three contracts.
 - `CctpCompletionCard` polls Circle Iris after a burn, switches to the destination chain, and submits `receiveMessage`. It also lists recent CCTP requests and accepts a pasted Arc burn tx hash. The destination mint still needs destination-chain gas.
@@ -397,7 +433,9 @@ not upgraded. The treasury stays at its current address; only the receiver is
 replaced.
 
 ### New contract
+
 `contracts/src/CCTPReceiverV2.sol` / `ICCTPReceiverV2.sol`
+
 - Constructor: `(initialOwner, transmitter, usdc, treasury)`, Arc-only
   (`ARC_DOMAIN = 26`).
 - Normal path: `receiveAndProcess(message, attestation)` is permissionless. It
@@ -420,6 +458,7 @@ replaced.
   `burnToken` so the original live bug cannot regress.
 
 ### Frontend
+
 - `src/lib/cctp.ts` parses the real layout (`HEADER_LENGTH = 148`,
   `BODY_FIXED_LENGTH = 228`, hookData at byte `376`), fetches Iris messages,
   resolves outbound status via destination `usedNonces` + `MessageReceived`, and
@@ -429,13 +468,14 @@ replaced.
   fallback rows.
 - `CrossChainDepositCard` now burns with
   `depositForBurnWithHook(amount, 26, receiver, USDC, receiver, 0, 2000,
-  abi.encode(agent))`, then calls `receiver.receiveAndProcess` once on Arc. It
+abi.encode(agent))`, then calls `receiver.receiveAndProcess` once on Arc. It
   branches on the attested message's `mintRecipient`: receiver = new path,
   wallet = legacy wallet-mint + approve + deposit fallback.
 - `CctpCompletionCard` uses `resolveCctpWithdrawal` for the destination status
   and mint link; the treasury's legacy `executed` flag is intentionally ignored.
 
 ### Deploy page
+
 `scripts/receiver-deploy/` deploys `CCTPReceiverV2` and calls
 `treasury.setGatewayReceiver(newReceiver)`. It supports mainnet and testnet,
 verifies owner/transmitter/USDC/treasury/domain before wiring, and can wire an
@@ -444,6 +484,7 @@ already-deployed receiver without redeploying. Build:
 No private key is requested; MetaMask signs.
 
 ### Live-test bug (2026-10-22) — corrected receiver deployed on both networks
+
 The first V2 deployments (`0x5477…` mainnet, `0xa0d2…` testnet) compared
 `BurnMessageV2.burnToken` to Arc USDC. Real CCTP v2 messages carry the
 **source-chain** token there (e.g. Base Sepolia USDC
@@ -457,6 +498,7 @@ superseded receiver (`mintRecipient`/`destinationCaller` = that receiver) cannot
 be re-routed; start a new burn. The app now shows a specific error for those.
 
 ### Status
+
 - `forge test`: 104 passing (23 new + 11 old receiver + 39 treasury + 22
   adapter + 9 invariants; mainnet fork test skipped).
 - `vitest`: 63 passing (real-layout parser tests + discard-burn store test + Resume-action gating).
@@ -495,16 +537,17 @@ be re-routed; start a new burn. The app now shows a specific error for those.
 
 ## Pre-hotfix Deployment (legacy — do not use for new CCTP tests)
 
-| Contract | Address | Explorer |
-|---|---|---|
+| Contract           | Address                                      | Explorer                                                                                   |
+| ------------------ | -------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | MorphoVaultAdapter | `0xe1dafeef6762c672bb5e4a8ff62c3812e111b2e3` | [link](https://explorer.testnet.arc.io/address/0xe1dafeef6762c672bb5e4a8ff62c3812e111b2e3) |
-| CCTPReceiver | `0x7697c83c23339ccfdcf2d8e979b26ee5d731e7ee` | [link](https://explorer.testnet.arc.io/address/0x7697c83c23339ccfdcf2d8e979b26ee5d731e7ee) |
-| AgentTreasury | `0x9b390bb10bd30a25b5a07dfb9e0a058d7993ae0d` | [link](https://explorer.testnet.arc.io/address/0x9b390bb10bd30a25b5a07dfb9e0a058d7993ae0d) |
+| CCTPReceiver       | `0x7697c83c23339ccfdcf2d8e979b26ee5d731e7ee` | [link](https://explorer.testnet.arc.io/address/0x7697c83c23339ccfdcf2d8e979b26ee5d731e7ee) |
+| AgentTreasury      | `0x9b390bb10bd30a25b5a07dfb9e0a058d7993ae0d` | [link](https://explorer.testnet.arc.io/address/0x9b390bb10bd30a25b5a07dfb9e0a058d7993ae0d) |
 
 Owner/deployer/keeper: `0xD00fD0B006c01342522cAf4FA04D5f8910aB268c`
 Wired: true (legacy). Historical record: `deployments/arc-testnet.json`
 
 ### Wiring tx hashes (ConfigureTestnet.s.sol broadcast, Oct 2026)
+
 - adapter.setTreasury: `0xc3af3d9611766bf675e3588fa4228f06f10ee61de209b1d5620c5697ed078a99`
 - receiver.setTreasury: `0x3b41581af7bf91df36a33f6d995a6bb9c02da3ff032a34e84356ed78cfe64631`
 - treasury.setMorphoAdapter: `0x81edc3bc25bfd72e3c98cbfac1868dbac303352d2e6a002763b52a1a79c23500`
@@ -516,6 +559,7 @@ Wired: true (legacy). Historical record: `deployments/arc-testnet.json`
 - treasury.setDefaultVaultId(1): `0x60dd7ea949764b61d96bbaa04f5996ff470c06ee6482551923aeb2b58fb82dbc`
 
 ### Post-wire smoke tests (all PASS)
+
 - treasury.morphoAdapter() == 0xE1DAFEeF6762C672Bb5e4a8fF62c3812e111b2E3
 - treasury.gatewayReceiver() == 0x7697C83C23339cCFdCF2d8e979B26EE5d731e7eE
 - adapter.getVaultConfig(1): active=true, vault=0xAabbeF1D3971c710276ed41eC791BbE14CdB8E88, minDeposit=10e6
@@ -525,11 +569,13 @@ Wired: true (legacy). Historical record: `deployments/arc-testnet.json`
 - adapter.vaultAPY(1) == 42000000000000000 (4.2e16, 4.20%)
 
 ### APY fixed + E2E verified (Oct 2026)
+
 The original wiring literal `4_200_000_000_000_000` was 4.2e15 (0.42%). It was corrected on-chain to
 `42000000000000000` (4.2e16 = 4.20%) via tx `0x36f5c8a7575ebab7a8bdc49bc732a9587e452b10bab7c8b38b1b30e51ba3243e`.
 The local `ConfigureTestnet.s.sol` literal is now `42_000_000_000_000_000` for future runs.
 
 Real testnet E2E (owner `0xD00fD0B006c01342522cAf4FA04D5f8910aB268c`):
+
 - deposit 10 USDC: `0xa4fc0034c4f2c20a9f308a705fe1439f281981f6b24466a8aff148f1b5b3a520`
   → principal 10000000, shares 9989427554789604143 (18 dec), previewRedeem 9999999
 - withdrawLocal 1 USDC: `0x27cf6628ffb0d1e3ce45f9d542bc065169b3cc98b28c23c8a09d64e50f11b826`
@@ -537,20 +583,28 @@ Real testnet E2E (owner `0xD00fD0B006c01342522cAf4FA04D5f8910aB268c`):
 - ERC-4626 rounding leaves a 1-unit difference; withdrawal uses the actual redeemed amount, no stranded dust.
 
 ### 18-dec vault shares caveat
+
 The real Morpho/Earn Kit vault issues shares with 18 decimals (not USDC's 6).
 `getVaultShares(agent)` returns 18-dec raw units. Frontend uses `formatShares(raw, vaultShareDecimals, 4)`
 where `vaultShareDecimals` is read live from `vault.decimals()`. USDC amounts remain 6-dec throughout.
 
 ### Remaining TODOs
+
 1. ✅ Mainnet deployed + verified (Oct 21, 2026) — see the mainnet section above.
 2. ✅ Mainnet `minDeposit` set to **5 USDC**; zero-share guard shipped in the mainnet adapter.
 3. ✅ Mainnet deposit → Galaxy USDC vault → `withdrawLocal` proven live (Oct 21, 2026).
 4. ✅ Mainnet CCTP proven live: Arc→Base burns (ids 1–3) with complete production Iris attestations and
    Base mints, plus two Base→Arc 5 USDC burns (legacy path and corrected `CCTPReceiverV2` path). Hashes
    in `deployments/arc-mainnet.json`.
-5. Clear the completed withdrawal bookkeeping with keeper `executeWithdrawal(1)`, `(2)`, and `(3)` (ids
-   are still `executed=false`; funds are unaffected). The app has no button for this yet.
-6. Rotate the keeper role from the owner EOA to a dedicated hot key before scaling volume.
+5. ✅ **Withdrawal bookkeeping completed (Arc mainnet, 2026-10-25):** IDs 1, 2, and 3 were all
+   confirmed delivered on Base and then marked `executed=true`, `cancelled=false`. These calls are
+   bookkeeping only and move no funds. Transaction hashes and blocks are recorded in
+   `deployments/arc-mainnet.json`.
+6. ✅ **Keeper rotation completed (Arc mainnet, 2026-10-25):** both AgentTreasury and
+   MorphoVaultAdapter now use dedicated EOA `0x72Cbd56507699F5002A10aCdDC5D20b4C2207a75`;
+   ownership remains with `0xD00fD0B006c01342522cAf4FA04D5f8910aB268c`. Transaction hashes and
+   verified state are recorded in `deployments/arc-mainnet.json`. Confirm this key remains
+   dedicated and controlled by the user.
 7. Book an external audit before raising the 25/50 USDC spending limits or onboarding third-party agents.
 8. Verify contract source on the Arc mainnet explorer.
 9. Validate BurnMessageV2 Layout A/B offsets against the live Arc MessageTransmitterV2; `CCTPReceiver`
@@ -563,13 +617,12 @@ where `vaultShareDecimals` is read live from `vault.decimals()`. USDC amounts re
     Base→Arc 5 USDC inbound used the legacy mint-to-wallet path and recorded domain 26. **Do not
     backfill with owner-signed `recordDeposit`**: it is additive and would double-credit
     `principal`/`totalDeposited` and try to deploy the same USDC again.
-11. Deploy the BFF behind HTTPS with an exact `BFF_PUBLIC_ORIGIN`, a generated
-    `BFF_SESSION_SECRET`, the correct cookie SameSite/Secure settings, and `HERMES_USER_API_KEY`
-    matching `API_SERVER_KEY`. Verify live SIWE, read endpoints, and chat; do not publish
-    `hermes-user`, MCP, monitor, or Postgres.
-12. ✅ Deterministic `/api/intents/*` draft endpoints, Postgres intents, simulation, action
-    cards, review deep links, and the background receipt/expiry sweep are implemented and tested
-    locally. Still needs live deployment verification of the sweep against real receipts.
+11. ✅ BFF deployed behind InstaBox HTTPS at `https://8080-agqvtg5gwokf3k7e5easq4hd5e.instabox.tech`;
+    only nginx is public. Repeat authenticated SIWE, chat, and intent verification after the latest
+    origin change. Never publish `hermes-user`, MCP, monitor, or Postgres.
+12. ✅ Deterministic `/api/intents/*` draft endpoints, simulation, review cards, and the expiry/receipt
+    sweep are implemented and tested. Repeat live deployment verification of the sweep against a
+    real receipt after the latest deployment/origin change.
 13. Re-run the frontend/BFF/mainnet builds after deployment and confirm completed CCTP Activity rows
     still show no **Resume**.
 
