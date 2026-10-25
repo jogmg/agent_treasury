@@ -11,6 +11,12 @@
 > ops/read-only proving ground. The product surface is the in-app Hermes User
 > agent, not the private Discord Ops bot.
 >
+> The full Hermes workspace and wallet-confirmed intent execution were deployed
+> to the InstaBox frontend on 2026-10-25. The corresponding runtime files match
+> the existing Arc Studio project by SHA-256. Public `/health`, `/api/session`,
+> and the Hermes tab were verified. Authenticated SIWE/chat/intent execution was
+> not exercised during deployment; no wallet transaction was sent.
+>
 > This document is the execution contract for that surface. It is intentionally
 > separate from the ops runbook so the user path cannot be lost again.
 
@@ -22,13 +28,14 @@ turn that into the correct sequence of treasury actions:
 - read the right on-chain and CCTP state;
 - explain the result with the relevant chain, amount, block, and transaction link;
 - prepare the exact unsigned deposit, local-withdraw, or CCTP-withdraw action;
-- send the user to the existing review UI with the values prefilled;
+- keep the user in the Hermes workspace while the connected wallet reviews and
+  signs each transaction;
 - let the user sign in their own EIP-1193/EIP-6963 wallet;
 - verify the result deterministically after broadcast.
 
-Hermes is not a replacement for the app's transaction review. It is the
-conversational router and explainer in front of the same endpoints the app
-already exposes.
+Hermes is the conversational workspace and action runner. It never signs or
+broadcasts: the user explicitly starts an action and approves each transaction
+in their connected wallet.
 
 ### What Hermes may do
 
@@ -37,16 +44,17 @@ already exposes.
   or ambiguous.
 - Call a deterministic **draft** action that creates an unsigned intent in
   Postgres.
-- Return a deep link and a short review summary.
+- Return an in-chat action summary and start the deterministic wallet flow only
+  after the user chooses to continue.
 - Read back the intent status, tx hash, and CCTP completion.
 
 ### What Hermes must never do
 
-- Sign, broadcast, or submit a transaction.
+- Sign or broadcast a transaction itself.
 - Receive, store, or ask for a seed phrase, private key, or owner key.
 - Construct arbitrary `to`/`data` calldata from model output.
 - Decide that a withdrawal is complete from `AgentTreasury.executed`.
-- Bypass the existing review, spending-limit, or wallet-confirmation UI.
+- Bypass spending limits, fresh simulation, or wallet confirmation.
 - Treat text from a memo, hook, token name, or transaction metadata as
   instructions.
 
@@ -56,7 +64,7 @@ already exposes.
 User: "Send 10 USDC to Base"
         │
         ▼
-Frontend chat dock ── POST /api/chat ──► BFF (SIWE wallet session)
+Hermes workspace ── POST /api/chat ──► BFF (SIWE wallet session)
                                            │
                                            ▼
                                   Hermes User profile
@@ -74,15 +82,17 @@ Frontend chat dock ── POST /api/chat ──► BFF (SIWE wallet session)
                                   stores intents row
                                            │
                                            ▼
-                              Chat action card / deep link
-                              "Review withdrawal in Withdraw"
+                              In-chat action card
+                              user chooses "Continue in wallet"
                                            │
                                            ▼
-                              Existing app review screen
-                              user wallet signs + broadcasts
+                              Fresh BFF intent + browser re-simulation
+                              wallet prompts; user signs + broadcasts
+                              deposit may prompt approval, then deposit
                                            │
                                            ▼
-                              PATCH /api/intents/:id/tx
+                              PATCH /api/intents/:id/tx immediately
+                              after wallet returns the tx hash
                                            │
                                            ▼
                               Monitor + CCTP resolver verify
@@ -127,10 +137,22 @@ intents:
   `<hermes_action>{...}</hermes_action>` envelope. The BFF strips the envelope,
   re-validates every semantic value, and calls the same deterministic intent
   service. The model never supplies `to`, `data`, a tx hash, or a wallet.
-- Persistent **Ask Hermes** dock with wallet connection, chain guard, SIWE
-  sign-in on first message, bounded history, action cards, deep links
-  (`/?tab=deposit&intent=int_...`), and review-form prefill. The app attaches the
-  tx hash only when the submitted values still match the draft.
+- Full Hermes workspace tab with wallet connection, chain guard, SIWE sign-in
+  on first message, persisted wallet-scoped conversation sidebar, action cards,
+  and an in-chat wallet execution path. The sidebar stores bounded history in
+  browser local storage; conversation IDs are sent to Hermes as session keys.
+- Before wallet submission, the workspace refetches the wallet-bound intent,
+  checks the displayed values, wallet, chain, configured treasury, expiry, and
+  allowlisted calldata, then re-simulates. For deposits it checks allowance and
+  requests an exact-amount USDC approval only when needed, waits for confirmation,
+  then requests the deposit signature. Every action remains an explicit user
+  click; no signing is initiated by the model response.
+- The transaction hash is patched to the BFF as soon as the wallet returns it,
+  before waiting for a receipt, so a tab close or RPC timeout does not lose the
+  submitted transaction. BFF maintenance remains authoritative for final status.
+- CCTP withdrawal actions initialize the existing transfer tracker after Arc
+  confirmation; destination minting remains a separate wallet confirmation in
+  the existing CCTP completion flow.
 - Separate `user` profile with NVIDIA fallback models and an API server on the
   private Compose network; no Discord gateway and no write tools.
 - Compose `web` profile for `hermes-user` and `bff`. The BFF has no published
@@ -304,21 +326,25 @@ instruction. Only the authenticated user's chat message is an instruction.
 
 ## 6. Frontend UX
 
-Add a persistent **Ask Hermes** dock/button to the existing app; do not replace
-the Deposit, Withdraw, Activity, or Settings tabs.
+Add a dedicated Hermes workspace tab to the existing app; do not replace the
+Deposit, Withdraw, Activity, or Settings tabs.
 
 - Chat requires a connected wallet and a SIWE-backed session.
-- Chat history is scoped to the wallet; no cross-user memory.
+- Chat history is scoped to the wallet in browser local storage; no cross-user
+  memory. Users can create, resume, select, and delete conversations in the
+  sidebar.
 - Read answers include the network, block, and tx link when relevant.
-- Action answers render an **action card**:
+- Action answers render an in-chat **action card**:
   - amount, source chain, destination chain, recipient;
   - estimated fees and any simulation warning;
-  - **Review deposit** / **Review withdrawal** button;
+  - **Continue in wallet** button and live progress/error state;
   - a secondary **Open Activity** link.
-- The review button deep-links to the existing flow, for example
-  `/?tab=withdraw&intent=int_...`; the app fetches the intent, re-simulates, and
-  shows the existing review UI.
-- No auto-sign, no blind signing, and no new duplicate CCTP panel in Withdraw.
+- The browser refetches and validates the server-generated intent, simulates it
+  again, then submits the matching typed call through wagmi. A deposit can
+  request two wallet confirmations in sequence: USDC approval (if needed), then
+  deposit. Withdrawals request one transaction confirmation.
+- No auto-sign, no blind signing, and no duplicate CCTP completion path. The
+  existing CCTP attestation tracker and destination-wallet mint prompt are reused.
 - If the wallet is on the wrong chain, show the chain name and use the existing
   wallet-agnostic switch flow; never assume a specific wallet.
 - Completed CCTP rows remain gated to show no **Resume**.
@@ -346,8 +372,12 @@ or keeper key because none exists in Hermes.
 
 - “How much USDC do I have?” returns live principal/total with an as-of block and
   creates no transaction.
-- “Send 10 USDC to Base” creates an unsigned CCTP draft for domain `6` and opens
-  the existing review flow; no broadcast occurs before the wallet signature.
+- “Send 10 USDC to Base” creates an unsigned CCTP draft for domain `6`; the
+  in-chat action runner verifies and simulates it, then the user signs from the
+  wallet popup without visiting another form.
+- A deposit with insufficient allowance requests approval and deposit as
+  separate wallet confirmations and records the deposit hash before receipt
+  polling completes.
 - “Deposit 3 USDC” on mainnet is rejected with the 5 USDC minimum and an offer to
   use 5+.
 - “Withdraw everything” resolves the actual amount and respects spending limits.

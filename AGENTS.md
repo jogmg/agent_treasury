@@ -179,11 +179,23 @@ runbook: `docs/HERMES_VPS.md`.
   model. The BFF strips the envelope, re-validates every semantic value, and calls the same
   intent service a direct client uses; the model never supplies `to`, `data`, a wallet, or a tx
   hash. Invalid actions keep the chat answer and return `actionError`.
-- **Frontend review path.** `HermesDock` renders an action card with a review deep link
-  (`/?tab=deposit|withdraw&intent=int_...`). `useIntentReview` loads the draft, prefills the
-  existing Deposit/Withdraw form, and `IntentReviewCard` shows amount/route/simulation. The app
-  attaches the tx hash only if the submitted values still match the draft. No auto-sign; the
-  existing wallet flow signs.
+- **Hermes workspace and wallet execution (deployed to InstaBox, 2026-10-25; source verified in the
+  existing Arc Studio app).** Hermes is now a full app tab with a persistent wallet-scoped
+  conversation sidebar, bounded local history, and
+  in-chat action cards. “Continue in wallet” refetches the SIWE-wallet-bound draft and verifies
+  wallet, chain, configured treasury, expiry, displayed values, and allowlisted calldata before a
+  fresh simulation. The browser then submits only the typed deposit/withdraw/requestWithdrawal
+  call through wagmi; a deposit requests exact-amount USDC approval first when needed, waits for
+  its receipt, re-simulates, then requests the deposit signature. Hermes never signs or broadcasts.
+  The tx hash is PATCHed to the BFF as soon as the wallet returns it, before receipt waiting. CCTP
+  actions initialize the existing transfer completion flow after Arc confirmation. Regression
+  tests cover draft wallet/target/network/expiry/calldata checks. Verified locally: 73 root Vitest
+  tests, `npm run check`, and `npm run build` pass. The frontend and BFF images were rebuilt and
+  only those two containers were recreated; public `/health` and `/api/session` returned 200,
+  both containers are healthy, and the live Hermes tab was visually verified. Authenticated
+  SIWE/chat/intent execution was not exercised; do so with a user wallet before treating that
+  workflow as live-verified. Arc Studio source hashes match the deployed runtime files. No
+  contract deployment was performed.
 - The User profile is `hermes/profiles/user/` (NVIDIA fallback chain, API server on private port
   8642, five read-only MCP tools, no Discord). `hermes/docker-compose.yml` adds opt-in `web`
   profile services `hermes-user` and `bff`; neither publishes a host port. Local tests are root

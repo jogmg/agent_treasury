@@ -1,18 +1,19 @@
-import { clsx } from 'clsx'
-import type { TabId } from '../stores/ui'
+import { clsx } from "clsx";
+import type { TabId } from "../stores/ui";
 
 const TABS: { id: TabId; label: string }[] = [
-  { id: 'overview',  label: 'Overview' },
-  { id: 'deposit',   label: 'Deposit' },
-  { id: 'yield',     label: 'Yield' },
-  { id: 'withdraw',  label: 'Withdraw' },
-  { id: 'activity',  label: 'Activity' },
-  { id: 'settings',  label: 'Settings' },
-]
+  { id: "overview", label: "Overview" },
+  { id: "hermes", label: "Hermes" },
+  { id: "deposit", label: "Deposit" },
+  { id: "yield", label: "Yield" },
+  { id: "withdraw", label: "Withdraw" },
+  { id: "activity", label: "Activity" },
+  { id: "settings", label: "Settings" },
+];
 
 interface Props {
-  active: TabId
-  onChange: (t: TabId) => void
+  active: TabId;
+  onChange: (t: TabId) => void;
 }
 
 export function TabBar({ active, onChange }: Props) {
@@ -23,15 +24,15 @@ export function TabBar({ active, onChange }: Props) {
           key={t.id}
           onClick={() => onChange(t.id)}
           className={clsx(
-            'whitespace-nowrap px-4 py-3 text-sm font-medium transition-colors',
+            "whitespace-nowrap px-4 py-3 text-sm font-medium transition-colors",
             active === t.id
-              ? 'border-b-2 border-emerald-400 text-emerald-400'
-              : 'text-slate-400 hover:text-slate-200',
+              ? "border-b-2 border-emerald-400 text-emerald-400"
+              : "text-slate-400 hover:text-slate-200"
           )}
         >
           {t.label}
         </button>
       ))}
     </div>
-  )
+  );
 }

@@ -9,9 +9,9 @@
 > [`HERMES_USER_EXECUTION.md`](HERMES_USER_EXECUTION.md). No cloud signer or owner key is present;
 > Discord remains read-only and does not execute bookkeeping or change live contracts.
 >
-> **Phase 2 deployed on InstaBox (2026-10-25):** the BFF provides SIWE nonce/verify, an
+> **Phase 2 BFF and initial chat deployed on InstaBox (2026-10-25):** the BFF provides SIWE nonce/verify, an
 > HMAC-signed HttpOnly wallet session, read endpoints, a session-gated Hermes User chat proxy,
-> deterministic draft intents (`deposit`, `withdrawLocal`, `cctpWithdraw`), and the persistent
+> deterministic draft intents (`deposit`, `withdrawLocal`, `cctpWithdraw`), and a persistent
 > **Ask Hermes** dock with action cards and review deep links. The User profile is isolated on the
 > private Compose network with no Discord gateway or write tools. The public app is
 > [https://8080-agqvtg5gwokf3k7e5easq4hd5e.instabox.tech](https://8080-agqvtg5gwokf3k7e5easq4hd5e.instabox.tech)
@@ -20,6 +20,14 @@
 > unauthenticated session response. Earlier SIWE/chat smoke passed on the temporary tunnel; rerun
 > the authenticated SIWE/chat/intent smoke against this hostname after its origin change. Never
 > broadcast a test transaction without the user's approval; the audit/launch gate remains pending.
+>
+> **Hermes workspace and in-chat wallet execution (deployed to InstaBox, 2026-10-25):** the floating
+> dock has been replaced with a full Hermes tab, wallet-scoped conversation sidebar, and
+> deterministic action execution through the connected wallet. The seven runtime source files
+> were hash-verified against the existing Arc Studio app. Public `/health` and `/api/session`
+> returned 200; the frontend and BFF containers are healthy. Authenticated SIWE/chat/intent
+> execution was not exercised during deployment. No smart contracts were deployed. See
+> [`HERMES_USER_EXECUTION.md`](HERMES_USER_EXECUTION.md) for the transaction safety boundary.
 
 > **Mainnet keeper maintenance completed (2026-10-25):** the owner confirmed completed Base deliveries
 > and signed `executeWithdrawal(1..3)`; all three receipts succeeded and on-chain state now reports
@@ -253,16 +261,20 @@ Tool surface for Phase 1:
 
 Phase 2 draft surface (BFF actions, not MCP tools):
 
-| Action `kind`   | BFF endpoint                       | Purpose                                                       |
-| --------------- | ---------------------------------- | ------------------------------------------------------------- |
-| `deposit`       | `POST /api/intents/deposit`        | Create an unsigned deposit intent and return an app deep link |
-| `withdrawLocal` | `POST /api/intents/withdraw-local` | Create an unsigned local-withdraw intent                      |
-| `cctpWithdraw`  | `POST /api/intents/cctp-withdraw`  | Create an unsigned CCTP withdrawal intent                     |
+| Action `kind`   | BFF endpoint                       | Purpose                                                   |
+| --------------- | ---------------------------------- | --------------------------------------------------------- |
+| `deposit`       | `POST /api/intents/deposit`        | Create an unsigned deposit intent for wallet confirmation |
+| `withdrawLocal` | `POST /api/intents/withdraw-local` | Create an unsigned local-withdraw intent                  |
+| `cctpWithdraw`  | `POST /api/intents/cctp-withdraw`  | Create an unsigned CCTP withdrawal intent                 |
 
 There is **no** `arc_execute_*`, `arc_send_*`, or `arc_sign_*` tool. Ever, in the LLM-facing server.
 The User model appends at most one `<hermes_action>{...}</hermes_action>` block; the BFF strips it,
 re-validates the semantic fields, and calls the same deterministic service a direct client uses.
-The result is an unsigned, wallet-bound intent and a deep link, not a transaction. The full
+The result is an unsigned, wallet-bound intent, not a transaction. The browser Hermes workspace
+refetches and validates the draft, simulates it, then requests the user's wallet confirmation.
+Deposits request an exact-amount USDC approval first when needed, wait for its receipt, then
+request the deposit signature. CCTP withdrawal completion reuses the existing attestation and
+destination wallet flow. The full
 user-facing execution contract is in [`HERMES_USER_EXECUTION.md`](HERMES_USER_EXECUTION.md).
 
 Important implementation details:
@@ -473,13 +485,15 @@ Intent flow:
    `<hermes_action>` proposal if an action is needed.
 3. The BFF strips and validates the proposal, re-checks amount, chain, destination
    domain, recipient, minimums, balance, and pause state, derives calldata,
-   simulates it, and stores an unsigned intent. It returns an intent ID and action
-   card/deep link.
-4. The app fetches the wallet-scoped intent, prefills the existing review UI,
-   re-simulates, and signs only after the user approves.
+   simulates it, and stores an unsigned intent. It returns an intent ID and in-chat
+   action card.
+4. The user selects **Continue in wallet**. The workspace refetches the wallet-scoped
+   intent, verifies wallet/network/treasury/expiry/allowlisted calldata and displayed values,
+   then re-simulates immediately before the wallet request.
 5. The user signs in their EIP-1193 wallet (MetaMask, Rabby, Coinbase Wallet,
-   Brave, Frame, etc.) and the app broadcasts.
-6. The app PATCHes the tx hash back to the BFF; the monitor verifies the on-chain
+   Brave, Frame, etc.) and the browser broadcasts. Deposits can require sequential
+   approval and deposit signatures.
+6. The app PATCHes the tx hash to the BFF as soon as the wallet returns it; the monitor verifies the on-chain
    result independently, and the BFF maintenance sweep marks the intent
    `confirmed` only when the receipt succeeded and the transaction's
    `from`/`to`/`data`/`value`/`chainId` match the stored intent. A reverted or
