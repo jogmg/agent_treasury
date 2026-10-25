@@ -371,6 +371,13 @@ published and survives Compose reconciliation. The old `cloudflared-quick`
 service was removed after Cloudflare began rejecting its expired temporary
 tunnel identity. Public `/health` and same-origin `/api/session` both respond.
 
+The monitor posts `withdrawal-bookkeeping-pending` to the configured Discord
+alerts webhook when Iris and destination delivery are complete but the Arc
+withdrawal remains neither executed nor cancelled. It keeps rechecking that
+withdrawal and resolves the alert after the on-chain status changes. A failed
+bookkeeping read produces a separate retry warning. These are notifications
+only; the monitor and Discord bot never sign or submit `executeWithdrawal`.
+
 ```bash
 cd /opt/agent-treasury/hermes
 # Keep the token out of shell history and chat.

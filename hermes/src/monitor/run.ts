@@ -1,29 +1,25 @@
-import { createServer } from 'node:http'
-import pino from 'pino'
-import { readTreasuryState, readWithdrawal } from '../arc'
-import { resolveCctpWithdrawal } from '../cctp'
-import { loadConfig, type HermesConfig } from '../config'
-import { createPool, json, type DbPool } from '../db'
-import { scanActivity } from '../activity'
-import {
-  collectAlerts,
-  type MonitorAlert,
-  type TransferRow,
-} from './rules'
-import { deliverAlert, resolveStaleAlerts } from './notify'
+import { createServer } from "node:http";
+import pino from "pino";
+import { readTreasuryState, readWithdrawal } from "../arc";
+import { resolveCctpWithdrawal } from "../cctp";
+import { loadConfig, type HermesConfig } from "../config";
+import { createPool, json, type DbPool } from "../db";
+import { scanActivity } from "../activity";
+import { collectAlerts, type MonitorAlert, type TransferRow } from "./rules";
+import { deliverAlert, resolveStaleAlerts } from "./notify";
 
 const logger = pino({
-  level: process.env.LOG_LEVEL ?? 'info',
-  base: { service: 'hermes-monitor' },
-})
+  level: process.env.LOG_LEVEL ?? "info",
+  base: { service: "hermes-monitor" },
+});
 
 interface HealthState {
-  startedAt: string
-  running: boolean
-  lastRunAt: string | null
-  lastSuccessAt: string | null
-  lastErrorAt: string | null
-  lastError: string | null
+  startedAt: string;
+  running: boolean;
+  lastRunAt: string | null;
+  lastSuccessAt: string | null;
+  lastErrorAt: string | null;
+  lastError: string | null;
 }
 
 const health: HealthState = {
@@ -33,46 +29,50 @@ const health: HealthState = {
   lastSuccessAt: null,
   lastErrorAt: null,
   lastError: null,
-}
+};
 
 function startHealthServer(port: number, host: string) {
   const server = createServer((req, res) => {
-    if (req.url !== '/health') {
-      res.writeHead(404, { 'content-type': 'application/json' })
-      res.end(JSON.stringify({ error: 'not_found' }))
-      return
+    if (req.url !== "/health") {
+      res.writeHead(404, { "content-type": "application/json" });
+      res.end(JSON.stringify({ error: "not_found" }));
+      return;
     }
     const failedAfterSuccess =
       health.lastErrorAt !== null &&
-      (health.lastSuccessAt === null || health.lastErrorAt > health.lastSuccessAt)
+      (health.lastSuccessAt === null ||
+        health.lastErrorAt > health.lastSuccessAt);
     const body = {
       ok: !failedAfterSuccess,
-      service: 'hermes-monitor',
+      service: "hermes-monitor",
       ...health,
-    }
-    res.writeHead(failedAfterSuccess ? 503 : 200, { 'content-type': 'application/json' })
-    res.end(JSON.stringify(body))
-  })
+    };
+    res.writeHead(failedAfterSuccess ? 503 : 200, {
+      "content-type": "application/json",
+    });
+    res.end(JSON.stringify(body));
+  });
   server.listen(port, host, () => {
-    logger.info({ port }, 'monitor health endpoint listening')
-  })
-  return server
+    logger.info({ port }, "monitor health endpoint listening");
+  });
+  return server;
 }
 
 interface TransferDbRow {
-  id: string
-  direction: 'in' | 'out'
-  withdrawal_id: string | null
-  burn_tx_hash: string
-  burn_block: string
-  source_domain: number
-  destination_domain: number | null
-  amount: string
-  phase: 'waiting' | 'ready' | 'done' | 'error'
-  nonce: string | null
-  mint_tx_hash: string | null
-  created_at: Date
-  last_checked_at: Date | null
+  id: string;
+  direction: "in" | "out";
+  withdrawal_id: string | null;
+  burn_tx_hash: string;
+  burn_block: string;
+  source_domain: number;
+  destination_domain: number | null;
+  amount: string;
+  phase: "waiting" | "ready" | "done" | "error";
+  bookkeeping_status: "pending" | "executed" | "cancelled" | null;
+  nonce: string | null;
+  mint_tx_hash: string | null;
+  created_at: Date;
+  last_checked_at: Date | null;
 }
 
 function toTransferRow(row: TransferDbRow): TransferRow {
@@ -86,20 +86,24 @@ function toTransferRow(row: TransferDbRow): TransferRow {
     destinationDomain: row.destination_domain,
     amount: row.amount,
     phase: row.phase,
+    bookkeepingStatus: row.bookkeeping_status ?? "unknown",
     nonce: row.nonce,
     mintTxHash: row.mint_tx_hash,
     createdAt: row.created_at.toISOString(),
     lastCheckedAt: row.last_checked_at?.toISOString() ?? null,
-  }
+  };
 }
 
-async function indexNewWithdrawalEvents(pool: DbPool, config: HermesConfig): Promise<number> {
+async function indexNewWithdrawalEvents(
+  pool: DbPool,
+  config: HermesConfig
+): Promise<number> {
   const result = await pool.query<{
-    block_number: string
-    block_timestamp: Date | null
-    tx_hash: string
-    agent_address: string | null
-    args: Record<string, unknown>
+    block_number: string;
+    block_timestamp: Date | null;
+    tx_hash: string;
+    agent_address: string | null;
+    args: Record<string, unknown>;
   }>(
     `select e.block_number, e.block_timestamp, e.tx_hash, e.agent_address, e.args
        from activity_events e
@@ -109,17 +113,21 @@ async function indexNewWithdrawalEvents(pool: DbPool, config: HermesConfig): Pro
            where t.burn_tx_hash = e.tx_hash and t.direction = 'out'
         )
       order by e.block_number asc, e.log_index asc
-      limit 500`,
-  )
+      limit 500`
+  );
 
-  let inserted = 0
+  let inserted = 0;
   for (const row of result.rows) {
-    const args = row.args
-    const withdrawalId = args.id
-    const amount = args.amount
-    const destinationDomain = args.destinationDomain
-    if (withdrawalId === undefined || amount === undefined || destinationDomain === undefined) {
-      continue
+    const args = row.args;
+    const withdrawalId = args.id;
+    const amount = args.amount;
+    const destinationDomain = args.destinationDomain;
+    if (
+      withdrawalId === undefined ||
+      amount === undefined ||
+      destinationDomain === undefined
+    ) {
+      continue;
     }
     const result = await pool.query(
       `insert into transfers
@@ -134,23 +142,23 @@ async function indexNewWithdrawalEvents(pool: DbPool, config: HermesConfig): Pro
         config.network.cctpDomain,
         Number(destinationDomain),
         String(amount),
-        typeof args.messageHash === 'string' ? args.messageHash : null,
+        typeof args.messageHash === "string" ? args.messageHash : null,
         row.block_timestamp?.toISOString() ?? null,
-      ],
-    )
-    inserted += result.rowCount ?? 0
+      ]
+    );
+    inserted += result.rowCount ?? 0;
   }
-  return inserted
+  return inserted;
 }
 
 async function recordSnapshot(
   pool: DbPool,
   config: HermesConfig,
-  agent: `0x${string}`,
+  agent: `0x${string}`
 ): Promise<Awaited<ReturnType<typeof readTreasuryState>>> {
-  const state = await readTreasuryState(config, agent)
+  const state = await readTreasuryState(config, agent);
   if (
-    state.asOfBlock === '0' ||
+    state.asOfBlock === "0" ||
     state.principal === null ||
     state.totalBalance === null ||
     state.vaultShares === null ||
@@ -160,8 +168,8 @@ async function recordSnapshot(
     state.gatewayReceiver === null
   ) {
     throw new Error(
-      `Incomplete Arc snapshot at block ${state.asOfBlock}; refusing to persist zero placeholders`,
-    )
+      `Incomplete Arc snapshot at block ${state.asOfBlock}; refusing to persist zero placeholders`
+    );
   }
   await pool.query(
     `insert into treasury_snapshots
@@ -175,40 +183,54 @@ async function recordSnapshot(
       state.asOfBlock,
       state.treasury,
       state.agent,
-      state.principal ?? '0',
-      state.totalBalance ?? '0',
-      state.vaultShares ?? '0',
-      state.idleUsdc ?? '0',
+      state.principal ?? "0",
+      state.totalBalance ?? "0",
+      state.vaultShares ?? "0",
+      state.idleUsdc ?? "0",
       state.activeVaultId,
       state.paused ?? false,
-      state.keeper ?? '',
-      state.gatewayReceiver ?? '',
-    ],
-  )
-  return state
+      state.keeper ?? "",
+      state.gatewayReceiver ?? "",
+    ]
+  );
+  return state;
 }
 
 async function refreshTransfers(
   pool: DbPool,
-  config: HermesConfig,
+  config: HermesConfig
 ): Promise<TransferRow[]> {
   const open = await pool.query<TransferDbRow>(
-    `select id, direction, withdrawal_id, burn_tx_hash, burn_block,
-            source_domain, destination_domain, amount, phase, nonce,
-            mint_tx_hash, created_at, last_checked_at
-       from transfers
-      where direction = 'out'
-        and phase in ('waiting', 'ready', 'error')
-      order by last_checked_at asc nulls first, created_at asc
-      limit 50`,
-  )
+    `select t.id, t.direction, t.withdrawal_id, t.burn_tx_hash, t.burn_block,
+            t.source_domain, t.destination_domain, t.amount, t.phase, t.nonce,
+            t.mint_tx_hash, t.created_at, t.last_checked_at,
+            case
+              when wb.withdrawal_id is null then null
+              when wb.executed_on_chain then 'executed'
+              when wb.status = 'cancelled' then 'cancelled'
+              else 'pending'
+            end as bookkeeping_status
+       from transfers t
+       left join withdrawal_bookkeeping wb on wb.withdrawal_id = t.withdrawal_id
+      where t.direction = 'out'
+        and (
+          t.phase in ('waiting', 'ready', 'error')
+          or (
+            t.phase = 'done'
+            and t.withdrawal_id is not null
+            and (wb.withdrawal_id is null or (not wb.executed_on_chain and wb.status = 'ready_for_keeper'))
+          )
+        )
+      order by t.last_checked_at asc nulls first, t.created_at asc
+      limit 50`
+  );
 
-  const refreshed: TransferRow[] = []
+  const refreshed: TransferRow[] = [];
   const refreshOne = async (row: TransferDbRow): Promise<TransferRow> => {
-    const transfer = toTransferRow(row)
+    const transfer = toTransferRow(row);
     const status = await resolveCctpWithdrawal(config, transfer.burnTxHash, {
       sourceDomain: transfer.sourceDomain,
-    })
+    });
 
     await pool.query(
       `update transfers
@@ -227,12 +249,12 @@ async function refreshTransfers(
         status.phase,
         status.destinationDomain || transfer.destinationDomain,
         status.nonce ?? transfer.nonce,
-        status.attestationComplete ? 'complete' : status.phase,
+        status.attestationComplete ? "complete" : status.phase,
         status.mintTxHash ?? null,
         status.mintBlockNumber ?? null,
         json(status),
-      ],
-    )
+      ]
+    );
 
     const updated: TransferRow = {
       ...transfer,
@@ -240,69 +262,78 @@ async function refreshTransfers(
       destinationDomain: status.destinationDomain || transfer.destinationDomain,
       nonce: status.nonce ?? transfer.nonce,
       mintTxHash: status.mintTxHash ?? null,
+    };
+
+    let bookkeepingStatus: TransferRow["bookkeepingStatus"] = "unknown";
+    if (status.phase === "done" && updated.withdrawalId !== null) {
+      const record = await readWithdrawal(config, BigInt(updated.withdrawalId));
+      if (record) {
+        bookkeepingStatus = record.executed
+          ? "executed"
+          : record.cancelled
+          ? "cancelled"
+          : "pending";
+        await pool.query(
+          `insert into withdrawal_bookkeeping
+             (withdrawal_id, burn_tx_hash, executed_on_chain, verified_complete_at, status)
+           values ($1, $2, $3, now(), $4)
+           on conflict (withdrawal_id) do update
+             set burn_tx_hash = excluded.burn_tx_hash,
+                 executed_on_chain = excluded.executed_on_chain,
+                 verified_complete_at = coalesce(withdrawal_bookkeeping.verified_complete_at, now()),
+                 status = excluded.status,
+                 updated_at = now()`,
+          [
+            updated.withdrawalId,
+            updated.burnTxHash,
+            record.executed,
+            bookkeepingStatus === "pending"
+              ? "ready_for_keeper"
+              : bookkeepingStatus,
+          ]
+        );
+      }
     }
 
-    if (status.phase === 'done' && updated.withdrawalId !== null) {
-      const record = await readWithdrawal(config, BigInt(updated.withdrawalId))
-      const executed = record?.executed ?? false
-      await pool.query(
-        `insert into withdrawal_bookkeeping
-           (withdrawal_id, burn_tx_hash, executed_on_chain, verified_complete_at, status)
-         values ($1, $2, $3, now(), $4)
-         on conflict (withdrawal_id) do update
-           set burn_tx_hash = excluded.burn_tx_hash,
-               executed_on_chain = excluded.executed_on_chain,
-               verified_complete_at = coalesce(withdrawal_bookkeeping.verified_complete_at, now()),
-               status = excluded.status,
-               updated_at = now()`,
-        [
-          updated.withdrawalId,
-          updated.burnTxHash,
-          executed,
-          executed ? 'executed' : 'ready_for_keeper',
-        ],
-      )
-    }
-
-    return updated
-  }
+    return { ...updated, bookkeepingStatus };
+  };
 
   // Four at a time keeps the monitor cadence reasonable without hammering the
   // public Iris/destination RPCs with all 50 transfers at once.
-  const concurrency = 4
+  const concurrency = 4;
   for (let i = 0; i < open.rows.length; i += concurrency) {
-    const batch = open.rows.slice(i, i + concurrency)
-    refreshed.push(...(await Promise.all(batch.map(refreshOne))))
+    const batch = open.rows.slice(i, i + concurrency);
+    refreshed.push(...(await Promise.all(batch.map(refreshOne))));
   }
 
-  return refreshed
+  return refreshed;
 }
 
 async function runOnce(
   config: HermesConfig,
-  pool: DbPool,
+  pool: DbPool
 ): Promise<{ alerts: number; indexed: number }> {
-  const scan = await scanActivity(pool, config, config.indexChunksPerRun)
-  const insertedTransfers = await indexNewWithdrawalEvents(pool, config)
+  const scan = await scanActivity(pool, config, config.indexChunksPerRun);
+  const insertedTransfers = await indexNewWithdrawalEvents(pool, config);
   logger.info(
     {
       scan,
       insertedTransfers,
     },
-    'monitor scan complete',
-  )
+    "monitor scan complete"
+  );
 
-  const states = []
+  const states = [];
   for (const agent of config.trackedAgents) {
-    states.push(await recordSnapshot(pool, config, agent))
+    states.push(await recordSnapshot(pool, config, agent));
   }
 
-  const transfers = await refreshTransfers(pool, config)
+  const transfers = await refreshTransfers(pool, config);
   const alerts: MonitorAlert[] = states.flatMap((state) =>
-    collectAlerts(config, state, transfers),
-  )
+    collectAlerts(config, state, transfers)
+  );
 
-  let sent = 0
+  let sent = 0;
   for (const alert of alerts) {
     try {
       const delivery = await deliverAlert(
@@ -310,30 +341,36 @@ async function runOnce(
         alert,
         config.discordWebhookUrl,
         config.alertCooldownSeconds,
-        logger,
-      )
-      if (delivery.sent) sent += 1
+        logger
+      );
+      if (delivery.sent) sent += 1;
     } catch (error) {
-      logger.error({ err: error, alert: alert.dedupeKey }, 'failed to deliver alert')
+      logger.error(
+        { err: error, alert: alert.dedupeKey },
+        "failed to deliver alert"
+      );
     }
   }
 
-  await resolveStaleAlerts(pool, alerts.map((alert) => alert.dedupeKey))
+  await resolveStaleAlerts(
+    pool,
+    alerts.map((alert) => alert.dedupeKey)
+  );
   await pool.query(
     `insert into monitor_cursor (key, value, updated_at)
      values ('monitorHeartbeat', $1, now())
      on conflict (key) do update set value = excluded.value, updated_at = now()`,
-    [new Date().toISOString()],
-  )
+    [new Date().toISOString()]
+  );
 
-  return { alerts: sent, indexed: scan.inserted }
+  return { alerts: sent, indexed: scan.inserted };
 }
 
 async function main(): Promise<void> {
-  const config = loadConfig()
-  const pool = createPool(config)
+  const config = loadConfig();
+  const pool = createPool(config);
   if (!pool) {
-    throw new Error('DATABASE_URL is required for the monitor')
+    throw new Error("DATABASE_URL is required for the monitor");
   }
 
   logger.info(
@@ -343,29 +380,29 @@ async function main(): Promise<void> {
       agents: config.trackedAgents,
       intervalSeconds: config.monitorIntervalMs / 1_000,
     },
-    'Hermes monitor starting',
-  )
+    "Hermes monitor starting"
+  );
 
-  let running = false
+  let running = false;
   const tick = async (): Promise<boolean> => {
     if (running) {
-      logger.warn('previous monitor run still active; skipping tick')
-      return true
+      logger.warn("previous monitor run still active; skipping tick");
+      return true;
     }
-    running = true
-    health.running = true
-    health.lastRunAt = new Date().toISOString()
+    running = true;
+    health.running = true;
+    health.lastRunAt = new Date().toISOString();
     try {
-      const result = await runOnce(config, pool)
-      health.lastSuccessAt = new Date().toISOString()
-      health.lastError = null
-      logger.info(result, 'monitor run complete')
-      return true
+      const result = await runOnce(config, pool);
+      health.lastSuccessAt = new Date().toISOString();
+      health.lastError = null;
+      logger.info(result, "monitor run complete");
+      return true;
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      health.lastErrorAt = new Date().toISOString()
-      health.lastError = message
-      logger.error({ err: error }, 'monitor run failed')
+      const message = error instanceof Error ? error.message : String(error);
+      health.lastErrorAt = new Date().toISOString();
+      health.lastError = message;
+      logger.error({ err: error }, "monitor run failed");
 
       // Surface a failing monitor in Discord too. The next successful run
       // clears this alert because its key is not in the active alert set.
@@ -373,51 +410,57 @@ async function main(): Promise<void> {
         await deliverAlert(
           pool,
           {
-            dedupeKey: 'monitor-run-failed',
-            severity: 'critical',
-            kind: 'monitor-run-failed',
-            subject: 'Monitor run failed; check /health and container logs.',
+            dedupeKey: "monitor-run-failed",
+            severity: "critical",
+            kind: "monitor-run-failed",
+            subject: "Monitor run failed; check /health and container logs.",
             payload: { error: message, at: new Date().toISOString() },
           },
           config.discordWebhookUrl,
           config.alertCooldownSeconds,
-          logger,
-        )
+          logger
+        );
       } catch (alertError) {
-        logger.error({ err: alertError }, 'failed to record monitor failure alert')
+        logger.error(
+          { err: alertError },
+          "failed to record monitor failure alert"
+        );
       }
-      return false
+      return false;
     } finally {
-      running = false
-      health.running = false
+      running = false;
+      health.running = false;
     }
+  };
+
+  if (process.argv.includes("--once")) {
+    const ok = await tick();
+    await pool.end();
+    if (!ok) process.exitCode = 1;
+    return;
   }
 
-  if (process.argv.includes('--once')) {
-    const ok = await tick()
-    await pool.end()
-    if (!ok) process.exitCode = 1
-    return
-  }
-
-  const healthServer = startHealthServer(config.monitorPort, config.monitorHost)
-  await tick()
+  const healthServer = startHealthServer(
+    config.monitorPort,
+    config.monitorHost
+  );
+  await tick();
   const timer = setInterval(() => {
-    void tick()
-  }, config.monitorIntervalMs)
+    void tick();
+  }, config.monitorIntervalMs);
 
   const shutdown = async (signal: string) => {
-    logger.info({ signal }, 'monitor shutting down')
-    clearInterval(timer)
-    healthServer.close()
-    await pool.end()
-    process.exit(0)
-  }
-  process.on('SIGINT', () => void shutdown('SIGINT'))
-  process.on('SIGTERM', () => void shutdown('SIGTERM'))
+    logger.info({ signal }, "monitor shutting down");
+    clearInterval(timer);
+    healthServer.close();
+    await pool.end();
+    process.exit(0);
+  };
+  process.on("SIGINT", () => void shutdown("SIGINT"));
+  process.on("SIGTERM", () => void shutdown("SIGTERM"));
 }
 
 main().catch((error) => {
-  logger.fatal({ err: error }, 'monitor failed')
-  process.exitCode = 1
-})
+  logger.fatal({ err: error }, "monitor failed");
+  process.exitCode = 1;
+});

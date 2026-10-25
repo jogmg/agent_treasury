@@ -6,8 +6,8 @@
 > endpoints, and the user signs an unsigned action in their wallet. Ops Discord is the Phase 1
 > proving ground. The read-only stack lives in `hermes/`; the VPS runbook is
 > `docs/HERMES_VPS.md`; the user execution contract is
-> [`HERMES_USER_EXECUTION.md`](HERMES_USER_EXECUTION.md). No cloud signer, no owner key, no
-> automated bookkeeping, and no changes to the live mainnet contracts.
+> [`HERMES_USER_EXECUTION.md`](HERMES_USER_EXECUTION.md). No cloud signer or owner key is present;
+> Discord remains read-only and does not execute bookkeeping or change live contracts.
 >
 > **Phase 2 deployed on InstaBox (2026-10-25):** the BFF provides SIWE nonce/verify, an
 > HMAC-signed HttpOnly wallet session, read endpoints, a session-gated Hermes User chat proxy,
@@ -42,7 +42,11 @@
 > monitor, Discord alerts, Ops profile, Docker Compose, and read-only smoke test. The MCP smoke
 > test passed against Arc mainnet and the known id 3 burn resolved `done` from destination
 > `usedNonces`, with delivery verified. Mint tx links are best-effort and may be absent for manual
-> mints; Hermes reports one only when Circle supplies a forwarder transaction.
+> mints; Hermes reports one only when Circle supplies a forwarder transaction. The monitor now
+> continues checking delivered withdrawals while bookkeeping is unresolved and posts a deduplicated
+> `withdrawal-bookkeeping-pending` alert to the configured Discord alerts webhook. It resolves the
+> alert after on-chain execution/cancellation is observed; failed bookkeeping reads produce a
+> distinct retry warning. Alerts are informational only; Hermes never signs or submits the call.
 >
 > Deployment: the free InstaBox 4 vCPU / 8 GiB / 20 GiB machine is running Postgres, `arc-mcp`, and
 > the monitor. The database initially verified 3 snapshots, 12 activity events, 3 completed
