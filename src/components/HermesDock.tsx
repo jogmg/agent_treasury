@@ -79,6 +79,9 @@ export function HermesDock() {
   const { switchChain, isPending: switching } = useSwitchChain();
   const setTab = useUiStore((state) => state.setTab);
   const setReviewIntent = useUiStore((state) => state.setReviewIntent);
+  const setCctpDepositHandoff = useUiStore(
+    (state) => state.setCctpDepositHandoff
+  );
   const [input, setInput] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -103,6 +106,13 @@ export function HermesDock() {
       updateIntent(intent.id, submitted)
     );
     if (result) updateIntent(intent.id, result);
+  }
+
+  function continueCctpDeposit(
+    handoff: NonNullable<(typeof messages)[number]["cctpDeposit"]>
+  ) {
+    setCctpDepositHandoff(handoff);
+    setTab("deposit");
   }
 
   function openActivity() {
@@ -337,6 +347,28 @@ export function HermesDock() {
                     >
                       <PencilLine className="h-3 w-3" />
                       Edit from here
+                    </button>
+                  </div>
+                )}
+                {message.role === "assistant" && message.cctpDeposit && (
+                  <div className="mt-3 border border-emerald-500/30 bg-emerald-500/[0.04] p-4 text-left">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-emerald-200">
+                      CCTP deposit ready
+                    </p>
+                    <p className="mt-1.5 text-sm text-white">
+                      Bridge {message.cctpDeposit.amount} USDC from{" "}
+                      {getCctpDestination(message.cctpDeposit.sourceDomain)
+                        ?.name ?? "the selected source chain"}{" "}
+                      into the Arc vault
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => continueCctpDeposit(message.cctpDeposit!)}
+                      disabled={!isConnected}
+                      className="mt-4 inline-flex items-center gap-2 bg-emerald-400 px-4 py-2.5 text-xs font-semibold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <Wallet className="h-4 w-4" />
+                      Continue in wallet
                     </button>
                   </div>
                 )}

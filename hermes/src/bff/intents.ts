@@ -64,6 +64,14 @@ export interface IntentDraftRequest {
   mintRecipient?: string;
 }
 
+export interface CctpDepositProposal {
+  kind: "cctpDeposit";
+  amount: string;
+  sourceDomain: number;
+}
+
+export type ChatActionProposal = IntentDraftRequest | CctpDepositProposal;
+
 export interface CreateIntentResult {
   intent: IntentRecord;
   created: boolean;
@@ -824,7 +832,7 @@ export class IntentService implements BffIntentService {
 
 const proposalSchema = z
   .object({
-    kind: z.enum(["deposit", "withdrawLocal", "cctpWithdraw"]),
+    kind: z.enum(["deposit", "withdrawLocal", "cctpWithdraw", "cctpDeposit"]),
     amount: z
       .union([z.string(), z.number().finite()])
       .transform((value) => String(value))
@@ -834,14 +842,46 @@ const proposalSchema = z
       .union([z.number().int(), z.string().regex(/^\d+$/).transform(Number)])
       .optional(),
     mintRecipient: z.string().optional(),
+    sourceDomain: z
+      .union([z.number().int(), z.string().regex(/^\d+$/).transform(Number)])
+      .optional(),
   })
   .strict()
-  .refine((value) => value.all === true || (value.amount ?? "").trim() !== "", {
-    message: "A draft needs an amount or all=true.",
+  .refine(
+    (value) =>
+      value.kind === "cctpDeposit"
+        ? value.all !== true &&
+          (value.amount ?? "").trim() !== "" &&
+          value.sourceDomain !== undefined &&
+          value.destinationDomain === undefined &&
+          value.mintRecipient === undefined
+        : value.sourceDomain === undefined &&
+          (value.all === true || (value.amount ?? "").trim() !== ""),
+    { message: "A draft needs an amount and supported source, or all=true." }
+  )
+  .transform((value): ChatActionProposal => {
+    if (value.kind === "cctpDeposit") {
+      return {
+        kind: "cctpDeposit",
+        amount: value.amount ?? "",
+        sourceDomain: value.sourceDomain as number,
+      };
+    }
+    return {
+      kind: value.kind,
+      ...(value.amount !== undefined ? { amount: value.amount } : {}),
+      ...(value.all !== undefined ? { all: value.all } : {}),
+      ...(value.destinationDomain !== undefined
+        ? { destinationDomain: value.destinationDomain }
+        : {}),
+      ...(value.mintRecipient !== undefined
+        ? { mintRecipient: value.mintRecipient }
+        : {}),
+    };
   });
 
 export interface ExtractedAction {
-  proposal: IntentDraftRequest | null;
+  proposal: ChatActionProposal | null;
   reply: string;
   error?: string;
 }
@@ -903,9 +943,11 @@ Rules:
 - You can read treasury and CCTP state with the available tools.
 - You never sign, broadcast, or ask for a private key or seed phrase.
 - When the user asks to deposit, withdraw to their Arc wallet, or withdraw to another chain, and the amount and destination are clear, prepare an unsigned draft for the in-app wallet execution flow.
+- When the user asks to bring USDC from a source chain such as Base into the Arc vault using CCTP, prepare a cross-chain deposit handoff, not a local deposit draft.
 - Explain that the user can choose "Continue in wallet" to review the action and approve its transaction prompts. Never imply that preparing the draft submitted it.
 - Do not claim a draft has been signed or executed.
 - If the amount, destination chain, or recipient is missing or ambiguous, ask one short clarifying question instead of guessing.
+- For a CCTP deposit, the source domain is required: Base 6, Ethereum 0, Avalanche 1, Optimism 2, Arbitrum 3, or Polygon 7.
 - Deposits must meet the app's live minimum: 5 USDC on mainnet and 1 USDC on testnet. Never suggest a smaller deposit.
 - For a full local wallet withdrawal use "all": true instead of inventing a balance. Cross-chain withdrawals need an exact amount.
 
@@ -915,5 +957,7 @@ or
 <hermes_action>{"kind":"withdrawLocal","all":true}</hermes_action>
 or
 <hermes_action>{"kind":"cctpWithdraw","amount":"10","destinationDomain":6}</hermes_action>
+or
+<hermes_action>{"kind":"cctpDeposit","amount":"10","sourceDomain":6}</hermes_action>
 
 Use Circle domain numbers: Ethereum 0, Avalanche 1, Optimism 2, Arbitrum 3, Base 6, Polygon 7. Include "mintRecipient" only when the user explicitly names a different destination address. The BFF validates the values, checks the treasury, simulates the call, and creates the unsigned intent. Do not include the block for read-only questions.`;

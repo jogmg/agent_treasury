@@ -627,6 +627,47 @@ describe("Hermes BFF", () => {
     );
   });
 
+  it("returns a validated Base CCTP deposit handoff without creating an Arc intent", async () => {
+    const intents = fakeIntents();
+    const upstream = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content:
+                    'I prepared a Base deposit.\n<hermes_action>{"kind":"cctpDeposit","amount":"10","sourceDomain":6}</hermes_action>',
+                },
+              },
+            ],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        )
+    );
+    const { base } = await start(config(), upstream as typeof fetch, intents);
+    const cookie = await authenticate(base);
+    const response = await postChat(
+      base,
+      {
+        messages: [
+          { role: "user", content: "Bridge 10 USDC from Base into my vault" },
+        ],
+      },
+      { cookie }
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      status: "completed",
+      response: {
+        reply: "I prepared a Base deposit.",
+        cctpDeposit: { kind: "cctpDeposit", amount: "10", sourceDomain: 6 },
+      },
+    });
+    expect(intents.create).not.toHaveBeenCalled();
+  });
+
   it("keeps a chat answer usable when the action cannot be drafted", async () => {
     const intents = fakeIntents();
     intents.create.mockRejectedValueOnce(

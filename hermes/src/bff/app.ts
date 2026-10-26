@@ -20,6 +20,7 @@ import {
   type VerifiedSession,
 } from "./auth";
 import { requestHermesChat, type ChatMessage, type ChatResult } from "./chat";
+import { getCctpDestination } from "../cctp-destinations";
 import type { BffConfig } from "./config";
 import { BffHttpError, isBffHttpError } from "./errors";
 import {
@@ -27,7 +28,9 @@ import {
   extractActionProposal,
   IntentService,
   INTENT_CHAT_SYSTEM_PROMPT,
+  parseUsdcAmount,
   type BffIntentService,
+  type CctpDepositProposal,
   type IntentDraftRequest,
 } from "./intents";
 import { IntentMaintenance } from "./maintenance";
@@ -50,7 +53,11 @@ interface ChatJob {
   status: "pending" | "completed" | "failed";
   createdAt: number;
   updatedAt: number;
-  result?: ChatResult & { intent?: unknown; actionError?: string };
+  result?: ChatResult & {
+    intent?: unknown;
+    cctpDeposit?: CctpDepositProposal;
+    actionError?: string;
+  };
   error?: { status: number; code: string; message: string };
 }
 
@@ -827,12 +834,26 @@ export function createBffApp(config: BffConfig, deps: BffDeps = {}): BffApp {
 
         if (!action.error && action.proposal) {
           try {
-            const created = await intents.create(
-              wallet,
-              action.proposal,
-              `chat:${idempotencyKey}`
-            );
-            response = { ...result, reply, intent: created.intent };
+            if (action.proposal.kind === "cctpDeposit") {
+              if (
+                !getCctpDestination(config.hermes, action.proposal.sourceDomain)
+              ) {
+                throw new BffHttpError(
+                  400,
+                  "invalid_source",
+                  "Choose a supported CCTP source chain."
+                );
+              }
+              parseUsdcAmount(action.proposal.amount);
+              response = { ...result, reply, cctpDeposit: action.proposal };
+            } else {
+              const created = await intents.create(
+                wallet,
+                action.proposal,
+                `chat:${idempotencyKey}`
+              );
+              response = { ...result, reply, intent: created.intent };
+            }
           } catch (error) {
             const actionError =
               isBffHttpError(error) && error.status < 500

@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { ActivityEvent, ActivityEventType } from "../lib/activity";
+import type { CctpDepositHandoff } from "../lib/hermes";
 
 export type TabId =
   | "overview"
@@ -34,9 +35,11 @@ export interface UiState {
   growthKey: string;
   /** Draft selected from a chat action card or `?intent=` deep link. */
   reviewIntentId: string | null;
+  cctpDepositHandoff: CctpDepositHandoff | null;
 
   setTab: (tab: TabId) => void;
   setReviewIntent: (id: string | null) => void;
+  setCctpDepositHandoff: (handoff: CctpDepositHandoff | null) => void;
   setEvents: (events: ActivityEvent[]) => void;
   setFilter: (
     f: ActivityEventType | "all" | "inflight" | "deposits" | "withdrawals"
@@ -119,9 +122,12 @@ export const useUiStore = create<UiState>((setState) => ({
   growthHistory: [],
   growthKey: "",
   reviewIntentId: null,
+  cctpDepositHandoff: null,
 
   setTab: (tab) => setState((s) => ({ ...s, activeTab: tab })),
   setReviewIntent: (id) => setState((s) => ({ ...s, reviewIntentId: id })),
+  setCctpDepositHandoff: (handoff) =>
+    setState((s) => ({ ...s, cctpDepositHandoff: handoff })),
   setEvents: (events) => setState((s) => ({ ...s, activityEvents: events })),
   setFilter: (f) => setState((s) => ({ ...s, activityFilter: f })),
   setActivityLoading: (b) => setState((s) => ({ ...s, activityLoading: b })),

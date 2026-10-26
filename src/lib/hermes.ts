@@ -44,8 +44,15 @@ export interface ChatMessage {
   content: string;
   /** Present when Hermes prepared an unsigned draft for this turn. */
   intent?: HermesIntent;
+  cctpDeposit?: CctpDepositHandoff;
   /** A safe explanation when the model proposed an action the BFF rejected. */
   actionError?: string;
+}
+
+export interface CctpDepositHandoff {
+  kind: "cctpDeposit";
+  amount: string;
+  sourceDomain: number;
 }
 
 export interface HermesSession {
@@ -65,6 +72,7 @@ export interface ChatResponse {
   model: string | null;
   usage: Record<string, unknown> | null;
   intent?: HermesIntent;
+  cctpDeposit?: CctpDepositHandoff;
   actionError?: string;
 }
 

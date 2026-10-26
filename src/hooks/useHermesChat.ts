@@ -98,6 +98,20 @@ function isHermesIntent(value: unknown): value is HermesIntent {
   );
 }
 
+function isCctpDepositHandoff(
+  value: unknown
+): value is NonNullable<ChatMessage["cctpDeposit"]> {
+  if (!value || typeof value !== "object") return false;
+  const handoff = value as Partial<NonNullable<ChatMessage["cctpDeposit"]>>;
+  return (
+    handoff.kind === "cctpDeposit" &&
+    typeof handoff.amount === "string" &&
+    /^\d+(\.\d{1,6})?$/.test(handoff.amount) &&
+    typeof handoff.sourceDomain === "number" &&
+    Number.isInteger(handoff.sourceDomain)
+  );
+}
+
 function loadChatState(address?: string): ChatState {
   let sessions: ChatSession[] = [];
   try {
@@ -118,6 +132,9 @@ function loadChatState(address?: string): ChatState {
               ...(isHermesIntent(message.intent)
                 ? { intent: message.intent }
                 : { intent: undefined }),
+              ...(isCctpDepositHandoff(message.cctpDeposit)
+                ? { cctpDeposit: message.cctpDeposit }
+                : { cctpDeposit: undefined }),
             }))
             .slice(-MAX_STORED_MESSAGES),
         }))
@@ -343,6 +360,9 @@ export function useHermesChat(): HermesChat {
           role: "assistant",
           content: response.reply,
           ...(response.intent ? { intent: response.intent } : {}),
+          ...(response.cctpDeposit
+            ? { cctpDeposit: response.cctpDeposit }
+            : {}),
           ...(response.actionError
             ? { actionError: response.actionError }
             : {}),
