@@ -36,6 +36,14 @@
 > execution was not exercised during deployment. No smart contracts were deployed. See
 > [`HERMES_USER_EXECUTION.md`](HERMES_USER_EXECUTION.md) for the transaction safety boundary.
 
+> **2026-10-26 chat actions and conversation isolation (implemented locally):** Hermes chat now
+> supports local deposit, local withdrawal, CCTP withdrawal, and inbound CCTP deposit actions.
+> Inbound CCTP deposit runs in its chat card: the user signs the source-chain approval/burn, the
+> card tracks Circle attestation, and the user signs the Arc receiver transaction after attestation.
+> Chat busy/error state is scoped per conversation, and CCTP progress is tied to the originating
+> action card. Frontend checks and 80 tests pass; Hermes typecheck and 92 tests pass. These local
+> changes have not been deployed, and authenticated live wallet execution remains unverified.
+
 > **Mainnet keeper maintenance completed (2026-10-25):** the owner confirmed completed Base deliveries
 > and signed `executeWithdrawal(1..3)`; all three receipts succeeded and on-chain state now reports
 > `executed=true`, `cancelled=false`. The keeper was then changed on both AgentTreasury and

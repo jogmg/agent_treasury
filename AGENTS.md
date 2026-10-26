@@ -658,7 +658,7 @@ where `vaultShareDecimals` is read live from `vault.decimals()`. USDC amounts re
 8. Verify contract source on the Arc mainnet explorer.
 9. Validate BurnMessageV2 Layout A/B offsets against the live Arc MessageTransmitterV2; `CCTPReceiver`
    is deployed and wired but unused by the current app path.
-10. Source-domain accounting for inbound deposits: inbound burns target `CCTPReceiverV2`
+10. ✅ Source-domain accounting for inbound deposits: inbound burns target `CCTPReceiverV2`
     (mintRecipient = destinationCaller = receiver, hookData = abi.encode(agent)), which credits
     `recordDeposit(agent, amount, sourceDomain)` in one Arc tx. **Testnet corrected receiver deployed,
     wired, and live-proofed (2026-10-22); mainnet corrected receiver deployed/wired and live-proofed
@@ -672,7 +672,7 @@ where `vaultShareDecimals` is read live from `vault.decimals()`. USDC amounts re
 12. ✅ Deterministic `/api/intents/*` draft endpoints, simulation, review cards, and the expiry/receipt
     sweep are implemented and tested. Repeat live deployment verification of the sweep against a
     real receipt after the latest deployment/origin change.
-13. Re-run the frontend/BFF/mainnet builds after deployment and confirm completed CCTP Activity rows
+13. ✅ Re-run the frontend/BFF/mainnet builds after deployment and confirm completed CCTP Activity rows
     still show no **Resume**.
 
 ## Tech Stack

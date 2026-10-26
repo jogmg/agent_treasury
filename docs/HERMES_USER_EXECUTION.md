@@ -20,6 +20,16 @@
 > This document is the execution contract for that surface. It is intentionally
 > separate from the ops runbook so the user path cannot be lost again.
 
+> **2026-10-26 implementation status:** all four user actions are available from Hermes chat in
+> the local application: vault deposit, local withdrawal, CCTP withdrawal, and inbound CCTP
+> deposit. The first three use BFF-created unsigned treasury intents. Inbound CCTP deposit uses a
+> validated chat handoff to a chat-owned action card rather than an Arc treasury intent: it signs
+> the source-chain approval/burn, waits for Circle attestation, then asks the user to sign the Arc
+> receiver transaction. Each conversation has independent busy/error state, and CCTP progress is
+> associated with the action that started it. Frontend checks and 80 tests pass; Hermes typecheck
+> and 92 tests pass. These changes are local and are not yet verified on the current public
+> deployment; the authenticated live wallet flow remains to be tested after deployment.
+
 ## 1. Product intent
 
 A user should be able to say what they want in plain language, and Hermes should
@@ -28,6 +38,7 @@ turn that into the correct sequence of treasury actions:
 - read the right on-chain and CCTP state;
 - explain the result with the relevant chain, amount, block, and transaction link;
 - prepare the exact unsigned deposit, local-withdraw, or CCTP-withdraw action;
+- prepare an inbound CCTP deposit from a supported source chain;
 - keep the user in the Hermes workspace while the connected wallet reviews and
   signs each transaction;
 - let the user sign in their own EIP-1193/EIP-6963 wallet;
@@ -43,7 +54,8 @@ in their connected wallet.
 - Ask one clarifying question when amount, destination, or recipient is missing
   or ambiguous.
 - Call a deterministic **draft** action that creates an unsigned intent in
-  Postgres.
+  Postgres, or return a validated inbound-CCTP handoff for the browser action
+  runner.
 - Return an in-chat action summary and start the deterministic wallet flow only
   after the user chooses to continue.
 - Read back the intent status, tx hash, and CCTP completion.
@@ -72,23 +84,24 @@ Hermes workspace ── POST /api/chat ──► BFF (SIWE wallet session)
                                            │
                     ┌──────────────────────┴──────────────────────┐
                     │                                             │
-             read: arc_get_*                         draft: <hermes_action>
+             read: arc_get_*                         action: <hermes_action>
              balances, activity,                     semantic fields only
              CCTP status, config                     (no calldata/signing)
                     │                                             │
                     └──────────────────────┬──────────────────────┘
                                            ▼
-                                  BFF validates + simulates
-                                  stores intents row
+                                  BFF validates semantic fields
+                                  stores an intent or returns a CCTP handoff
                                            │
                                            ▼
                               In-chat action card
                               user chooses "Continue in wallet"
                                            │
                                            ▼
-                              Fresh BFF intent + browser re-simulation
-                              wallet prompts; user signs + broadcasts
-                              deposit may prompt approval, then deposit
+                              Treasury intent: refetch + re-simulate
+                              Inbound CCTP: source approval/burn, Circle
+                              attestation, then Arc receiver signature
+                              User approves each wallet prompt
                                            │
                                            ▼
                               PATCH /api/intents/:id/tx immediately
@@ -185,19 +198,23 @@ The model does not invent endpoints. It calls this allowlisted surface.
 | Which contracts/network is active?            | `arc_get_config`            | `GET /api/config`                 | Mainnet/testnet, chain ID, treasury, receiver, USDC               |
 | What is waiting for bookkeeping?              | `arc_get_bookkeeping_queue` | Ops-only                          | Never exposed to the User profile                                 |
 
-### Draft surface — Phase 2 only
+### Action surface — Phase 2 only
 
-| User goal                  | Action `kind`   | BFF endpoint                       | Result                                               |
-| -------------------------- | --------------- | ---------------------------------- | ---------------------------------------------------- |
-| Put USDC into the vault    | `deposit`       | `POST /api/intents/deposit`        | Unsigned `deposit(amount)` intent + deep link        |
-| Withdraw to my Arc wallet  | `withdrawLocal` | `POST /api/intents/withdraw-local` | Unsigned `withdrawLocal(amount)` intent + deep link  |
-| Move USDC to another chain | `cctpWithdraw`  | `POST /api/intents/cctp-withdraw`  | Unsigned `requestWithdrawal(...)` intent + deep link |
+| User goal                                    | Action `kind`   | BFF endpoint                       | Result                                                          |
+| -------------------------------------------- | --------------- | ---------------------------------- | --------------------------------------------------------------- |
+| Put USDC into the vault                      | `deposit`       | `POST /api/intents/deposit`        | Unsigned `deposit(amount)` intent + deep link                   |
+| Withdraw to my Arc wallet                    | `withdrawLocal` | `POST /api/intents/withdraw-local` | Unsigned `withdrawLocal(amount)` intent + deep link             |
+| Move USDC to another chain                   | `cctpWithdraw`  | `POST /api/intents/cctp-withdraw`  | Unsigned `requestWithdrawal(...)` intent + deep link            |
+| Bring USDC from another chain into the vault | `cctpDeposit`   | Chat action handoff                | Source-chain CCTP burn, Circle attestation, Arc receiver credit |
 
 There is no `arc_execute_*`, `arc_send_*`, or `arc_sign_*` tool. The selected
-bridge is a single structured action envelope appended to a Hermes chat reply;
-the BFF validates it and calls the deterministic, wallet-bound intent service.
-A direct browser call to the same endpoint follows the same validation. The User
-profile's MCP toolset remains read-only.
+action is a single structured action envelope appended to a Hermes chat reply.
+The BFF validates every semantic value. Treasury actions go through the
+wallet-bound intent service; inbound CCTP deposits return a constrained
+`cctpDeposit` handoff that the browser executes through the configured CCTP
+contracts and Circle attestation flow. No model-provided calldata is used. A
+direct browser call to the intent endpoints follows the same validation. The
+User profile's MCP toolset remains read-only.
 
 ### Intent and status endpoints
 
@@ -240,7 +257,7 @@ The BFF derives `to` and `data`; the model supplies only semantic parameters.
 
 Rules:
 
-- `kind` is an enum: `deposit`, `withdrawLocal`, `cctpWithdraw`.
+- Treasury intent `kind` is an enum: `deposit`, `withdrawLocal`, `cctpWithdraw`.
 - `wallet` is bound to the SIWE session; it is never accepted from the model.
 - `to` must be the configured `AgentTreasury` for the active network.
 - `data` is produced by an allowlisted encoder, never by the model.
@@ -253,6 +270,14 @@ Rules:
   domains and Arc itself are rejected. CCTP drafts need an exact amount.
 - `mintRecipient` defaults to the connected wallet. A different recipient
   requires checksum validation and is shown in the review card.
+- `cctpDeposit` is a separate chat action, not a stored Arc treasury intent. It
+  requires an exact USDC amount and supported source domain. The burn targets
+  the configured Arc CCTP receiver and encodes the SIWE wallet as the agent;
+  before prompting, the browser checks source balance, treasury pause state,
+  live vault minimum, share preview, and Arc gas reserve.
+- Inbound CCTP requires separate source-chain approval/burn and Arc receiver
+  signatures, with Circle attestation between them. The chat card tracks the
+  operation and preserves its burn in the bridge recovery store.
 - CCTP uses standard finality `2000` unless the existing app flow changes it.
 - `simulation.warning = "approval_required"` means the draft is valid but the
   existing review flow must approve USDC first. A failed simulation is not
@@ -300,6 +325,9 @@ Hermes should be useful without being pushy or overconfident.
 
 - **“Put 25 USDC to work.”** → draft `deposit` for 25 USDC; show the vault and
   review link; do not sign.
+- **“Bridge 10 USDC from Base into my vault.”** → prepare `cctpDeposit` for
+  source domain `6`; the chat card requests source-chain approval/burn, waits
+  for Circle attestation, then requests the Arc receiver signature.
 - **“Send 10 USDC to Base.”** → draft `cctpWithdraw` to domain `6`, recipient =
   connected wallet, standard finality; show burn/mint chain and review link.
 - **“Withdraw everything to my wallet.”** → draft `withdrawLocal` with the
@@ -337,6 +365,9 @@ Deposit, Withdraw, Activity, or Settings tabs.
 - Chat history is scoped to the wallet in browser local storage; no cross-user
   memory. Users can create, resume, select, and delete conversations in the
   sidebar.
+- Chat request busy/error state is keyed by conversation, so activity in one
+  chat is not displayed in another. Inbound CCTP progress is additionally tied
+  to the specific originating action card.
 - Read answers include the network, block, and tx link when relevant.
 - Action answers render an in-chat **action card**:
   - amount, source chain, destination chain, recipient;
@@ -385,6 +416,12 @@ or keeper key because none exists in Hermes.
 - “Deposit 3 USDC” on mainnet is rejected with the 5 USDC minimum and an offer to
   use 5+.
 - “Withdraw everything” resolves the actual amount and respects spending limits.
+- “Bridge 10 USDC from Base into my vault” starts the inbound CCTP action from
+  chat, preserves the burn while Circle attests, and then allows the user to
+  sign the Arc receiver transaction from the same card.
+- A busy chat or CCTP transfer in one conversation does not show its activity
+  in another conversation, even when both action cards request the same amount
+  and source chain.
 - A completed CCTP withdrawal renders no **Resume** CTA.
 - An unknown destination or malformed recipient is rejected without a draft.
 - A prompt injection in a memo cannot call a tool or change the recipient.
@@ -402,11 +439,12 @@ or keeper key because none exists in Hermes.
 2. **Read-only chat:** persistent dock, streamed answers, tx/block links, no
    action tools. **Implemented locally without streaming; live verification
    pending deployment.**
-3. **Deposit/local withdraw drafts:** deterministic intent creation, simulation,
+3. **Deposit/local-withdraw/CCTP-withdraw actions:** deterministic intent creation, simulation,
    review card, deep link, tx-hash patch, background receipt/transaction
    reconciliation and expiry cleanup. **Implemented locally; live deployment verification remains.**
-4. **CCTP drafts:** destination map, recipient confirmation, standard finality,
-   CCTP status follow-up. **Implemented locally.**
+4. **Inbound CCTP deposit:** source-chain approval/burn, Circle attestation,
+   Arc receiver credit from the Hermes action card. **Implemented locally; live
+   wallet-flow verification remains.**
 5. **Hardening:** idempotency, expiry, receipt/transaction reconciliation, cost
    caps, audit events, prompt-injection tests, and a mainnet launch gate.
    **Idempotency, expiry, receipt/transaction reconciliation, rate limits, and
