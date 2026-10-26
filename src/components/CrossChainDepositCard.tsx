@@ -57,7 +57,6 @@ import {
 } from "../stores/bridgeDeposit";
 import { useMinDeposit } from "../hooks/useMinDeposit";
 import { useDepositShares } from "../hooks/useDepositShares";
-import { useUiStore } from "../stores/ui";
 
 const ARC_GAS_SYMBOL = "USDC";
 // Keep enough native USDC for the Arc mint, approval, and treasury deposit.
@@ -104,10 +103,6 @@ export function CrossChainDepositCard() {
   const [busy, setBusy] = useState(false);
   const [resumeTx, setResumeTx] = useState("");
   const [resuming, setResuming] = useState(false);
-  const cctpDepositHandoff = useUiStore((state) => state.cctpDepositHandoff);
-  const setCctpDepositHandoff = useUiStore(
-    (state) => state.setCctpDepositHandoff
-  );
 
   const {
     status,
@@ -130,8 +125,8 @@ export function CrossChainDepositCard() {
     clearBridgeHistory,
   } = useBridgeDepositStore();
 
-  const sourceDomain = cctpDepositHandoff?.sourceDomain ?? selectedSourceDomain;
-  const amount = cctpDepositHandoff?.amount ?? enteredAmount;
+  const sourceDomain = selectedSourceDomain;
+  const amount = enteredAmount;
 
   const source = getCctpDestination(sourceDomain) ?? CCTP_DESTINATIONS[0];
   const activeSource =
@@ -278,12 +273,6 @@ export function CrossChainDepositCard() {
     if (validation) {
       toast.error(validation);
       return;
-    }
-
-    if (cctpDepositHandoff) {
-      setSelectedSourceDomain(sourceDomain);
-      setEnteredAmount(amount);
-      setCctpDepositHandoff(null);
     }
 
     setBusy(true);
@@ -888,7 +877,6 @@ export function CrossChainDepositCard() {
                 onChange={(e) => {
                   setSelectedSourceDomain(Number(e.target.value));
                   setEnteredAmount("");
-                  setCctpDepositHandoff(null);
                 }}
                 className="w-full rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2.5 text-sm text-white outline-none focus:border-emerald-500/50"
               >
@@ -912,7 +900,6 @@ export function CrossChainDepositCard() {
                   value={amount}
                   onChange={(e) => {
                     setEnteredAmount(e.target.value);
-                    setCctpDepositHandoff(null);
                   }}
                   placeholder="0.00"
                   className="w-full bg-transparent font-mono text-lg text-white outline-none placeholder:text-slate-600 tabular-nums"
@@ -921,7 +908,6 @@ export function CrossChainDepositCard() {
                   type="button"
                   onClick={() => {
                     setEnteredAmount(formatUsdc(sourceBalance ?? 0n, 6));
-                    setCctpDepositHandoff(null);
                   }}
                   className="shrink-0 rounded-md border border-slate-700 px-2 py-1 text-[11px] font-medium text-slate-400 hover:border-emerald-500/40 hover:text-emerald-400"
                 >
