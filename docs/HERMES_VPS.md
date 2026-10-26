@@ -11,6 +11,12 @@ This guide takes a fresh Ubuntu 24.04 VPS to the Phase 1 Hermes stack:
 It does not enable signing, keeper bookkeeping, or public user chat. Those are
 later phases.
 
+> **2026-10-26 provider update:** the live stack now uses Gemini free-tier models, not NVIDIA.
+> Ops is `gemini-3.8-flash`; User is `gemini-3.5-flash-lite` with a fast fallback chain and a
+> private API server. NVIDIA environment values are retained only as a rollback path. The NVIDIA
+> setup sections below are historical. See `AGENTS.md` and `docs/HERMES.md` for the active model
+> configuration and the UI 502 fix.
+
 ---
 
 ## 0. What you need

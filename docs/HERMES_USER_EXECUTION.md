@@ -153,7 +153,7 @@ intents:
 - CCTP withdrawal actions initialize the existing transfer tracker after Arc
   confirmation; destination minting remains a separate wallet confirmation in
   the existing CCTP completion flow.
-- Separate `user` profile with NVIDIA fallback models and an API server on the
+- Separate `user` profile with Gemini free-tier fallback models and an API server on the
   private Compose network; no Discord gateway and no write tools.
 - Compose `web` profile for `hermes-user` and `bff`. The BFF has no published
   port; InstaBox publishes only frontend/nginx machine port `8080` over HTTPS.

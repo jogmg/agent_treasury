@@ -8,55 +8,53 @@
 # the read-only Arc/CCTP tools below and emit one semantic action proposal; it
 # cannot construct arbitrary calldata, choose a wallet, or move funds.
 
+# Google Gemini free tier (AI Studio). The provider key is GEMINI_API_KEY or
+# GOOGLE_API_KEY in the profile env. GEMINI_BASE_URL is optional; the provider
+# default is https://generativelanguage.googleapis.com/v1beta (native Gemini).
+#
+# Gemini 3.5 Flash-Lite is the primary for this latency-sensitive public
+# profile. Gemini 3.8 Flash is kept as a higher-quality fallback, but its
+# current free-tier demand spikes can spend the whole browser deadline timing
+# out. All entries stay on Google's free tier so an outage never silently moves
+# the public agent to a paid model.
 model:
-  provider: "nvidia"
-  default: "minimaxai/minimax-m3.1-flash"
+  provider: "gemini"
+  default: "gemini-3.5-flash-lite"
 
 model_aliases:
-  nvidia-minimax:
-    provider: "nvidia"
-    model: "minimaxai/minimax-m3.1-flash"
-  nvidia-lightning:
-    provider: "nvidia"
-    model: "nvidia/nemotron-3.5-lightning-30b-a3b"
-  nvidia-muse:
-    provider: "nvidia"
-    model: "meta/muse-glimmer-30b"
-  nvidia-glm:
-    provider: "nvidia"
-    model: "z-ai/glm-5.3"
+  gemini-flash:
+    provider: "gemini"
+    model: "gemini-3.8-flash"
+  gemini-3.6:
+    provider: "gemini"
+    model: "gemini-3.6-flash"
+  gemini-flash-lite:
+    provider: "gemini"
+    model: "gemini-3.5-flash-lite"
 
 fallback_providers:
-  - provider: "nvidia"
-    model: "nvidia/nemotron-3.5-lightning-30b-a3b"
-  - provider: "nvidia"
-    model: "meta/muse-glimmer-30b"
-  - provider: "nvidia"
-    model: "z-ai/glm-5.3"
-  - provider: "nvidia"
-    model: "deepseek-ai/deepseek-v4.1-flash"
-  - provider: "nvidia"
-    model: "z-ai/glm-5.3-flash"
-  - provider: "nvidia"
-    model: "openai/gpt-oss-20b"
-  - provider: "nvidia"
-    model: "poolside/laguna-xs-2.1"
-  - provider: "nvidia"
-    model: "stepfun-ai/step-5-preview"
+  # Keep the slow, demand-spiky 3.8 model last so it cannot consume the public
+  # tunnel's ~60s browser deadline before a lite model gets a chance.
+  - provider: "gemini"
+    model: "gemini-3.6-flash"
+  - provider: "gemini"
+    model: "gemini-3.1-flash-lite"
+  - provider: "gemini"
+    model: "gemini-3.8-flash"
 
-# Fail over quickly; the BFF has its own request deadline.
+# Fail over quickly; the BFF and the public tunnel have their own deadlines.
 providers:
-  nvidia:
-    request_timeout_seconds: 45
-    stale_timeout_seconds: 60
+  gemini:
+    request_timeout_seconds: 20
+    stale_timeout_seconds: 30
 
 auxiliary:
   compression:
-    provider: "nvidia"
-    model: "minimaxai/minimax-m3.1-flash"
+    provider: "gemini"
+    model: "gemini-3.6-flash"
   title_generation:
-    provider: "nvidia"
-    model: "nvidia/nemotron-3.5-lightning-30b-a3b"
+    provider: "gemini"
+    model: "gemini-3.5-flash-lite"
 
 # The BFF is the only caller. The API server is private to the Compose
 # network; do not publish port 8642.

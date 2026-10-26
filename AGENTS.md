@@ -138,10 +138,14 @@ runbook: `docs/HERMES_VPS.md`.
   `transfers`; MCP authenticates before JSON parsing and closes the stateless transport/server per
   request; PGlite tests cover the migration SQL and alert dedupe/throttle.
 - Local services bind loopback by default (`MCP_HOST`/`MONITOR_HOST`), while Compose sets both to
-  `0.0.0.0` on the private network. The Ops profile uses NVIDIA Build free endpoints
-  (`provider: nvidia`, `NVIDIA_API_KEY`) with a ranked `fallback_providers` chain and short
-  aliases for `/model`; the User profile now uses the same NVIDIA discipline and a private API
-  server, with no Discord gateway. Managed Postgres can opt into TLS with `DATABASE_SSL=true`.
+  `0.0.0.0` on the private network. The active LLM provider is Google Gemini on the free tier.
+  Ops uses `gemini-3.8-flash` with `gemini-3.6-flash` → `gemini-3.5-flash-lite` →
+  `gemini-3.1-flash-lite` fallbacks. User uses `gemini-3.5-flash-lite` as primary (the public
+  tunnel has a ~60s browser deadline) with `gemini-3.6-flash` → `gemini-3.1-flash-lite` →
+  `gemini-3.8-flash`. Both use the native Gemini base URL
+  `https://generativelanguage.googleapis.com/v1beta`; `GEMINI_BASE_URL` is an optional override
+  and is unset. NVIDIA env values remain rollback-only. Managed Postgres can opt into TLS with
+  `DATABASE_SSL=true`.
 - **Phase 2 BFF foundation (local, 2026-10-24; not deployed).** `hermes/src/bff/` now implements
   SIWE nonce/verify with viem, a one-time nonce store, an HMAC-signed HttpOnly wallet cookie,
   origin allowlisting/CSRF checks, wallet/IP rate limits, session-gated read endpoints
@@ -196,11 +200,22 @@ runbook: `docs/HERMES_VPS.md`.
   SIWE/chat/intent execution was not exercised; do so with a user wallet before treating that
   workflow as live-verified. Arc Studio source hashes match the deployed runtime files. No
   contract deployment was performed.
-- The User profile is `hermes/profiles/user/` (NVIDIA fallback chain, API server on private port
-  8642, five read-only MCP tools, no Discord). `hermes/docker-compose.yml` adds opt-in `web`
-  profile services `hermes-user` and `bff`; neither publishes a host port. Local tests are root
-  69 and Hermes 82. Production HTTPS exposure, live chat/intent verification, and the audit gate
-  remain pending.
+- The User profile is `hermes/profiles/user/` (Gemini free-tier fallback chain, API server on
+  private port 8642, five read-only MCP tools, no Discord). `hermes/docker-compose.yml` adds
+  opt-in `web` profile services `hermes-user` and `bff`; neither publishes a host port. Production
+  HTTPS is live at the InstaBox origin. The public `/health` and `/api/session` endpoints, a
+  full SIWE → `/api/chat` round trip, and the BFF's 502 mapping were exercised on 2026-10-26.
+  Live draft-intent execution with a funded user wallet is still pending.
+- **Gemini switch and UI 502 fix (2026-10-26).** Both Hermes profiles moved from NVIDIA to
+  Gemini. The BFF/UI chat initially failed with a public 502 when Gemini 3.8 timed out and the
+  fallback chain spent the tunnel's ~60s browser deadline. The User profile now defaults to
+  `gemini-3.5-flash-lite`, keeps the slow 3.8 model last in the fallback chain, and uses
+  `request_timeout_seconds: 20` / `stale_timeout_seconds: 30`. A full public-origin
+  SIWE → `/api/chat` test returned 200 in 12.5s (BFF duration 7.7s). Ops remains on
+  `gemini-3.8-flash` and its Discord gateway is connected. Both containers previously
+  reconciled every profile in the shared `HERMES_DATA_DIR` and started duplicate gateways; an
+  `isolation-empty` volume now hides the User profile from the Ops container and the Ops profile
+  from the User container. Config/compose backups are on the server.
 - Transfer refresh runs four at a time. Delivery comes from destination `usedNonces` plus Iris; the
   mint tx link is only a forwarder-tx receipt when Iris supplies one, so manual mints may have no
   link. Two fresh monitor runs indexed 11 + 1 catch-up activity events and resolved withdrawal ids
@@ -215,10 +230,10 @@ runbook: `docs/HERMES_VPS.md`.
   `arc_get_cctp_status` for id 3 (`done`, delivered, no mint link). The real Hermes runtime
   registered the Ops profile, and `hermes -p ops mcp test arc-treasury` connected with all seven
   read-only tools. The standalone Ops gateway is running (`gateway.standalone: true` is required
-  because Hermes otherwise expects the default profile to own the host gateway). NVIDIA MiniMax
-  M3.1 Flash is primary because it returned tool calls quickly during setup; GLM-5.3 and
-  DeepSeek-V4.1-Flash were timing out/over quota and sit later in the fallback chain. Hermes
-  one-shot tests returned `OK` and live `arc_get_treasury_state` values. A live Discord mention at
+  because Hermes otherwise expects the default profile to own the host gateway). The original
+  NVIDIA MiniMax M3.1 Flash chain was replaced by the Gemini free-tier chain on 2026-10-26;
+  NVIDIA values are kept only as a rollback path. Hermes one-shot tests returned `OK` and live
+  `arc_get_treasury_state` values. A live Discord mention at
   `2026-10-24 01:15 UTC` produced a 1,966-character status reply at `01:16` in the auto-created
   thread (70.8s, 5 model calls, 13 read-only tool calls). Hermes auto-threads mentions; check the
   thread, not only the parent channel. The first `/sethome` was run inside that thread; the runtime

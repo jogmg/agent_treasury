@@ -5,64 +5,44 @@
 # The LLM is never the source of truth: balances and CCTP status come from the
 # MCP tools, which query Arc/Iris/Postgres deterministically.
 
-# NVIDIA Build free endpoints (OpenAI-compatible). The provider key is
-# NVIDIA_API_KEY in ../.env; NVIDIA_BASE_URL is optional and defaults to
-# https://integrate.api.nvidia.com/v1.
+# Google Gemini free tier (AI Studio). The provider key is GEMINI_API_KEY or
+# GOOGLE_API_KEY in ../.env. GEMINI_BASE_URL is optional; the provider default
+# is https://generativelanguage.googleapis.com/v1beta (native Gemini API).
 #
-# Model IDs and free availability change often. This chain is a ranked starting
-# point as of 2026-10-23. The first entries are the models that currently answer
-# quickly and support tool calls; larger models that were over quota during
-# setup remain later in the chain so they are used when they recover.
-# Switch manually for a session with /model nvidia-minimax (or another alias
+# Gemini 3.8 Flash is the primary free model: 1M-token input context, function
+# calling, and a free tier. The fallbacks stay on Google's free tier so a rate
+# limit or outage never silently moves Ops to a paid OpenAI/Anthropic model.
+# Switch manually for a session with /model gemini-flash (or another alias
 # below), or edit model.default.
 model:
-  provider: "nvidia"
-  default: "minimaxai/minimax-m3.1-flash"
+  provider: "gemini"
+  default: "gemini-3.8-flash"
 
 model_aliases:
-  nvidia-minimax:
-    provider: "nvidia"
-    model: "minimaxai/minimax-m3.1-flash"
-  nvidia-lightning:
-    provider: "nvidia"
-    model: "nvidia/nemotron-3.5-lightning-30b-a3b"
-  nvidia-muse:
-    provider: "nvidia"
-    model: "meta/muse-glimmer-30b"
-  nvidia-glm:
-    provider: "nvidia"
-    model: "z-ai/glm-5.3"
-  nvidia-deepseek:
-    provider: "nvidia"
-    model: "deepseek-ai/deepseek-v4.1-flash"
-  nvidia-fast:
-    provider: "nvidia"
-    model: "z-ai/glm-5.3-flash"
+  gemini-flash:
+    provider: "gemini"
+    model: "gemini-3.8-flash"
+  gemini-3.6:
+    provider: "gemini"
+    model: "gemini-3.6-flash"
+  gemini-flash-lite:
+    provider: "gemini"
+    model: "gemini-3.5-flash-lite"
 
-# Primary model fallback chain. All entries use the same NVIDIA key, but a
-# model can be unavailable, over quota, or slow independently of the others.
+# Primary model fallback chain. All entries use the same Gemini key and remain
+# on free-tier models; a model can be unavailable or rate-limited independently.
 fallback_providers:
-  - provider: "nvidia"
-    model: "nvidia/nemotron-3.5-lightning-30b-a3b"
-  - provider: "nvidia"
-    model: "meta/muse-glimmer-30b"
-  - provider: "nvidia"
-    model: "z-ai/glm-5.3"
-  - provider: "nvidia"
-    model: "deepseek-ai/deepseek-v4.1-flash"
-  - provider: "nvidia"
-    model: "z-ai/glm-5.3-flash"
-  - provider: "nvidia"
-    model: "openai/gpt-oss-20b"
-  - provider: "nvidia"
-    model: "poolside/laguna-xs-2.1"
-  - provider: "nvidia"
-    model: "stepfun-ai/step-5-preview"
+  - provider: "gemini"
+    model: "gemini-3.6-flash"
+  - provider: "gemini"
+    model: "gemini-3.5-flash-lite"
+  - provider: "gemini"
+    model: "gemini-3.1-flash-lite"
 
 # Fail over quickly instead of retrying the same stalled/limited model.
 # The default 1800s non-streaming timeout is far too long for Discord chat.
 providers:
-  nvidia:
+  gemini:
     request_timeout_seconds: 45
     stale_timeout_seconds: 60
 
@@ -70,11 +50,11 @@ providers:
 # Hermes falls back to the main model chain.
 auxiliary:
   compression:
-    provider: "nvidia"
-    model: "minimaxai/minimax-m3.1-flash"
+    provider: "gemini"
+    model: "gemini-3.6-flash"
   title_generation:
-    provider: "nvidia"
-    model: "nvidia/nemotron-3.5-lightning-30b-a3b"
+    provider: "gemini"
+    model: "gemini-3.5-flash-lite"
 
 # This deployment runs one private Ops bot, not a multi-profile host gateway.
 # Hermes otherwise refuses a named-profile gateway and expects the default
@@ -103,7 +83,7 @@ mcp_servers:
       prompts: false
 
 agent:
-  # One retry per model, then move to the next free NVIDIA model.
+  # One retry per model, then move to the next free Gemini model.
   api_max_retries: 1
   auto_recovery_cycles: 1
   disabled_toolsets:

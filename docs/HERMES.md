@@ -1,13 +1,20 @@
 # Hermes Agent Implementation Plan
 
 > Status: **Phase 1 deployed on the current InstaBox production host; Hermes Ops gateway is
-> running with NVIDIA free-model fallback in the private Discord.** The product path is the
+> running with Gemini free-model fallback in the private Discord.** The product path is the
 > Phase 2 **frontend Hermes User** agent: users state an intent, Hermes calls the right read/draft
 > endpoints, and the user signs an unsigned action in their wallet. Ops Discord is the Phase 1
 > proving ground. The read-only stack lives in `hermes/`; the VPS runbook is
 > `docs/HERMES_VPS.md`; the user execution contract is
 > [`HERMES_USER_EXECUTION.md`](HERMES_USER_EXECUTION.md). No cloud signer or owner key is present;
 > Discord remains read-only and does not execute bookkeeping or change live contracts.
+>
+> **2026-10-26 provider and UI-chat update:** both profiles now use Gemini free-tier models.
+> Ops is `gemini-3.8-flash`; User is `gemini-3.5-flash-lite` with a fast Gemini fallback chain
+> because the public tunnel has a ~60s browser deadline. The native base URL is
+> `https://generativelanguage.googleapis.com/v1beta` and `GEMINI_BASE_URL` is unset. A full
+> public SIWE → `/api/chat` round trip returned 200 in 12.5s. NVIDIA references later in this
+> document are historical/rollback-only.
 >
 > **Phase 2 BFF and initial chat deployed on InstaBox (2026-10-25):** the BFF provides SIWE nonce/verify, an
 > HMAC-signed HttpOnly wallet session, read endpoints, a session-gated Hermes User chat proxy,

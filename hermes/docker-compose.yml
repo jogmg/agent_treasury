@@ -116,6 +116,10 @@ services:
       HERMES_DASHBOARD: "0"
     volumes:
       - ${HERMES_DATA_DIR:-./data}:/opt/data
+      # Keep each container to one profile. The image auto-starts every
+      # standalone profile it can see, so the shared data volume must not expose
+      # the User profile to the Ops container.
+      - isolation-empty:/opt/data/profiles/user:ro
     depends_on:
       arc-mcp:
         condition: service_healthy
@@ -138,6 +142,9 @@ services:
       HERMES_DASHBOARD: "0"
     volumes:
       - ${HERMES_DATA_DIR:-./data}:/opt/data
+      # Hide the Ops profile from the User container for the same reason: only
+      # its own standalone gateway should start here.
+      - isolation-empty:/opt/data/profiles/ops:ro
     expose:
       - "8642"
     depends_on:
@@ -236,3 +243,4 @@ networks:
 
 volumes:
   pgdata:
+  isolation-empty:
