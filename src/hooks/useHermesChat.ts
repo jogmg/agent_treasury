@@ -2,11 +2,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAccount, useSignMessage } from "wagmi";
 import {
   getHermesSession,
+  getHermesChatJob,
   isHermesApiError,
   requestSiweChallenge,
   sendHermesChat,
   verifySiwe,
   type ChatMessage,
+  type ChatResponse,
   type HermesIntent,
 } from "../lib/hermes";
 
@@ -158,6 +160,20 @@ function friendlyError(error: unknown): string {
   return "Could not reach Hermes. Try again.";
 }
 
+function waitForNextChatPoll(signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timeout = window.setTimeout(() => {
+      signal.removeEventListener("abort", abort);
+      resolve();
+    }, 800);
+    const abort = () => {
+      window.clearTimeout(timeout);
+      reject(new DOMException("Chat request cancelled.", "AbortError"));
+    };
+    signal.addEventListener("abort", abort, { once: true });
+  });
+}
+
 export interface HermesChat {
   sessions: ChatSession[];
   activeId: string;
@@ -225,6 +241,7 @@ export function useHermesChat(): HermesChat {
     null
   );
   const sessionWallet = useRef<string | null>(null);
+  const chatRequest = useRef<AbortController | null>(null);
   const storageWallet = useRef(address?.toLowerCase());
   const busyRef = useRef(false);
   const walletMatches = stateWallet === address?.toLowerCase();
@@ -244,6 +261,8 @@ export function useHermesChat(): HermesChat {
     setChatState(loadChatState(address));
     setError(null);
     sessionWallet.current = null;
+    chatRequest.current?.abort();
+    chatRequest.current = null;
   }, [address]);
 
   useEffect(() => {
@@ -292,11 +311,34 @@ export function useHermesChat(): HermesChat {
       if (!chatState.sessions.some((item) => item.id === sessionId)) return;
 
       busyRef.current = true;
+      const controller = new AbortController();
+      chatRequest.current?.abort();
+      chatRequest.current = controller;
       setBusy(true);
       setError(null);
       try {
         await ensureSession();
-        const response = await sendHermesChat(requestMessages, sessionId);
+        const accepted = await sendHermesChat(
+          requestMessages,
+          sessionId,
+          controller.signal
+        );
+        let response: ChatResponse | undefined;
+        const deadline = Date.now() + 100_000;
+        while (!response && Date.now() < deadline) {
+          if (controller.signal.aborted) return;
+          const job = await getHermesChatJob(accepted.jobId, controller.signal);
+          if (job.status === "completed" && job.response) {
+            response = job.response;
+            break;
+          }
+          await waitForNextChatPoll(controller.signal);
+        }
+        if (!response) {
+          throw new Error(
+            "Hermes is still working. Try resending your prompt shortly."
+          );
+        }
         const assistantMessage: ChatMessage = {
           role: "assistant",
           content: response.reply,
@@ -320,10 +362,12 @@ export function useHermesChat(): HermesChat {
           ),
         }));
       } catch (cause) {
+        if (controller.signal.aborted) return;
         if (isHermesApiError(cause) && cause.code === "unauthorized")
           sessionWallet.current = null;
         setError(friendlyError(cause));
       } finally {
+        if (chatRequest.current === controller) chatRequest.current = null;
         busyRef.current = false;
         setBusy(false);
       }

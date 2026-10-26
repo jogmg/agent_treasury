@@ -216,6 +216,16 @@ runbook: `docs/HERMES_VPS.md`.
   reconciled every profile in the shared `HERMES_DATA_DIR` and started duplicate gateways; an
   `isolation-empty` volume now hides the User profile from the Ops container and the Ops profile
   from the User container. Config/compose backups are on the server.
+- **Public chat ingress timeout diagnosis (2026-10-26; local fix, not deployed).** A benign SIWE
+  chat request through the public HTTPS port returned plain-text 502 after ~20.5s, while the same
+  Gemini User request from inside the BFF completed with HTTP 200 in ~39s. This indicates the
+  public synchronous request deadline can expire before model fallback completes; BFF and Hermes
+  connectivity are working. `/api/chat` now creates a wallet-scoped async job and returns 202
+  immediately; the browser polls the authenticated job route for its result. The poll preserves
+  BFF validation, idempotency, and safe errors. Regression coverage includes pending/completed
+  jobs, wallet isolation, and sanitized upstream errors. Verified locally: frontend check + 78
+  tests, Hermes typecheck + 89 tests + build. This async change still needs the normal CI deploy
+  before it can fix the live service.
 - **CI/CD (2026-10-26).** `.github/workflows/ci-deploy.yml` verifies the frontend and Hermes on
   pull requests and deploys pushes to `main` to InstaBox. A deploy extracts the exact commit to
   `/data/hermes-data/deploy/releases/<sha>`, symlinks the server-only env files, compares changed

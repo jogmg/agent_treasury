@@ -122,6 +122,10 @@ intents:
   derives `X-Hermes-Session-Key` from the wallet, forwards an idempotency key,
   strips browser-supplied system/tool/model fields, and never exposes the API
   key. Hermes ignores a top-level `system` field, so the role message is required.
+- Chat submission returns a wallet-scoped job ID immediately. The browser polls
+  `GET /api/chat/jobs/:id` for pending/completed/failed state, keeping slow Gemini
+  fallback calls off the public port's synchronous request path. Job reads require
+  the same SIWE wallet that submitted the prompt; errors return safe BFF messages.
 - Session-gated `POST /api/intents/deposit`,
   `POST /api/intents/withdraw-local`, and
   `POST /api/intents/cctp-withdraw`. The BFF binds the wallet from SIWE, checks

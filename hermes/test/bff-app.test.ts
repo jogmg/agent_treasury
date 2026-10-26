@@ -163,6 +163,24 @@ async function post(
   });
 }
 
+async function postChat(
+  base: string,
+  body: unknown,
+  extra: Record<string, string> = {}
+): Promise<Response> {
+  const accepted = await post(base, "/api/chat", body, extra);
+  if (accepted.status !== 202) return accepted;
+  const { jobId } = (await accepted.json()) as { jobId: string };
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    const response = await fetch(`${base}/api/chat/jobs/${jobId}`, {
+      headers: { cookie: extra.cookie ?? "", origin },
+    });
+    if (response.status !== 202) return response;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  throw new Error("Timed out waiting for the test chat job.");
+}
+
 async function authenticate(base: string): Promise<string> {
   const nonceResponse = await post(base, "/auth/siwe/nonce", {
     address: account.address,
@@ -262,9 +280,8 @@ describe("Hermes BFF", () => {
     expect(unauthorized.status).toBe(401);
 
     const cookie = await authenticate(base);
-    const response = await post(
+    const response = await postChat(
       base,
-      "/api/chat",
       {
         messages: [{ role: "user", content: "How much?" }],
         conversationId: "conv-1",
@@ -275,8 +292,8 @@ describe("Hermes BFF", () => {
     );
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
-      reply: "Your treasury has 0 USDC.",
-      model: "test-model",
+      status: "completed",
+      response: { reply: "Your treasury has 0 USDC.", model: "test-model" },
     });
 
     expect(upstream).toHaveBeenCalledTimes(1);
@@ -302,6 +319,109 @@ describe("Hermes BFF", () => {
     expect(body).not.toHaveProperty("model");
   });
 
+  it("returns quickly with a wallet-scoped pending chat job", async () => {
+    let resolveUpstream!: (response: Response) => void;
+    const upstream = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveUpstream = resolve;
+        })
+    );
+    const { base } = await start(config(), upstream as typeof fetch);
+    const cookie = await authenticate(base);
+    const accepted = await post(
+      base,
+      "/api/chat",
+      { messages: [{ role: "user", content: "How much?" }] },
+      { cookie, "idempotency-key": "async-chat" }
+    );
+    expect(accepted.status).toBe(202);
+    const { jobId } = (await accepted.json()) as { jobId: string };
+
+    const pending = await fetch(`${base}/api/chat/jobs/${jobId}`, {
+      headers: { cookie, origin },
+    });
+    expect(pending.status).toBe(202);
+    expect(await pending.json()).toMatchObject({ status: "pending" });
+
+    resolveUpstream(
+      new Response(
+        JSON.stringify({ choices: [{ message: { content: "ready" } }] }),
+        { status: 200, headers: { "content-type": "application/json" } }
+      )
+    );
+    const completed = await postChat(
+      base,
+      { messages: [{ role: "user", content: "How much?" }] },
+      { cookie, "idempotency-key": "async-chat" }
+    );
+    expect(completed.status).toBe(200);
+    expect(await completed.json()).toMatchObject({
+      status: "completed",
+      response: { reply: "ready" },
+    });
+  });
+
+  it("does not expose a chat job to a different SIWE wallet", async () => {
+    const otherAccount = privateKeyToAccount(generatePrivateKey());
+    const { base } = await start(config());
+    const ownerCookie = await authenticate(base);
+    const ownerNonce = await post(base, "/auth/siwe/nonce", {
+      address: otherAccount.address,
+    });
+    const ownerChallenge = (await ownerNonce.json()) as { message: string };
+    const ownerSignature = await otherAccount.signMessage({
+      message: ownerChallenge.message,
+    });
+    const ownerVerify = await post(base, "/auth/siwe/verify", {
+      message: ownerChallenge.message,
+      signature: ownerSignature,
+    });
+    const otherCookie = ownerVerify.headers.get("set-cookie")?.split(";")[0];
+
+    const accepted = await post(
+      base,
+      "/api/chat",
+      { messages: [{ role: "user", content: "How much?" }] },
+      { cookie: ownerCookie, "idempotency-key": "wallet-scoped-job" }
+    );
+    expect(accepted.status).toBe(202);
+    const { jobId } = (await accepted.json()) as { jobId: string };
+    const leaked = await fetch(`${base}/api/chat/jobs/${jobId}`, {
+      headers: { cookie: otherCookie as string, origin },
+    });
+    expect(leaked.status).toBe(404);
+  });
+
+  it("returns sanitized upstream errors from the chat job poll", async () => {
+    const failing = vi.fn(
+      async () => new Response("private provider detail", { status: 500 })
+    );
+    const { base } = await start(config(), failing as typeof fetch);
+    const cookie = await authenticate(base);
+    const accepted = await post(
+      base,
+      "/api/chat",
+      { messages: [{ role: "user", content: "How much?" }] },
+      { cookie, "idempotency-key": "failed-chat-job" }
+    );
+    expect(accepted.status).toBe(202);
+    const { jobId } = (await accepted.json()) as { jobId: string };
+
+    let result: Response | null = null;
+    for (let attempt = 0; attempt < 200; attempt += 1) {
+      result = await fetch(`${base}/api/chat/jobs/${jobId}`, {
+        headers: { cookie, origin },
+      });
+      if (result.status !== 202) break;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    expect(result?.status).toBe(502);
+    const text = await result!.text();
+    expect(text).toContain("Hermes returned an error");
+    expect(text).not.toContain("private provider detail");
+  });
+
   it("falls back to the neutral OpenAI-compatible route on a path 404", async () => {
     const fallback = vi
       .fn()
@@ -316,14 +436,16 @@ describe("Hermes BFF", () => {
       );
     const { base } = await start(config(), fallback as typeof fetch);
     const cookie = await authenticate(base);
-    const response = await post(
+    const response = await postChat(
       base,
-      "/api/chat",
       { messages: [{ role: "user", content: "Status?" }] },
       { cookie }
     );
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ reply: "fallback answer" });
+    expect(await response.json()).toMatchObject({
+      status: "completed",
+      response: { reply: "fallback answer" },
+    });
     expect(fallback).toHaveBeenCalledTimes(2);
     expect(String((fallback.mock.calls[1] as unknown[])[0])).toBe(
       "http://hermes.test/v1/chat/completions"
@@ -336,9 +458,8 @@ describe("Hermes BFF", () => {
     );
     const { base } = await start(config(), failing as typeof fetch);
     const cookie = await authenticate(base);
-    const response = await post(
+    const response = await postChat(
       base,
-      "/api/chat",
       { messages: [{ role: "user", content: "Status?" }] },
       { cookie }
     );
@@ -353,9 +474,8 @@ describe("Hermes BFF", () => {
       config({ HERMES_USER_URL: "", HERMES_USER_API_KEY: "" })
     );
     const cookie = await authenticate(base);
-    const response = await post(
+    const response = await postChat(
       base,
-      "/api/chat",
       { messages: [{ role: "user", content: "How much?" }] },
       { cookie }
     );
@@ -483,16 +603,18 @@ describe("Hermes BFF", () => {
     const { base } = await start(config(), upstream as typeof fetch, intents);
     const cookie = await authenticate(base);
 
-    const response = await post(
+    const response = await postChat(
       base,
-      "/api/chat",
       { messages: [{ role: "user", content: "Send 10 USDC to Base" }] },
       { cookie, "idempotency-key": "chat-idem" }
     );
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
-      reply: "I can prepare that withdrawal.",
-      intent: { kind: "cctpWithdraw", status: "draft" },
+      status: "completed",
+      response: {
+        reply: "I can prepare that withdrawal.",
+        intent: { kind: "cctpWithdraw", status: "draft" },
+      },
     });
     expect(intents.create).toHaveBeenCalledWith(
       account.address,
@@ -528,16 +650,18 @@ describe("Hermes BFF", () => {
     );
     const { base } = await start(config(), upstream as typeof fetch, intents);
     const cookie = await authenticate(base);
-    const response = await post(
+    const response = await postChat(
       base,
-      "/api/chat",
       { messages: [{ role: "user", content: "Deposit 3 USDC" }] },
       { cookie }
     );
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
-      reply: "Here is a draft.",
-      actionError: "The minimum deposit is 5 USDC.",
+      status: "completed",
+      response: {
+        reply: "Here is a draft.",
+        actionError: "The minimum deposit is 5 USDC.",
+      },
     });
   });
 
@@ -562,16 +686,18 @@ describe("Hermes BFF", () => {
     );
     const { base } = await start(config(), upstream as typeof fetch, intents);
     const cookie = await authenticate(base);
-    const response = await post(
+    const response = await postChat(
       base,
-      "/api/chat",
       { messages: [{ role: "user", content: "Deposit 5 USDC" }] },
       { cookie }
     );
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
-      reply: "Here is a draft.",
-      actionError: expect.stringMatching(/Drafting is unavailable/i),
+      status: "completed",
+      response: {
+        reply: "Here is a draft.",
+        actionError: expect.stringMatching(/Drafting is unavailable/i),
+      },
     });
   });
 
