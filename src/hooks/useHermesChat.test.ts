@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createRevertSnapshot,
+  getSessionActivity,
   messagesBeforeUserPrompt,
   messagesFromRevertSnapshot,
   messagesThroughUserPrompt,
@@ -16,6 +17,24 @@ const messages: ChatMessage[] = [
 ];
 
 describe("Hermes prompt history actions", () => {
+  it("keeps busy and error state scoped to the selected conversation", () => {
+    const busySessions = new Set(["session-1"]);
+    const errors = { "session-2": "That conversation failed." };
+
+    expect(getSessionActivity("session-1", busySessions, errors)).toEqual({
+      busy: true,
+      error: null,
+    });
+    expect(getSessionActivity("session-2", busySessions, errors)).toEqual({
+      busy: false,
+      error: "That conversation failed.",
+    });
+    expect(getSessionActivity("session-3", busySessions, errors)).toEqual({
+      busy: false,
+      error: null,
+    });
+  });
+
   it("keeps the selected prompt and prior context for resend", () => {
     expect(messagesThroughUserPrompt(messages, 2)).toEqual(
       messages.slice(0, 3)

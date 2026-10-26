@@ -39,8 +39,10 @@ const ARC_GAS_RESERVE = 100_000_000_000_000_000n;
 
 export function HermesCctpDepositCard({
   handoff,
+  actionId,
 }: {
   handoff: CctpDepositHandoff;
+  actionId: string;
 }) {
   const { address, chainId } = useAccount();
   const source = getCctpDestination(handoff.sourceDomain);
@@ -66,7 +68,8 @@ export function HermesCctpDepositCard({
       bridge.status !== "idle" &&
       bridge.owner.toLowerCase() === address.toLowerCase() &&
       bridge.sourceDomain === handoff.sourceDomain &&
-      bridge.amount === amount.toString()
+      bridge.amount === amount.toString() &&
+      bridge.chatActionId === actionId
   );
   const status = activeMatches ? bridge.status : "idle";
   const isOtherDepositActive = bridge.status !== "idle" && !activeMatches;
@@ -204,6 +207,7 @@ export function HermesCctpDepositCard({
         message: "",
         attestation: "",
         error: "",
+        chatActionId: actionId,
       });
 
       if (chainId !== source.chain.id)
@@ -436,7 +440,7 @@ function StatusLine({
 }) {
   return (
     <p
-      className={`mt-3 inline-flex items-center gap-2 text-xs ${
+      className={`mt-3 flex w-full flex-col items-start gap-1.5 text-xs ${
         complete ? "text-emerald-300" : "text-sky-200"
       }`}
       role="status"

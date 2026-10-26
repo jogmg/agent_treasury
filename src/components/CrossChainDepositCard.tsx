@@ -289,6 +289,7 @@ export function CrossChainDepositCard() {
       message: "",
       attestation: "",
       error: "",
+      chatActionId: "",
     });
 
     try {

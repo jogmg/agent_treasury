@@ -53,6 +53,7 @@ export interface CctpDepositHandoff {
   kind: "cctpDeposit";
   amount: string;
   sourceDomain: number;
+  actionId?: string;
 }
 
 export interface HermesSession {

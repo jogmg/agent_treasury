@@ -32,6 +32,17 @@ export interface RevertSnapshot {
   messages: ChatMessage[];
 }
 
+export function getSessionActivity(
+  sessionId: string,
+  busySessions: ReadonlySet<string>,
+  errors: Record<string, string>
+): { busy: boolean; error: string | null } {
+  return {
+    busy: sessionId !== "" && busySessions.has(sessionId),
+    error: sessionId ? errors[sessionId] ?? null : null,
+  };
+}
+
 function newConversationId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function")
     return crypto.randomUUID();
@@ -108,8 +119,16 @@ function isCctpDepositHandoff(
     typeof handoff.amount === "string" &&
     /^\d+(\.\d{1,6})?$/.test(handoff.amount) &&
     typeof handoff.sourceDomain === "number" &&
-    Number.isInteger(handoff.sourceDomain)
+    Number.isInteger(handoff.sourceDomain) &&
+    (handoff.actionId === undefined || typeof handoff.actionId === "string")
   );
+}
+
+function newActionId(): string {
+  return typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 function loadChatState(address?: string): ChatState {
@@ -252,15 +271,19 @@ export function useHermesChat(): HermesChat {
   const { signMessageAsync } = useSignMessage();
   const [chatState, setChatState] = useState(() => loadChatState(address));
   const [stateWallet, setStateWallet] = useState(address?.toLowerCase());
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [busySessions, setBusySessions] = useState<Set<string>>(
+    () => new Set()
+  );
+  const [sessionErrors, setSessionErrors] = useState<Record<string, string>>(
+    {}
+  );
   const [revertSnapshot, setRevertSnapshot] = useState<RevertSnapshot | null>(
     null
   );
   const sessionWallet = useRef<string | null>(null);
-  const chatRequest = useRef<AbortController | null>(null);
+  const chatRequests = useRef(new Map<string, AbortController>());
   const storageWallet = useRef(address?.toLowerCase());
-  const busyRef = useRef(false);
+  const busySessionIds = useRef(new Set<string>());
   const walletMatches = stateWallet === address?.toLowerCase();
   const visibleSessions = walletMatches ? chatState.sessions : [];
   const activeId = walletMatches ? chatState.activeId : "";
@@ -268,6 +291,11 @@ export function useHermesChat(): HermesChat {
     (session) => session.id === activeId
   );
   const messages = activeSession?.messages ?? [];
+  const { busy, error } = getSessionActivity(
+    activeId,
+    busySessions,
+    sessionErrors
+  );
   const canUndoRevert = revertSnapshot?.sessionId === activeId;
 
   useEffect(() => {
@@ -276,10 +304,12 @@ export function useHermesChat(): HermesChat {
     storageWallet.current = nextWallet;
     setStateWallet(nextWallet);
     setChatState(loadChatState(address));
-    setError(null);
     sessionWallet.current = null;
-    chatRequest.current?.abort();
-    chatRequest.current = null;
+    for (const controller of chatRequests.current.values()) controller.abort();
+    chatRequests.current.clear();
+    busySessionIds.current.clear();
+    setBusySessions(new Set());
+    setSessionErrors({});
   }, [address]);
 
   useEffect(() => {
@@ -319,20 +349,26 @@ export function useHermesChat(): HermesChat {
       sessionId: string,
       requestMessages: ChatMessage[]
     ): Promise<void> => {
-      if (busyRef.current) return;
+      if (busySessionIds.current.has(sessionId)) return;
       if (!address) {
-        setError("Connect a wallet to ask Hermes.");
+        setSessionErrors((current) => ({
+          ...current,
+          [sessionId]: "Connect a wallet to ask Hermes.",
+        }));
         return;
       }
       if (stateWallet !== address.toLowerCase()) return;
       if (!chatState.sessions.some((item) => item.id === sessionId)) return;
 
-      busyRef.current = true;
+      busySessionIds.current.add(sessionId);
       const controller = new AbortController();
-      chatRequest.current?.abort();
-      chatRequest.current = controller;
-      setBusy(true);
-      setError(null);
+      chatRequests.current.set(sessionId, controller);
+      setBusySessions((current) => new Set(current).add(sessionId));
+      setSessionErrors((current) => {
+        const next = { ...current };
+        delete next[sessionId];
+        return next;
+      });
       try {
         await ensureSession();
         const accepted = await sendHermesChat(
@@ -361,7 +397,12 @@ export function useHermesChat(): HermesChat {
           content: response.reply,
           ...(response.intent ? { intent: response.intent } : {}),
           ...(response.cctpDeposit
-            ? { cctpDeposit: response.cctpDeposit }
+            ? {
+                cctpDeposit: {
+                  ...response.cctpDeposit,
+                  actionId: newActionId(),
+                },
+              }
             : {}),
           ...(response.actionError
             ? { actionError: response.actionError }
@@ -382,14 +423,27 @@ export function useHermesChat(): HermesChat {
           ),
         }));
       } catch (cause) {
-        if (controller.signal.aborted) return;
+        if (
+          controller.signal.aborted ||
+          chatRequests.current.get(sessionId) !== controller
+        )
+          return;
         if (isHermesApiError(cause) && cause.code === "unauthorized")
           sessionWallet.current = null;
-        setError(friendlyError(cause));
+        setSessionErrors((current) => ({
+          ...current,
+          [sessionId]: friendlyError(cause),
+        }));
       } finally {
-        if (chatRequest.current === controller) chatRequest.current = null;
-        busyRef.current = false;
-        setBusy(false);
+        if (chatRequests.current.get(sessionId) === controller) {
+          chatRequests.current.delete(sessionId);
+          busySessionIds.current.delete(sessionId);
+          setBusySessions((current) => {
+            const next = new Set(current);
+            next.delete(sessionId);
+            return next;
+          });
+        }
       }
     },
     [address, chatState.sessions, ensureSession, stateWallet]
@@ -398,9 +452,12 @@ export function useHermesChat(): HermesChat {
   const send = useCallback(
     async (content: string): Promise<void> => {
       const text = content.trim();
-      if (!text || busyRef.current) return;
+      if (!text || busySessionIds.current.has(activeId)) return;
       if (!address) {
-        setError("Connect a wallet to ask Hermes.");
+        setSessionErrors((current) => ({
+          ...current,
+          [activeId]: "Connect a wallet to ask Hermes.",
+        }));
         return;
       }
       if (stateWallet !== address.toLowerCase()) return;
@@ -434,7 +491,7 @@ export function useHermesChat(): HermesChat {
 
   const resend = useCallback(
     async (messageIndex: number): Promise<void> => {
-      if (busyRef.current) return;
+      if (busySessionIds.current.has(activeId)) return;
       const session = chatState.sessions.find((item) => item.id === activeId);
       if (!session) return;
       const retryMessages = messagesThroughUserPrompt(
@@ -458,7 +515,7 @@ export function useHermesChat(): HermesChat {
 
   const revert = useCallback(
     (messageIndex: number): string | null => {
-      if (busyRef.current) return null;
+      if (busySessionIds.current.has(activeId)) return null;
       const session = chatState.sessions.find((item) => item.id === activeId);
       if (!session) return null;
       const prompt = session.messages[messageIndex];
@@ -478,14 +535,18 @@ export function useHermesChat(): HermesChat {
             : item
         ),
       }));
-      setError(null);
+      setSessionErrors((current) => {
+        const next = { ...current };
+        delete next[activeId];
+        return next;
+      });
       return prompt.content;
     },
     [activeId, chatState.sessions]
   );
 
   const undoRevert = useCallback((): boolean => {
-    if (busyRef.current) return false;
+    if (busySessionIds.current.has(activeId)) return false;
     const restoredMessages = messagesFromRevertSnapshot(
       revertSnapshot,
       activeId
@@ -500,7 +561,11 @@ export function useHermesChat(): HermesChat {
       ),
     }));
     setRevertSnapshot(null);
-    setError(null);
+    setSessionErrors((current) => {
+      const next = { ...current };
+      delete next[activeId];
+      return next;
+    });
     return true;
   }, [activeId, revertSnapshot]);
 
@@ -511,7 +576,11 @@ export function useHermesChat(): HermesChat {
       sessions: [session, ...current.sessions].slice(0, MAX_SESSIONS),
       activeId: session.id,
     }));
-    setError(null);
+    setSessionErrors((current) => {
+      const next = { ...current };
+      delete next[session.id];
+      return next;
+    });
   }, []);
 
   const selectSession = useCallback((id: string) => {
@@ -521,10 +590,23 @@ export function useHermesChat(): HermesChat {
         ? { ...current, activeId: id }
         : current
     );
-    setError(null);
   }, []);
 
   const deleteSession = useCallback((id: string) => {
+    const request = chatRequests.current.get(id);
+    chatRequests.current.delete(id);
+    busySessionIds.current.delete(id);
+    request?.abort();
+    setBusySessions((current) => {
+      const next = new Set(current);
+      next.delete(id);
+      return next;
+    });
+    setSessionErrors((current) => {
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
     setRevertSnapshot(null);
     setChatState((current) => {
       const remaining = current.sessions.filter((session) => session.id !== id);
@@ -534,7 +616,6 @@ export function useHermesChat(): HermesChat {
         activeId: current.activeId === id ? sessions[0].id : current.activeId,
       };
     });
-    setError(null);
   }, []);
 
   const updateIntent = useCallback((id: string, intent: HermesIntent) => {

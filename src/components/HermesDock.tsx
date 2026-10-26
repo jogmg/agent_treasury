@@ -342,7 +342,12 @@ export function HermesDock() {
                   </div>
                 )}
                 {message.role === "assistant" && message.cctpDeposit && (
-                  <HermesCctpDepositCard handoff={message.cctpDeposit} />
+                  <HermesCctpDepositCard
+                    handoff={message.cctpDeposit}
+                    actionId={
+                      message.cctpDeposit.actionId ?? `${activeId}:${index}`
+                    }
+                  />
                 )}
                 {message.role === "assistant" && message.intent && (
                   <div className="mt-3 border border-emerald-500/30 bg-emerald-500/[0.04] p-4 text-left">
