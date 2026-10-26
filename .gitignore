@@ -11,6 +11,10 @@ dist/
 dist-ssr/
 *.local
 
+# Python bytecode from CI helper validation
+__pycache__/
+*.pyc
+
 # contracts
 contracts/out/
 contracts/cache/

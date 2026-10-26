@@ -125,11 +125,11 @@ runbook: `docs/HERMES_VPS.md`.
 
 - Phase 1 code is in `hermes/`: shared CCTP parser, read-only Arc/CCTP MCP server, Postgres
   migrations, deterministic monitor, Discord webhook alerts, Ops profile, and Docker Compose.
-  Hermes tests: 82 passing on Vitest 5 (including MCP tool registration/scope enforcement,
+  Hermes tests: 86 passing on Vitest 5 (including MCP tool registration/scope enforcement,
   migration SQL, alert dedupe/throttle persistence, distinct read-warning alerts, JSON
   timestamp conversion, managed-Postgres TLS config, BFF SIWE/session/CORS/chat tests,
   intent receipt/transaction reconciliation and expiry, and fail-closed MCP token validation).
-  `npm audit` is clean after the zod 4.6.7 / MCP SDK 1.32.2 upgrade. Root Vitest is 69 passing.
+  `npm audit` is clean after the zod 4.6.7 / MCP SDK 1.32.2 upgrade. Root Vitest is 73 passing.
 - Live read-only MCP smoke passed against Arc mainnet: `arc_get_config`, `arc_get_treasury_state`,
   bounded `arc_list_activity`, and `arc_get_cctp_status` for burn `0x79006a…2b13` returned `done`
   with `delivered: true`. Mint tx links are best-effort and may be absent for manual mints.
@@ -216,6 +216,15 @@ runbook: `docs/HERMES_VPS.md`.
   reconciled every profile in the shared `HERMES_DATA_DIR` and started duplicate gateways; an
   `isolation-empty` volume now hides the User profile from the Ops container and the Ops profile
   from the User container. Config/compose backups are on the server.
+- **CI/CD (2026-10-26).** `.github/workflows/ci-deploy.yml` verifies the frontend and Hermes on
+  pull requests and deploys pushes to `main` to InstaBox. A deploy extracts the exact commit to
+  `/data/hermes-data/deploy/releases/<sha>`, symlinks the server-only env files, compares changed
+  paths with `/data/hermes-data/deploy/state/last-deployed-sha`, and rebuilds/recreates only the
+  affected services. Hermes image changes run the Compose migration service; profile sync
+  preserves live `_config_version` and the Discord `platforms` block; health checks gate the
+  marker. Manual dispatch supports `dry_run`, `force_all`, and a `target_sha` rollback. The
+  workflow uses the existing `INSTABOX_API_KEY` secret, never prints env values, and does not
+  deploy contracts. Runbook: `docs/CI_CD.md`; the live checkout is never reset or cleaned.
 - Transfer refresh runs four at a time. Delivery comes from destination `usedNonces` plus Iris; the
   mint tx link is only a forwarder-tx receipt when Iris supplies one, so manual mints may have no
   link. Two fresh monitor runs indexed 11 + 1 catch-up activity events and resolved withdrawal ids

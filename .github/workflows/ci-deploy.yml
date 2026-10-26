@@ -1,0 +1,110 @@
+name: CI and InstaBox deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      force_all:
+        description: Rebuild and recreate every deployable service
+        type: boolean
+        default: false
+      dry_run:
+        description: Plan only; do not build or recreate anything
+        type: boolean
+        default: false
+      target_sha:
+        description: Optional full 40-character commit SHA on origin/main (rollback)
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify source
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            hermes/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Check frontend
+        run: npm run check
+
+      - name: Test frontend
+        run: npm test
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Install Hermes dependencies
+        working-directory: hermes
+        run: npm ci
+
+      - name: Typecheck Hermes
+        working-directory: hermes
+        run: npm run typecheck
+
+      - name: Test Hermes
+        working-directory: hermes
+        run: npm test
+
+      - name: Build Hermes
+        working-directory: hermes
+        run: npm run build
+
+      - name: Validate deployment scripts
+        run: |
+          bash -n .github/scripts/instabox-bootstrap.sh
+          bash -n .github/scripts/instabox-deploy.sh
+          python3 -m py_compile .github/scripts/sync-profile-configs.py
+
+  deploy:
+    name: Deploy to InstaBox
+    needs: verify
+    if: ${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      INSTABOX_API_KEY: ${{ secrets.INSTABOX_API_KEY }}
+      INSTABOX_MACHINE: m_agqvtg5gwokf3k7e5easq4hd5e
+      INSTABOX_NO_TELEMETRY: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install InstaBox CLI
+        run: npm install --global instabox@0.6.3
+
+      - name: Upload deploy helpers
+        run: |
+          set -euo pipefail
+          instabox exec -stdin "$INSTABOX_MACHINE" -- tee /tmp/instabox-bootstrap.sh < .github/scripts/instabox-bootstrap.sh
+          instabox exec -stdin "$INSTABOX_MACHINE" -- tee /tmp/instabox-deploy.sh < .github/scripts/instabox-deploy.sh
+          instabox exec -stdin "$INSTABOX_MACHINE" -- tee /tmp/sync-profile-configs.py < .github/scripts/sync-profile-configs.py
+
+      - name: Deploy commit
+        run: |
+          set -euo pipefail
+          TARGET_SHA="${{ github.event.inputs.target_sha || github.sha }}"
+          FORCE_ALL="${{ github.event.inputs.force_all == 'true' && '1' || '0' }}"
+          PLAN_ONLY="${{ github.event.inputs.dry_run == 'true' && '1' || '0' }}"
+          echo "Deploying $TARGET_SHA (force_all=$FORCE_ALL, plan_only=$PLAN_ONLY)"
+          instabox exec -timeout 600 "$INSTABOX_MACHINE" -- bash /tmp/instabox-bootstrap.sh "$TARGET_SHA" "$FORCE_ALL" "$PLAN_ONLY"
