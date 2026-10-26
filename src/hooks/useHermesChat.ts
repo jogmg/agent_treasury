@@ -25,6 +25,11 @@ interface ChatState {
   activeId: string;
 }
 
+export interface RevertSnapshot {
+  sessionId: string;
+  messages: ChatMessage[];
+}
+
 function newConversationId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function")
     return crypto.randomUUID();
@@ -160,10 +165,53 @@ export interface HermesChat {
   busy: boolean;
   error: string | null;
   send: (content: string) => Promise<void>;
+  resend: (messageIndex: number) => Promise<void>;
+  revert: (messageIndex: number) => string | null;
+  undoRevert: () => boolean;
+  canUndoRevert: boolean;
   newSession: () => void;
   selectSession: (id: string) => void;
   deleteSession: (id: string) => void;
   updateIntent: (id: string, intent: HermesIntent) => void;
+}
+
+export function messagesThroughUserPrompt(
+  messages: ChatMessage[],
+  messageIndex: number
+): ChatMessage[] | null {
+  if (
+    !Number.isInteger(messageIndex) ||
+    messageIndex < 0 ||
+    messageIndex >= messages.length ||
+    messages[messageIndex]?.role !== "user"
+  ) {
+    return null;
+  }
+  return messages.slice(0, messageIndex + 1);
+}
+
+export function messagesBeforeUserPrompt(
+  messages: ChatMessage[],
+  messageIndex: number
+): ChatMessage[] | null {
+  if (!messagesThroughUserPrompt(messages, messageIndex)) return null;
+  return messages.slice(0, messageIndex);
+}
+
+export function createRevertSnapshot(
+  sessionId: string,
+  messages: ChatMessage[],
+  messageIndex: number
+): RevertSnapshot | null {
+  if (!messagesBeforeUserPrompt(messages, messageIndex)) return null;
+  return { sessionId, messages: [...messages] };
+}
+
+export function messagesFromRevertSnapshot(
+  snapshot: RevertSnapshot | null,
+  sessionId: string
+): ChatMessage[] | null {
+  return snapshot?.sessionId === sessionId ? [...snapshot.messages] : null;
 }
 
 export function useHermesChat(): HermesChat {
@@ -173,6 +221,9 @@ export function useHermesChat(): HermesChat {
   const [stateWallet, setStateWallet] = useState(address?.toLowerCase());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [revertSnapshot, setRevertSnapshot] = useState<RevertSnapshot | null>(
+    null
+  );
   const sessionWallet = useRef<string | null>(null);
   const storageWallet = useRef(address?.toLowerCase());
   const busyRef = useRef(false);
@@ -183,6 +234,7 @@ export function useHermesChat(): HermesChat {
     (session) => session.id === activeId
   );
   const messages = activeSession?.messages ?? [];
+  const canUndoRevert = revertSnapshot?.sessionId === activeId;
 
   useEffect(() => {
     const nextWallet = address?.toLowerCase();
@@ -226,42 +278,25 @@ export function useHermesChat(): HermesChat {
     return address;
   }, [address, signMessageAsync]);
 
-  const send = useCallback(
-    async (content: string): Promise<void> => {
-      const text = content.trim();
-      if (!text || busyRef.current) return;
+  const requestTurn = useCallback(
+    async (
+      sessionId: string,
+      requestMessages: ChatMessage[]
+    ): Promise<void> => {
+      if (busyRef.current) return;
       if (!address) {
         setError("Connect a wallet to ask Hermes.");
         return;
       }
       if (stateWallet !== address.toLowerCase()) return;
-      const session = chatState.sessions.find(
-        (item) => item.id === chatState.activeId
-      );
-      if (!session) return;
+      if (!chatState.sessions.some((item) => item.id === sessionId)) return;
+
       busyRef.current = true;
-      const userMessage: ChatMessage = { role: "user", content: text };
-      const nextMessages = [...session.messages, userMessage];
-      setChatState((current) => ({
-        ...current,
-        sessions: current.sessions.map((item) =>
-          item.id === session.id
-            ? {
-                ...item,
-                title: item.messages.some((message) => message.role === "user")
-                  ? item.title
-                  : text.slice(0, 48),
-                updatedAt: Date.now(),
-                messages: nextMessages.slice(-MAX_STORED_MESSAGES),
-              }
-            : item
-        ),
-      }));
       setBusy(true);
       setError(null);
       try {
         await ensureSession();
-        const response = await sendHermesChat(nextMessages, session.id);
+        const response = await sendHermesChat(requestMessages, sessionId);
         const assistantMessage: ChatMessage = {
           role: "assistant",
           content: response.reply,
@@ -273,11 +308,11 @@ export function useHermesChat(): HermesChat {
         setChatState((current) => ({
           ...current,
           sessions: current.sessions.map((item) =>
-            item.id === session.id
+            item.id === sessionId
               ? {
                   ...item,
                   updatedAt: Date.now(),
-                  messages: [...item.messages, assistantMessage].slice(
+                  messages: [...requestMessages, assistantMessage].slice(
                     -MAX_STORED_MESSAGES
                   ),
                 }
@@ -293,16 +328,120 @@ export function useHermesChat(): HermesChat {
         setBusy(false);
       }
     },
-    [
-      address,
-      chatState.activeId,
-      chatState.sessions,
-      ensureSession,
-      stateWallet,
-    ]
+    [address, chatState.sessions, ensureSession, stateWallet]
   );
 
+  const send = useCallback(
+    async (content: string): Promise<void> => {
+      const text = content.trim();
+      if (!text || busyRef.current) return;
+      if (!address) {
+        setError("Connect a wallet to ask Hermes.");
+        return;
+      }
+      if (stateWallet !== address.toLowerCase()) return;
+      const session = chatState.sessions.find((item) => item.id === activeId);
+      if (!session) return;
+
+      const nextMessages = [
+        ...session.messages,
+        { role: "user" as const, content: text },
+      ].slice(-MAX_STORED_MESSAGES);
+      setRevertSnapshot(null);
+      setChatState((current) => ({
+        ...current,
+        sessions: current.sessions.map((item) =>
+          item.id === session.id
+            ? {
+                ...item,
+                title: item.messages.some((message) => message.role === "user")
+                  ? item.title
+                  : text.slice(0, 48),
+                updatedAt: Date.now(),
+                messages: nextMessages,
+              }
+            : item
+        ),
+      }));
+      await requestTurn(session.id, nextMessages);
+    },
+    [activeId, address, chatState.sessions, requestTurn, stateWallet]
+  );
+
+  const resend = useCallback(
+    async (messageIndex: number): Promise<void> => {
+      if (busyRef.current) return;
+      const session = chatState.sessions.find((item) => item.id === activeId);
+      if (!session) return;
+      const retryMessages = messagesThroughUserPrompt(
+        session.messages,
+        messageIndex
+      );
+      if (!retryMessages) return;
+      setRevertSnapshot(null);
+      setChatState((current) => ({
+        ...current,
+        sessions: current.sessions.map((item) =>
+          item.id === session.id
+            ? { ...item, updatedAt: Date.now(), messages: retryMessages }
+            : item
+        ),
+      }));
+      await requestTurn(session.id, retryMessages);
+    },
+    [activeId, chatState.sessions, requestTurn]
+  );
+
+  const revert = useCallback(
+    (messageIndex: number): string | null => {
+      if (busyRef.current) return null;
+      const session = chatState.sessions.find((item) => item.id === activeId);
+      if (!session) return null;
+      const prompt = session.messages[messageIndex];
+      const earlierMessages = messagesBeforeUserPrompt(
+        session.messages,
+        messageIndex
+      );
+      if (!prompt || prompt.role !== "user" || !earlierMessages) return null;
+      setRevertSnapshot(
+        createRevertSnapshot(session.id, session.messages, messageIndex)
+      );
+      setChatState((current) => ({
+        ...current,
+        sessions: current.sessions.map((item) =>
+          item.id === session.id
+            ? { ...item, updatedAt: Date.now(), messages: earlierMessages }
+            : item
+        ),
+      }));
+      setError(null);
+      return prompt.content;
+    },
+    [activeId, chatState.sessions]
+  );
+
+  const undoRevert = useCallback((): boolean => {
+    if (busyRef.current) return false;
+    const restoredMessages = messagesFromRevertSnapshot(
+      revertSnapshot,
+      activeId
+    );
+    if (!restoredMessages) return false;
+    setChatState((current) => ({
+      ...current,
+      sessions: current.sessions.map((session) =>
+        session.id === activeId
+          ? { ...session, updatedAt: Date.now(), messages: restoredMessages }
+          : session
+      ),
+    }));
+    setRevertSnapshot(null);
+    setError(null);
+    return true;
+  }, [activeId, revertSnapshot]);
+
   const createSession = useCallback(() => {
+    setRevertSnapshot(null);
     const session = newSession();
     setChatState((current) => ({
       sessions: [session, ...current.sessions].slice(0, MAX_SESSIONS),
@@ -312,6 +451,7 @@ export function useHermesChat(): HermesChat {
   }, []);
 
   const selectSession = useCallback((id: string) => {
+    setRevertSnapshot(null);
     setChatState((current) =>
       current.sessions.some((session) => session.id === id)
         ? { ...current, activeId: id }
@@ -321,6 +461,7 @@ export function useHermesChat(): HermesChat {
   }, []);
 
   const deleteSession = useCallback((id: string) => {
+    setRevertSnapshot(null);
     setChatState((current) => {
       const remaining = current.sessions.filter((session) => session.id !== id);
       const sessions = remaining.length > 0 ? remaining : [newSession()];
@@ -333,6 +474,7 @@ export function useHermesChat(): HermesChat {
   }, []);
 
   const updateIntent = useCallback((id: string, intent: HermesIntent) => {
+    setRevertSnapshot(null);
     setChatState((current) => ({
       ...current,
       sessions: current.sessions.map((session) => ({
@@ -351,6 +493,10 @@ export function useHermesChat(): HermesChat {
     busy,
     error,
     send,
+    resend,
+    revert,
+    undoRevert,
+    canUndoRevert,
     newSession: createSession,
     selectSession,
     deleteSession,

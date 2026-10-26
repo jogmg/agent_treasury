@@ -6,9 +6,12 @@ import {
   Loader2,
   MessageSquarePlus,
   Plus,
+  PencilLine,
+  RotateCw,
   Send,
   Sparkles,
   Trash2,
+  Undo2,
   Wallet,
 } from "lucide-react";
 import { useAccount, useSwitchChain } from "wagmi";
@@ -57,6 +60,10 @@ export function HermesDock() {
     busy,
     error,
     send,
+    resend,
+    revert,
+    undoRevert,
+    canUndoRevert,
     newSession,
     selectSession,
     deleteSession,
@@ -302,6 +309,37 @@ export function HermesDock() {
                 >
                   {message.content}
                 </div>
+                {message.role === "user" && (
+                  <div className="mt-1.5 flex items-center justify-end gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => void resend(index)}
+                      disabled={busy || wrongChain}
+                      title="Resend this prompt and discard later turns"
+                      aria-label="Resend this prompt"
+                      className="inline-flex items-center gap-1 px-2 py-1 text-[10px] text-slate-500 transition hover:text-emerald-200 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      <RotateCw className="h-3 w-3" />
+                      Resend
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const prompt = revert(index);
+                        if (prompt === null) return;
+                        setInput(prompt);
+                        inputRef.current?.focus();
+                      }}
+                      disabled={busy}
+                      title="Edit this prompt and remove later turns"
+                      aria-label="Edit this prompt and remove later turns"
+                      className="inline-flex items-center gap-1 px-2 py-1 text-[10px] text-slate-500 transition hover:text-emerald-200 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      <PencilLine className="h-3 w-3" />
+                      Edit from here
+                    </button>
+                  </div>
+                )}
                 {message.role === "assistant" && message.intent && (
                   <div className="mt-3 border border-emerald-500/30 bg-emerald-500/[0.04] p-4 text-left">
                     <div className="flex items-start justify-between gap-3">
@@ -438,6 +476,25 @@ export function HermesDock() {
           )}
           <div ref={bottomRef} />
         </div>
+
+        {canUndoRevert && (
+          <div className="flex items-center justify-between gap-3 border-t border-slate-800 bg-slate-900/60 px-4 py-2 sm:px-8">
+            <p className="text-xs text-slate-400">
+              Later messages are temporarily removed while you edit this prompt.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                if (undoRevert()) setInput("");
+              }}
+              disabled={busy}
+              className="inline-flex shrink-0 items-center gap-1.5 px-2 py-1 text-xs font-medium text-emerald-200 transition hover:bg-emerald-500/10 disabled:opacity-40"
+            >
+              <Undo2 className="h-3.5 w-3.5" />
+              Restore conversation
+            </button>
+          </div>
+        )}
 
         <form
           onSubmit={(event) => {
