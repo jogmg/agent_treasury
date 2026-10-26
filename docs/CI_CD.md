@@ -5,6 +5,13 @@ Only source changes that affect a running service trigger a build or restart.
 Server-only `.env` files are never copied into git, a release, or a workflow
 log.
 
+**Verified 2026-10-26.** A manual full deploy of `16f5ef6` rebuilt/recreated the
+frontend, BFF, MCP, monitor, and both Hermes profiles while leaving Postgres
+running. Subsequent pushes (`c8256bf`, `28c54cb`) completed the Actions verify
+and deploy jobs, no-op'd because only CI/docs paths changed, and advanced the
+marker. A real application change will exercise the build/recreate path through
+Actions; the same helper already did so manually.
+
 ## Triggers
 
 | Event | What runs |

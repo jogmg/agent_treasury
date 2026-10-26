@@ -225,6 +225,9 @@ runbook: `docs/HERMES_VPS.md`.
   marker. Manual dispatch supports `dry_run`, `force_all`, and a `target_sha` rollback. The
   workflow uses the existing `INSTABOX_API_KEY` secret, never prints env values, and does not
   deploy contracts. Runbook: `docs/CI_CD.md`; the live checkout is never reset or cleaned.
+  Verified 2026-10-26: the manual full deploy of `16f5ef6` recreated only the app containers
+  (Postgres stayed up); pushes `c8256bf` and `28c54cb` passed verify+deploy and advanced the
+  marker as no-ops.
 - Transfer refresh runs four at a time. Delivery comes from destination `usedNonces` plus Iris; the
   mint tx link is only a forwarder-tx receipt when Iris supplies one, so manual mints may have no
   link. Two fresh monitor runs indexed 11 + 1 catch-up activity events and resolved withdrawal ids
