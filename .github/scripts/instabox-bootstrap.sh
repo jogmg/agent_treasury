@@ -6,6 +6,13 @@
 # server. The target commit is verified to be reachable from origin/main.
 set -euo pipefail
 
+# The workflow uploads LF, but a manual Windows upload can add CRLF. Normalize
+# and re-exec before parsing arguments or invoking git.
+if grep -q $'\r' "$0" 2>/dev/null; then
+  sed -i 's/\r$//' "$0"
+  exec bash "$0" "$@"
+fi
+
 TARGET_SHA="${1:?usage: instabox-bootstrap.sh <sha> [force_all] [plan_only]}"
 FORCE_ALL="${2:-0}"
 PLAN_ONLY="${3:-0}"

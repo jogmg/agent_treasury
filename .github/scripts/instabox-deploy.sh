@@ -12,6 +12,13 @@
 #   * A successful health check is required before the deploy marker advances.
 set -euo pipefail
 
+# The workflow uploads LF, but a manual Windows upload can add CRLF. Normalize
+# and re-exec before parsing arguments or invoking Compose.
+if grep -q $'\r' "$0" 2>/dev/null; then
+  sed -i 's/\r$//' "$0"
+  exec bash "$0" "$@"
+fi
+
 RELEASE="${1:?usage: instabox-deploy.sh <release> <sha> [force_all] [plan_only]}"
 TARGET_SHA="${2:?target SHA required}"
 FORCE_ALL="${3:-0}"
