@@ -27,7 +27,7 @@ later phases.
 - A Discord server you control, plus permission to create a bot.
 - A Google Gemini API key from Google AI Studio (free tier; the Ops profile uses
   a ranked Gemini fallback chain). An NVIDIA key is needed only for the rollback path.
-- This repository on the VPS: `git clone https://github.com/jogmg/agent_treasury.git`.
+- This repository on the VPS: `git clone https://github.com/jogmg/glimmerlock.git`.
 
 No inbound ports are needed except SSH. Discord is an outbound connection.
 

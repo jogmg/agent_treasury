@@ -10,7 +10,7 @@ This is the **project memory** - what Arc Studio remembers about building this a
 
 - Product name is **Glimmerlock**. Contract names (`AgentTreasury`, `MorphoVaultAdapter`, `CCTPReceiverV2`) and the Arc Studio app name remain unchanged.
 - The latest verified service deploy is `552192b` (2026-10-28), and the working tree is clean. A docs-only commit may advance the deploy marker without recreating containers.
-- Latest service-deploy Actions run [40762578054](https://github.com/jogmg/agent_treasury/actions/runs/40762578054) passed **Verify** and **Deploy**. The public origin returns `200` with `<title>Glimmerlock</title>`; `/health`, `/api/session`, and the Glimmerlock logo assets return `200`.
+- Latest service-deploy Actions run [40762578054](https://github.com/jogmg/glimmerlock/actions/runs/40762578054) passed **Verify** and **Deploy**. The public origin returns `200` with `<title>Glimmerlock</title>`; `/health`, `/api/session`, and the Glimmerlock logo assets return `200`.
 - Deployed since the CI/CD checkpoint (`3deb1ea`): async chat jobs, User model selection, undo edit-from-here, inbound CCTP deposits from Hermes chat, conversation-scoped activity, the Glimmerlock rebrand, the `public/` web-image fix, and the chat-scroll fix.
 - Frontend **80** and Hermes **92** tests were verified locally on 2026-10-28. Foundry remains at **104 passing** (mainnet fork skipped) from the last contract run. CI verify also passed at `552192b`.
 - Still pending: authenticated reads and signed-draft execution with a funded user wallet, external audit, Arc mainnet source verification, Circle Gateway reconciliation, a stable branded hostname, and keeper automation (blocked pending custody/call-restriction review).
@@ -250,7 +250,7 @@ runbook: `docs/HERMES_VPS.md`.
   containers (Postgres stayed up); pushes `c8256bf` and `28c54cb` passed verify+deploy and advanced
   the marker as no-ops. Real source-change deploys then succeeded: `675dc36` (rebrand), `100793b`
   (web image assets), and `552192b` (chat scroll). Latest run
-  [40762578054](https://github.com/jogmg/agent_treasury/actions/runs/40762578054) passed both jobs,
+  [40762578054](https://github.com/jogmg/glimmerlock/actions/runs/40762578054) passed both jobs,
   and the latest service deploy is `552192b`.
 - **Glimmerlock rebrand (2026-10-28).** The product/UI is now Glimmerlock; contract names remain
   `AgentTreasury` and friends. `675dc36` rebranded the frontend, BFF copy, package metadata, and

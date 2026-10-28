@@ -12,7 +12,7 @@ profiles while leaving Postgres running. The first pushes (`c8256bf`,
 application changes have since exercised the targeted path through Actions:
 `675dc36` (Glimmerlock rebrand), `100793b` (web image public assets), and
 `552192b` (chat scroll fix) all completed Verify + Deploy. The latest run,
-[40762578054](https://github.com/jogmg/agent_treasury/actions/runs/40762578054),
+[40762578054](https://github.com/jogmg/glimmerlock/actions/runs/40762578054),
 passed both jobs, and the latest service deploy is `552192b`. A docs-only push
 still advances the marker without recreating containers per the change map.
 
