@@ -44,11 +44,11 @@
 > action card. Frontend checks and 80 tests pass; Hermes typecheck and 92 tests pass. These changes
 > are deployed at `552192b`. Authenticated live wallet execution remains unverified.
 
-> **2026-10-28 current deployment:** `552192b` is live on InstaBox with the Glimmerlock rebrand,
+> **2026-10-28 current deployment:** `85f66b1` is live on InstaBox with the Glimmerlock rebrand,
 > async chat jobs, per-conversation state, User model selection, undo edit-from-here, inbound CCTP
-> from chat, the `public/` web-image fix, and the chat-scroll fix. Public `/health`,
-> `/api/session`, and the Glimmerlock assets returned `200`; the authenticated funded-wallet flow
-> is still the remaining live gate.
+> from chat, the `public/` web-image fix, the chat-scroll fix, and the Arc Studio preview fallback.
+> Public `/health`, `/api/session`, and the Glimmerlock assets returned `200`; the authenticated
+> funded-wallet flow is still the remaining live gate. The deploy recreated only the frontend.
 >
 > **Mainnet keeper maintenance completed (2026-10-25):** the owner confirmed completed Base deliveries
 > and signed `executeWithdrawal(1..3)`; all three receipts succeeded and on-chain state now reports
@@ -58,14 +58,15 @@
 > These bookkeeping writes move no funds. The keeper can rebalance, claim yield, and update cached
 > APY; it cannot withdraw agent funds.
 
-> **Arc Studio sync (2026-10-25):** current contract/frontend sources, Hermes services/tests,
-> deployment JSON, documentation, and safe setup files are present in the existing Studio project
-> `459b639e-b500-4f59-b057-aa17f5446888`. Studio-reported checks: Foundry 104 passing, root
-> Vitest 69 passing, Hermes Vitest 82 passing. The Studio deployment registry still contains six
-> historical Arc Testnet deployments; Arc mainnet deployment evidence is in
+> **Arc Studio sync (2026-10-28):** the source at `85f66b1` is synchronized into the existing
+> Studio project `459b639e-b500-4f59-b057-aa17f5446888` using a single git archive that excludes
+> real `.env` files. Studio checks: typecheck 0 errors, 85 frontend tests passing, production build
+> successful. The preview host is `ijwomt0218q2klpx2zr03.preview.studio.arc.io`; the app opens on
+> Overview, hides Chat, and links to the live app. The Studio deployment registry still contains
+> six historical Arc Testnet deployments; Arc mainnet deployment evidence is in
 > `deployments/arc-mainnet.json` and was originally signed outside the Studio CLI. Do not claim or
-> fabricate Studio mainnet deployment records. Studio usage after the keeper-maintenance sync:
-> 28% of the reported window (2026-10-25).
+> fabricate Studio mainnet deployment records. Studio usage after the sync: 32% of the reported
+> window (2026-10-28).
 >
 > Phase 1 implementation: shared CCTP parser, Arc/CCTP MCP server, Postgres schema, deterministic
 > monitor, Discord alerts, Ops profile, Docker Compose, and read-only smoke test. The MCP smoke

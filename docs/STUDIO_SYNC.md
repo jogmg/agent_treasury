@@ -4,6 +4,21 @@ This checklist keeps the existing Arc Studio project credible for the
 Arc Microgrants submission without redeploying contracts or weakening
 production security.
 
+## Current sync status (2026-10-28)
+
+- Source synchronized: `85f66b1`
+- Studio app: `https://studio.arc.io/app/459b639e-b500-4f59-b057-aa17f5446888`
+- Studio checks: typecheck 0 errors, **85 frontend tests passing**, build success
+- Preview host: `ijwomt0218q2klpx2zr03.preview.studio.arc.io`
+  (403 without an authenticated Studio session)
+- Studio source matches the repository ignoring CRLF
+- Production deploy: `85f66b1`, Actions run
+  [40773695986](https://github.com/jogmg/glimmerlock/actions/runs/40773695986);
+  only the frontend was recreated
+- Studio deployment panel: six historical Arc Testnet deployments only; no
+  fabricated mainnet records
+- Studio usage after the sync: **32%** of the reported rolling window
+
 ## Why the Studio UI looks different
 
 Arc Studio builds and deploys to **Arc testnet**. Its documentation says it
