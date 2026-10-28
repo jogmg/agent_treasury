@@ -477,16 +477,6 @@ export function HermesDock() {
                       Continue in wallet
                     </button>
                   )}
-                  {message.intent.status === "confirmed" && (
-                    <button
-                      type="button"
-                      disabled
-                      className="glimmer-primary-cta mt-4 inline-flex cursor-default items-center gap-2 opacity-70"
-                    >
-                      <Check className="h-4 w-4" />
-                      Action completed
-                    </button>
-                  )}
                   {message.intent.kind === "cctpWithdraw" &&
                     ["submitted", "confirmed"].includes(
                       message.intent.status

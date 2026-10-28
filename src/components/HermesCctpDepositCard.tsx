@@ -1,6 +1,6 @@
-import { useEffect, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Check, Loader2, Wallet } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
 import { keccak256 } from "viem";
 import {
   useAccount,
@@ -8,16 +8,6 @@ import {
   useSwitchChain,
   useWriteContract,
 } from "wagmi";
-import { parseUsdc, addrToBytes32 } from "../lib/decimals";
-import {
-  ARC_CHAIN_ID,
-  ADDRESSES,
-  ADAPTER_ABI,
-  CCTP_RECEIVER_ABI,
-  ERC20_ABI,
-  TREASURY_ABI,
-  VAULT_ABI,
-} from "../lib/contracts";
 import {
   ARC_CCTP_DOMAIN,
   CCTP_DESTINATIONS,
@@ -31,6 +21,16 @@ import {
   TOKEN_MESSENGER_V2_ABI,
   waitForCctpAttestation,
 } from "../lib/cctp";
+import {
+  ADAPTER_ABI,
+  ADDRESSES,
+  ARC_CHAIN_ID,
+  CCTP_RECEIVER_ABI,
+  ERC20_ABI,
+  TREASURY_ABI,
+  VAULT_ABI,
+} from "../lib/contracts";
+import { addrToBytes32, parseUsdc } from "../lib/decimals";
 import { parseOnchainError } from "../lib/errors";
 import type { CctpDepositHandoff } from "../lib/hermes";
 import {
@@ -465,16 +465,6 @@ export function HermesCctpDepositCard({
           {status === "error" && activeMatches && bridge.burnHash
             ? "Retry attestation"
             : "Continue in wallet"}
-        </button>
-      )}
-      {completed && (
-        <button
-          type="button"
-          disabled
-          className="glimmer-primary-cta mt-4 inline-flex cursor-default items-center gap-2 opacity-70"
-        >
-          <Check className="h-4 w-4" />
-          Action completed
         </button>
       )}
       {working && !completed && <StatusLine>{workingLabel}</StatusLine>}
