@@ -162,7 +162,7 @@ export function HermesDock() {
   return (
     <section
       aria-label="Treasury workspace"
-      className="glimmer-chat-frame mx-auto flex h-full min-h-[31rem] w-full max-w-[940px] flex-col overflow-hidden rounded-[24px] border border-white/15 bg-[#0A0E11]/55 shadow-[0_32px_100px_rgba(0,0,0,0.28)] backdrop-blur-2xl"
+      className="glimmer-chat-frame mx-auto flex h-full min-h-[31rem] max-h-screen w-full max-w-[940px] flex-col overflow-hidden rounded-[24px] border border-white/15 bg-[#0A0E11]/55 shadow-[0_32px_100px_rgba(0,0,0,0.28)] backdrop-blur-2xl"
     >
       <header className="flex min-h-[58px] items-center justify-between gap-3 border-b border-white/10 px-4 sm:px-6">
         <button
