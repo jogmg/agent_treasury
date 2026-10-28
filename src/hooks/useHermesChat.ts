@@ -181,13 +181,13 @@ function loadChatState(address?: string): ChatState {
 function friendlyError(error: unknown): string {
   if (isHermesApiError(error)) {
     if (error.code === "chat_unconfigured")
-      return "Hermes chat is not connected yet. The read-only treasury API is still available.";
+      return "Chat is not available yet. The read-only treasury tools are still available.";
     if (error.code === "rate_limited")
       return "You are sending messages too quickly. Try again in a moment.";
     if (error.code === "unauthorized")
       return "Your Hermes session expired. Send the message again to sign in.";
     if (error.status === 404)
-      return "Hermes is not available on this deployment yet.";
+      return "Chat is not available on this deployment yet.";
     return error.message;
   }
   const message = error instanceof Error ? error.message : "";
@@ -353,7 +353,7 @@ export function useHermesChat(): HermesChat {
       if (!address) {
         setSessionErrors((current) => ({
           ...current,
-          [sessionId]: "Connect a wallet to ask Hermes.",
+          [sessionId]: "Connect a wallet to continue.",
         }));
         return;
       }
@@ -389,7 +389,7 @@ export function useHermesChat(): HermesChat {
         }
         if (!response) {
           throw new Error(
-            "Hermes is still working. Try resending your prompt shortly."
+            "Your request is still processing. Try resending shortly."
           );
         }
         const assistantMessage: ChatMessage = {
@@ -456,7 +456,7 @@ export function useHermesChat(): HermesChat {
       if (!address) {
         setSessionErrors((current) => ({
           ...current,
-          [activeId]: "Connect a wallet to ask Hermes.",
+          [activeId]: "Connect a wallet to continue.",
         }));
         return;
       }

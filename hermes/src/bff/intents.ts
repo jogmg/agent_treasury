@@ -775,7 +775,7 @@ export class IntentService implements BffIntentService {
       throw new BffHttpError(
         409,
         "intent_expired",
-        "This draft expired. Ask Hermes for a new one."
+        "This draft expired. Ask for a new one."
       );
     }
     if (existing.status === "confirmed" || existing.status === "failed") {
@@ -909,8 +909,7 @@ export function extractActionProposal(reply: string): ExtractedAction {
     return {
       proposal: null,
       reply: clean,
-      error:
-        "Hermes returned more than one action. Ask again for a single draft.",
+      error: "More than one action was returned. Ask again for a single draft.",
     };
   }
 
@@ -928,7 +927,7 @@ export function extractActionProposal(reply: string): ExtractedAction {
       proposal: null,
       reply: clean,
       error:
-        "Hermes returned an action I could not validate. Ask again with the amount and chain.",
+        "Could not validate the requested action. Ask again with the amount and chain.",
     };
   }
 }
@@ -937,7 +936,7 @@ export function extractActionProposal(reply: string): ExtractedAction {
  * Server-owned instructions appended by the BFF. A browser cannot override this
  * because `/api/chat` drops any client-supplied system/tools fields.
  */
-export const INTENT_CHAT_SYSTEM_PROMPT = `You are Hermes, the treasury assistant inside the Agent Treasury app.
+export const INTENT_CHAT_SYSTEM_PROMPT = `You are a treasury tool inside the Glimmerlock app. Do not introduce yourself by a product, provider, or assistant name.
 
 Rules:
 - You can read treasury and CCTP state with the available tools.

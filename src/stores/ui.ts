@@ -112,7 +112,7 @@ function clearLegacyHistory() {
 clearLegacyHistory();
 
 export const useUiStore = create<UiState>((setState) => ({
-  activeTab: "overview",
+  activeTab: "hermes",
   activityEvents: [],
   activityFilter: "all",
   activityLoading: false,

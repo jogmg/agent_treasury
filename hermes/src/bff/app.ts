@@ -794,7 +794,7 @@ export function createBffApp(config: BffConfig, deps: BffDeps = {}): BffApp {
         res,
         503,
         "chat_busy",
-        "Hermes is busy right now. Try again shortly."
+        "The tool is busy right now. Try again shortly."
       );
       return;
     }
@@ -882,7 +882,7 @@ export function createBffApp(config: BffConfig, deps: BffDeps = {}): BffApp {
           : {
               status: 502,
               code: "chat_upstream_error",
-              message: "Hermes is unavailable right now. Try again.",
+              message: "The tool is unavailable right now. Try again.",
             };
         job.error = failure;
         job.status = "failed";
@@ -920,7 +920,7 @@ export function createBffApp(config: BffConfig, deps: BffDeps = {}): BffApp {
         res,
         job.error?.status ?? 502,
         job.error?.code ?? "chat_failed",
-        job.error?.message ?? "Hermes is unavailable right now."
+        job.error?.message ?? "The tool is unavailable right now."
       );
       return;
     }

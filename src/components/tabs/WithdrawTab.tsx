@@ -1,204 +1,277 @@
-import { useRef, useState } from 'react'
-import { useAccount, usePublicClient, useSwitchChain, useWriteContract } from 'wagmi'
-import { useQueryClient } from '@tanstack/react-query'
-import { isAddress } from 'viem'
-import { toast } from 'sonner'
-import { AlertTriangle } from 'lucide-react'
-import { ADDRESSES, TREASURY_ABI, ARC_CHAIN_ID, ARC_CHAIN, ARC_EXPLORER, ARC_CCTP_DOMAIN } from '../../lib/contracts'
-import { parseUsdc, formatUsdcDollar, formatUsdc, addrToBytes32 } from '../../lib/decimals'
-import { CCTP_DESTINATIONS } from '../../lib/cctp'
-import { parseOnchainError } from '../../lib/errors'
-import { useTreasuryStore } from '../../stores/treasury'
-import { useFlowStore } from '../../stores/flow'
-import { useIntentReview } from '../../hooks/useIntentReview'
-import { markHermesIntentSubmitted } from '../../lib/hermes'
-import { TxStep } from '../TxStep'
-import { IntentReviewCard } from '../IntentReviewCard'
-import { CctpCompletionCard } from '../CctpCompletionCard'
+import { useRef, useState } from "react";
+import {
+  useAccount,
+  usePublicClient,
+  useSwitchChain,
+  useWriteContract,
+} from "wagmi";
+import { useQueryClient } from "@tanstack/react-query";
+import { isAddress } from "viem";
+import { toast } from "sonner";
+import { AlertTriangle } from "lucide-react";
+import {
+  ADDRESSES,
+  TREASURY_ABI,
+  ARC_CHAIN_ID,
+  ARC_CHAIN,
+  ARC_EXPLORER,
+  ARC_CCTP_DOMAIN,
+} from "../../lib/contracts";
+import {
+  parseUsdc,
+  formatUsdcDollar,
+  formatUsdc,
+  addrToBytes32,
+} from "../../lib/decimals";
+import { CCTP_DESTINATIONS } from "../../lib/cctp";
+import { parseOnchainError } from "../../lib/errors";
+import { useTreasuryStore } from "../../stores/treasury";
+import { useFlowStore } from "../../stores/flow";
+import { useIntentReview } from "../../hooks/useIntentReview";
+import { markHermesIntentSubmitted } from "../../lib/hermes";
+import { TxStep } from "../TxStep";
+import { IntentReviewCard } from "../IntentReviewCard";
+import { CctpCompletionCard } from "../CctpCompletionCard";
 
-const MAX_U256 = BigInt('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff')
+const MAX_U256 = BigInt(
+  "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+);
 
 export function WithdrawTab() {
-  const { address, chainId } = useAccount()
-  const { switchChain } = useSwitchChain()
-  const publicClient = usePublicClient({ chainId: ARC_CHAIN_ID })
-  const queryClient = useQueryClient()
+  const { address, chainId } = useAccount();
+  const { switchChain } = useSwitchChain();
+  const publicClient = usePublicClient({ chainId: ARC_CHAIN_ID });
+  const queryClient = useQueryClient();
 
-  const [amount, setAmount] = useState('')
-  const [withdrawBusy, setWithdrawBusy] = useState(false)
+  const [amount, setAmount] = useState("");
+  const [withdrawBusy, setWithdrawBusy] = useState(false);
 
   // CCTP form state
-  const [cctpAmount, setCctpAmount] = useState('')
-  const [destDomain, setDestDomain] = useState('')
-  const [mintRecipient, setMintRecipient] = useState('')
-  const [existingTx, setExistingTx] = useState('')
-  const [cctpBusy, setCctpBusy] = useState(false)
+  const [cctpAmount, setCctpAmount] = useState("");
+  const [destDomain, setDestDomain] = useState("");
+  const [mintRecipient, setMintRecipient] = useState("");
+  const [existingTx, setExistingTx] = useState("");
+  const [cctpBusy, setCctpBusy] = useState(false);
 
-  const { totalBalance } = useTreasuryStore()
-  const { withdrawStep, withdrawHash, withdrawError, setWithdraw, resetWithdraw,
-          cctpStep, cctpHash, cctpError, setCctp, resetCctp } = useFlowStore()
-  const cctpDetailsRef = useRef<HTMLDetailsElement>(null)
+  const { totalBalance } = useTreasuryStore();
+  const {
+    withdrawStep,
+    withdrawHash,
+    withdrawError,
+    setWithdraw,
+    resetWithdraw,
+    cctpStep,
+    cctpHash,
+    cctpError,
+    setCctp,
+    resetCctp,
+  } = useFlowStore();
+  const cctpDetailsRef = useRef<HTMLDetailsElement>(null);
   const review = useIntentReview(undefined, (intent) => {
-    if (intent.kind === 'withdrawLocal') {
-      setAmount(formatUsdc(BigInt(intent.amount), 6))
-      return
+    if (intent.kind === "withdrawLocal") {
+      setAmount(formatUsdc(BigInt(intent.amount), 6));
+      return;
     }
-    if (intent.kind !== 'cctpWithdraw') return
-    setCctpAmount(formatUsdc(BigInt(intent.amount), 6))
+    if (intent.kind !== "cctpWithdraw") return;
+    setCctpAmount(formatUsdc(BigInt(intent.amount), 6));
     setDestDomain(
-      intent.destinationDomain === null ? '' : String(intent.destinationDomain),
-    )
-    setMintRecipient(intent.mintRecipient ?? '')
-    if (cctpDetailsRef.current) cctpDetailsRef.current.open = true
-  })
-  const localReview = review.intent?.kind === 'withdrawLocal' ? review.intent : null
-  const cctpReview = review.intent?.kind === 'cctpWithdraw' ? review.intent : null
+      intent.destinationDomain === null ? "" : String(intent.destinationDomain)
+    );
+    setMintRecipient(intent.mintRecipient ?? "");
+    if (cctpDetailsRef.current) cctpDetailsRef.current.open = true;
+  });
+  const localReview =
+    review.intent?.kind === "withdrawLocal" ? review.intent : null;
+  const cctpReview =
+    review.intent?.kind === "cctpWithdraw" ? review.intent : null;
 
-  const { writeContractAsync: withdraw } = useWriteContract()
-  const { writeContractAsync: requestWithdrawal } = useWriteContract()
+  const { writeContractAsync: withdraw } = useWriteContract();
+  const { writeContractAsync: requestWithdrawal } = useWriteContract();
 
-  const isWrongChain = !!address && chainId !== ARC_CHAIN_ID
-  const parsedAmount  = amount ? parseUsdc(amount) : 0n
+  const isWrongChain = !!address && chainId !== ARC_CHAIN_ID;
+  const parsedAmount = amount ? parseUsdc(amount) : 0n;
 
-  function loadCctpTransfer(txHash: string, rawAmount?: unknown, destinationDomain?: unknown) {
-    const amountValue = typeof rawAmount === 'bigint' ? rawAmount.toString() : ''
-    const domainValue = Number(destinationDomain)
+  function loadCctpTransfer(
+    txHash: string,
+    rawAmount?: unknown,
+    destinationDomain?: unknown
+  ) {
+    const amountValue =
+      typeof rawAmount === "bigint" ? rawAmount.toString() : "";
+    const domainValue = Number(destinationDomain);
     setCctp({
-      cctpStep: 'success',
+      cctpStep: "success",
       cctpHash: txHash,
-      cctpOwner: address ?? '',
-      cctpError: '',
-      cctpCompletionStatus: 'waiting',
+      cctpOwner: address ?? "",
+      cctpError: "",
+      cctpCompletionStatus: "waiting",
       cctpDestinationDomain: Number.isInteger(domainValue) ? domainValue : 0,
       cctpAmount: amountValue,
-      cctpRecipient: '',
-      cctpMessage: '',
-      cctpAttestation: '',
-      cctpMintHash: '',
-      cctpCompletionError: '',
-    })
+      cctpRecipient: "",
+      cctpMessage: "",
+      cctpAttestation: "",
+      cctpMintHash: "",
+      cctpCompletionError: "",
+    });
   }
 
   const pct = (p: number) => {
-    const val = (totalBalance * BigInt(p)) / 100n
-    setAmount(formatUsdc(val, 6))
-  }
+    const val = (totalBalance * BigInt(p)) / 100n;
+    setAmount(formatUsdc(val, 6));
+  };
 
   async function handleWithdraw(isMax = false) {
-    if (isWrongChain) { switchChain({ chainId: ARC_CHAIN_ID }); return }
-    if (!address || !publicClient) return
-    if (!isMax && parsedAmount === 0n) return
-    if (!isMax && parsedAmount > totalBalance) { toast.error('Amount exceeds balance'); return }
-    if (totalBalance === 0n) { toast.error('Nothing to withdraw'); return }
+    if (isWrongChain) {
+      switchChain({ chainId: ARC_CHAIN_ID });
+      return;
+    }
+    if (!address || !publicClient) return;
+    if (!isMax && parsedAmount === 0n) return;
+    if (!isMax && parsedAmount > totalBalance) {
+      toast.error("Amount exceeds balance");
+      return;
+    }
+    if (totalBalance === 0n) {
+      toast.error("Nothing to withdraw");
+      return;
+    }
 
-    setWithdrawBusy(true)
+    setWithdrawBusy(true);
     try {
-      setWithdraw({ withdrawStep: 'pending', withdrawError: '' })
-      const args: [bigint] = [isMax ? MAX_U256 : parsedAmount]
+      setWithdraw({ withdrawStep: "pending", withdrawError: "" });
+      const args: [bigint] = [isMax ? MAX_U256 : parsedAmount];
       const tx = await withdraw({
         address: ADDRESSES.treasury,
         abi: TREASURY_ABI,
-        functionName: 'withdrawLocal',
+        functionName: "withdrawLocal",
         args,
         chainId: ARC_CHAIN_ID,
-      })
-      setWithdraw({ withdrawStep: 'confirming', withdrawHash: tx })
+      });
+      setWithdraw({ withdrawStep: "confirming", withdrawHash: tx });
 
-      const receipt = await publicClient.waitForTransactionReceipt({ hash: tx })
-      if (receipt.status !== 'success') throw new Error('Withdrawal transaction reverted')
+      const receipt = await publicClient.waitForTransactionReceipt({
+        hash: tx,
+      });
+      if (receipt.status !== "success")
+        throw new Error("Withdrawal transaction reverted");
 
-      setWithdraw({ withdrawStep: 'success' })
-      setAmount('')
+      setWithdraw({ withdrawStep: "success" });
+      setAmount("");
       const matchesLocalDraft =
         localReview &&
         (localReview.isMax
           ? isMax
-          : !isMax && parsedAmount === BigInt(localReview.amount))
+          : !isMax && parsedAmount === BigInt(localReview.amount));
       if (matchesLocalDraft) {
         void markHermesIntentSubmitted(localReview.id, tx)
-          .catch((cause) => console.warn('Could not record Hermes draft tx', cause))
-          .finally(() => review.dismiss())
+          .catch((cause) =>
+            console.warn("Could not record Hermes draft tx", cause)
+          )
+          .finally(() => review.dismiss());
       }
-      toast.success('Withdrawal confirmed', {
-        action: { label: 'Explorer', onClick: () => window.open(`${ARC_EXPLORER}/tx/${tx}`) },
-      })
-      await queryClient.invalidateQueries()
+      toast.success("Withdrawal confirmed", {
+        action: {
+          label: "Explorer",
+          onClick: () => window.open(`${ARC_EXPLORER}/tx/${tx}`),
+        },
+      });
+      await queryClient.invalidateQueries();
     } catch (e) {
-      const msg = parseOnchainError(e)
-      setWithdraw({ withdrawStep: 'error', withdrawError: msg })
-      if (!msg.toLowerCase().includes('cancelled') && !msg.toLowerCase().includes('rejected')) {
-        toast.error(msg)
+      const msg = parseOnchainError(e);
+      setWithdraw({ withdrawStep: "error", withdrawError: msg });
+      if (
+        !msg.toLowerCase().includes("cancelled") &&
+        !msg.toLowerCase().includes("rejected")
+      ) {
+        toast.error(msg);
       }
     } finally {
-      setWithdrawBusy(false)
+      setWithdrawBusy(false);
     }
   }
 
   async function handleCctp() {
-    if (isWrongChain) { switchChain({ chainId: ARC_CHAIN_ID }); return }
-    if (!address || !publicClient) return
+    if (isWrongChain) {
+      switchChain({ chainId: ARC_CHAIN_ID });
+      return;
+    }
+    if (!address || !publicClient) return;
 
-    const parsed = cctpAmount ? parseUsdc(cctpAmount) : 0n
-    const domain = parseInt(destDomain, 10)
-    if (parsed === 0n) { toast.error('Enter an amount'); return }
-    if (parsed > totalBalance) { toast.error('Amount exceeds treasury balance'); return }
+    const parsed = cctpAmount ? parseUsdc(cctpAmount) : 0n;
+    const domain = parseInt(destDomain, 10);
+    if (parsed === 0n) {
+      toast.error("Enter an amount");
+      return;
+    }
+    if (parsed > totalBalance) {
+      toast.error("Amount exceeds treasury balance");
+      return;
+    }
     if (isNaN(domain) || domain === ARC_CCTP_DOMAIN) {
-      toast.error('Invalid destination domain (Arc domain 26 rejected)')
-      return
+      toast.error("Invalid destination domain (Arc domain 26 rejected)");
+      return;
     }
     if (!isAddress(mintRecipient)) {
-      toast.error('Enter a valid 0x recipient address')
-      return
+      toast.error("Enter a valid 0x recipient address");
+      return;
     }
 
-    setCctpBusy(true)
+    setCctpBusy(true);
     try {
-      setCctp({ cctpStep: 'pending', cctpError: '' })
+      setCctp({ cctpStep: "pending", cctpError: "" });
       const tx = await requestWithdrawal({
         address: ADDRESSES.treasury,
         abi: TREASURY_ABI,
-        functionName: 'requestWithdrawal',
+        functionName: "requestWithdrawal",
         args: [address, parsed, domain, addrToBytes32(mintRecipient)],
         chainId: ARC_CHAIN_ID,
-      })
-      setCctp({ cctpStep: 'confirming', cctpHash: tx })
+      });
+      setCctp({ cctpStep: "confirming", cctpHash: tx });
 
-      const receipt = await publicClient.waitForTransactionReceipt({ hash: tx })
-      if (receipt.status !== 'success') throw new Error('CCTP burn transaction reverted')
+      const receipt = await publicClient.waitForTransactionReceipt({
+        hash: tx,
+      });
+      if (receipt.status !== "success")
+        throw new Error("CCTP burn transaction reverted");
 
       setCctp({
-        cctpStep: 'success',
+        cctpStep: "success",
         cctpOwner: address,
-        cctpCompletionStatus: 'waiting',
+        cctpCompletionStatus: "waiting",
         cctpDestinationDomain: domain,
         cctpAmount: parsed.toString(),
         cctpRecipient: mintRecipient,
-        cctpMessage: '',
-        cctpAttestation: '',
-        cctpMintHash: '',
-        cctpCompletionError: '',
-      })
-      setCctpAmount('')
+        cctpMessage: "",
+        cctpAttestation: "",
+        cctpMintHash: "",
+        cctpCompletionError: "",
+      });
+      setCctpAmount("");
       const matchesCctpDraft =
         cctpReview &&
         parsed === BigInt(cctpReview.amount) &&
         cctpReview.destinationDomain === domain &&
-        cctpReview.mintRecipient?.toLowerCase() === mintRecipient.toLowerCase()
+        cctpReview.mintRecipient?.toLowerCase() === mintRecipient.toLowerCase();
       if (matchesCctpDraft) {
         void markHermesIntentSubmitted(cctpReview.id, tx)
-          .catch((cause) => console.warn('Could not record Hermes draft tx', cause))
-          .finally(() => review.dismiss())
+          .catch((cause) =>
+            console.warn("Could not record Hermes draft tx", cause)
+          )
+          .finally(() => review.dismiss());
       }
-      await queryClient.invalidateQueries()
-      toast.success('CCTP burn confirmed. Fetching the Circle attestation…')
+      await queryClient.invalidateQueries();
+      toast.success("CCTP burn confirmed. Fetching the Circle attestation…");
     } catch (e) {
-      const msg = parseOnchainError(e)
-      setCctp({ cctpStep: 'error', cctpError: msg })
-      if (!msg.toLowerCase().includes('cancelled') && !msg.toLowerCase().includes('rejected')) {
-        toast.error(msg)
+      const msg = parseOnchainError(e);
+      setCctp({ cctpStep: "error", cctpError: msg });
+      if (
+        !msg.toLowerCase().includes("cancelled") &&
+        !msg.toLowerCase().includes("rejected")
+      ) {
+        toast.error(msg);
       }
     } finally {
-      setCctpBusy(false)
+      setCctpBusy(false);
     }
   }
 
@@ -207,20 +280,24 @@ export function WithdrawTab() {
       <div className="flex min-h-[40vh] flex-col items-center justify-center gap-3 text-center">
         <p className="text-slate-400">Connect your wallet to withdraw.</p>
       </div>
-    )
+    );
   }
 
   return (
     <div className="mx-auto max-w-lg space-y-6">
       {/* Balance info */}
-      <div className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-3">
+      <div className="flex items-center justify-between rounded-xl border border-slate-700 bg-[#0A0E11]/55 px-4 py-3">
         <span className="text-sm text-slate-400">Available</span>
-        <span className="font-mono text-sm tabular-nums text-white">{formatUsdcDollar(totalBalance)}</span>
+        <span className="font-mono text-sm tabular-nums text-white">
+          {formatUsdcDollar(totalBalance)}
+        </span>
       </div>
 
       {/* Local withdraw */}
-      <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-5">
-        <h2 className="mb-4 text-sm font-semibold text-white">Withdraw to Wallet</h2>
+      <div className="rounded-xl border border-slate-700 bg-[#0A0E11]/55 p-5">
+        <h2 className="mb-4 text-sm font-semibold text-white">
+          Withdraw to Wallet
+        </h2>
 
         {localReview && (
           <div className="mb-4">
@@ -228,7 +305,7 @@ export function WithdrawTab() {
           </div>
         )}
         {review.loading && (
-          <p className="mb-3 text-xs text-slate-500">Loading the Hermes draft…</p>
+          <p className="mb-3 text-xs text-slate-500">Loading draft…</p>
         )}
         {review.error && (
           <div className="mb-3 flex items-start justify-between gap-3 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-300">
@@ -282,14 +359,22 @@ export function WithdrawTab() {
         ) : (
           <div className="flex gap-3">
             <button
-              onClick={() => { void handleWithdraw(false) }}
-              disabled={parsedAmount === 0n || parsedAmount > totalBalance || withdrawBusy}
-              className="flex-1 rounded-xl bg-emerald-500 py-3.5 text-sm font-semibold text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"
+              onClick={() => {
+                void handleWithdraw(false);
+              }}
+              disabled={
+                parsedAmount === 0n ||
+                parsedAmount > totalBalance ||
+                withdrawBusy
+              }
+              className="glimmer-primary-cta flex-1"
             >
-              {withdrawBusy ? 'Processing…' : 'Withdraw'}
+              {withdrawBusy ? "Processing…" : "Withdraw"}
             </button>
             <button
-              onClick={() => { void handleWithdraw(true) }}
+              onClick={() => {
+                void handleWithdraw(true);
+              }}
               disabled={totalBalance === 0n || withdrawBusy}
               className="rounded-xl border border-slate-700 px-5 py-3.5 text-sm font-medium text-slate-300 transition hover:border-emerald-500/40 hover:text-emerald-400 disabled:opacity-40"
             >
@@ -302,7 +387,7 @@ export function WithdrawTab() {
           step={withdrawStep}
           hash={withdrawHash}
           error={withdrawError}
-          labels={{ success: 'USDC returned to your wallet.' }}
+          labels={{ success: "USDC returned to your wallet." }}
           onReset={resetWithdraw}
         />
       </div>
@@ -310,7 +395,7 @@ export function WithdrawTab() {
       {/* CCTP advanced */}
       <details
         ref={cctpDetailsRef}
-        className="rounded-xl border border-slate-800 bg-slate-900/40"
+        className="rounded-xl border border-slate-700 bg-[#0A0E11]/55"
       >
         <summary className="cursor-pointer px-5 py-4 text-sm font-medium text-slate-300 hover:text-white">
           Advanced: Cross-Chain Withdrawal (CCTP)
@@ -322,16 +407,19 @@ export function WithdrawTab() {
           <div className="flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-300">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <span>
-              This burns USDC on Arc and mints it on the destination through CCTP. The app fetches
-              the Circle attestation automatically, then asks you to confirm the destination mint.
-              You need a little destination-chain gas for that final transaction. Same-domain (Arc,
-              26) is rejected by the contract.
+              This burns USDC on Arc and mints it on the destination through
+              CCTP. The app fetches the Circle attestation automatically, then
+              asks you to confirm the destination mint. You need a little
+              destination-chain gas for that final transaction. Same-domain
+              (Arc, 26) is rejected by the contract.
             </span>
           </div>
 
           <div className="space-y-3">
             <div>
-              <label className="mb-1 block text-xs text-slate-500">Amount (USDC)</label>
+              <label className="mb-1 block text-xs text-slate-500">
+                Amount (USDC)
+              </label>
               <input
                 type="number"
                 value={cctpAmount}
@@ -341,7 +429,9 @@ export function WithdrawTab() {
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-slate-500">Destination Chain</label>
+              <label className="mb-1 block text-xs text-slate-500">
+                Destination Chain
+              </label>
               <select
                 value={destDomain}
                 onChange={(e) => setDestDomain(e.target.value)}
@@ -351,14 +441,19 @@ export function WithdrawTab() {
                 {Object.values(CCTP_DESTINATIONS)
                   .sort((a, b) => a.name.localeCompare(b.name))
                   .map((destination) => (
-                    <option key={destination.domain} value={String(destination.domain)}>
+                    <option
+                      key={destination.domain}
+                      value={String(destination.domain)}
+                    >
                       {destination.name}
                     </option>
                   ))}
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-xs text-slate-500">Recipient Address (0x... on destination)</label>
+              <label className="mb-1 block text-xs text-slate-500">
+                Recipient Address (0x... on destination)
+              </label>
               <input
                 type="text"
                 value={mintRecipient}
@@ -370,29 +465,37 @@ export function WithdrawTab() {
           </div>
 
           <button
-            onClick={() => { void handleCctp() }}
+            onClick={() => {
+              void handleCctp();
+            }}
             disabled={!cctpAmount || !destDomain || !mintRecipient || cctpBusy}
             className="w-full rounded-xl border border-slate-700 py-3 text-sm font-medium text-slate-300 transition hover:border-emerald-500/40 hover:text-emerald-400 disabled:opacity-40"
           >
-            {cctpBusy ? 'Processing…' : 'Request Cross-Chain Withdrawal'}
+            {cctpBusy ? "Processing…" : "Request Cross-Chain Withdrawal"}
           </button>
 
           <TxStep
             step={cctpStep}
             hash={cctpHash}
             error={cctpError}
-            labels={{ success: 'CCTP burn confirmed. The app will finish the destination mint.' }}
-            onReset={() => { resetCctp(); setExistingTx('') }}
+            labels={{
+              success:
+                "CCTP burn confirmed. The app will finish the destination mint.",
+            }}
+            onReset={() => {
+              resetCctp();
+              setExistingTx("");
+            }}
           />
 
-          {cctpStep === 'success' && cctpHash && (
+          {cctpStep === "success" && cctpHash && (
             <CctpCompletionCard burnTx={cctpHash} />
           )}
 
           <div className="space-y-2 border-t border-slate-800 pt-4">
             <label className="block text-xs text-slate-500">
-              Already burned? Paste the Arc burn tx hash to finish it. Completed requests are in the
-              Activity tab.
+              Already burned? Paste the Arc burn tx hash to finish it. Completed
+              requests are in the Activity tab.
             </label>
             <div className="flex gap-2">
               <input
@@ -405,13 +508,13 @@ export function WithdrawTab() {
               <button
                 type="button"
                 onClick={() => {
-                  const txHash = existingTx.trim()
+                  const txHash = existingTx.trim();
                   if (!/^0x[0-9a-fA-F]{64}$/.test(txHash)) {
-                    toast.error('Enter a valid 32-byte transaction hash')
-                    return
+                    toast.error("Enter a valid 32-byte transaction hash");
+                    return;
                   }
-                  loadCctpTransfer(txHash)
-                  setExistingTx('')
+                  loadCctpTransfer(txHash);
+                  setExistingTx("");
                 }}
                 className="shrink-0 rounded-lg border border-slate-700 px-3 py-2 text-xs font-medium text-slate-300 hover:border-emerald-500/40 hover:text-emerald-400"
               >
@@ -422,5 +525,5 @@ export function WithdrawTab() {
         </div>
       </details>
     </div>
-  )
+  );
 }

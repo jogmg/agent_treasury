@@ -1,130 +1,172 @@
-import { useState } from 'react'
-import { useAccount, usePublicClient, useSwitchChain, useWriteContract } from 'wagmi'
-import { useQueryClient } from '@tanstack/react-query'
-import { toast } from 'sonner'
-import { ExternalLink, Info, ArrowRight } from 'lucide-react'
-import { ADDRESSES, TREASURY_ABI, ERC20_ABI, ARC_CHAIN_ID, ARC_CHAIN, ARC_EXPLORER, IS_ARC_MAINNET } from '../../lib/contracts'
-import { parseUsdc, formatUsdcDollar, formatUsdc } from '../../lib/decimals'
-import { parseOnchainError } from '../../lib/errors'
-import { useTreasuryStore } from '../../stores/treasury'
-import { useFlowStore } from '../../stores/flow'
-import { useMinDeposit } from '../../hooks/useMinDeposit'
-import { useDepositShares } from '../../hooks/useDepositShares'
-import { useIntentReview } from '../../hooks/useIntentReview'
-import { markHermesIntentSubmitted } from '../../lib/hermes'
-import { TxStep } from '../TxStep'
-import { IntentReviewCard } from '../IntentReviewCard'
-import { CrossChainDepositCard } from '../CrossChainDepositCard'
+import { useState } from "react";
+import {
+  useAccount,
+  usePublicClient,
+  useSwitchChain,
+  useWriteContract,
+} from "wagmi";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { ExternalLink, Info, ArrowRight } from "lucide-react";
+import {
+  ADDRESSES,
+  TREASURY_ABI,
+  ERC20_ABI,
+  ARC_CHAIN_ID,
+  ARC_CHAIN,
+  ARC_EXPLORER,
+  IS_ARC_MAINNET,
+} from "../../lib/contracts";
+import { parseUsdc, formatUsdcDollar, formatUsdc } from "../../lib/decimals";
+import { parseOnchainError } from "../../lib/errors";
+import { useTreasuryStore } from "../../stores/treasury";
+import { useFlowStore } from "../../stores/flow";
+import { useMinDeposit } from "../../hooks/useMinDeposit";
+import { useDepositShares } from "../../hooks/useDepositShares";
+import { useIntentReview } from "../../hooks/useIntentReview";
+import { markHermesIntentSubmitted } from "../../lib/hermes";
+import { TxStep } from "../TxStep";
+import { IntentReviewCard } from "../IntentReviewCard";
+import { CrossChainDepositCard } from "../CrossChainDepositCard";
 
-const MAX_U256 = BigInt('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff')
+const MAX_U256 = BigInt(
+  "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+);
 
 export function DepositTab() {
-  const { address, chainId } = useAccount()
-  const { switchChain } = useSwitchChain()
-  const publicClient = usePublicClient({ chainId: ARC_CHAIN_ID })
-  const queryClient = useQueryClient()
+  const { address, chainId } = useAccount();
+  const { switchChain } = useSwitchChain();
+  const publicClient = usePublicClient({ chainId: ARC_CHAIN_ID });
+  const queryClient = useQueryClient();
 
-  const [amount, setAmount] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [submittedAmount, setSubmittedAmount] = useState('')
+  const [amount, setAmount] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [submittedAmount, setSubmittedAmount] = useState("");
 
-  const { usdcBalance, usdcBalanceLoaded, usdcAllowance } = useTreasuryStore()
-  const { depositStep, depositHash, approveHash, depositError, setDeposit, resetDeposit } = useFlowStore()
-  const review = useIntentReview('deposit', (intent) => {
-    setAmount(formatUsdc(BigInt(intent.amount), 6))
-  })
+  const { usdcBalance, usdcBalanceLoaded, usdcAllowance } = useTreasuryStore();
+  const {
+    depositStep,
+    depositHash,
+    approveHash,
+    depositError,
+    setDeposit,
+    resetDeposit,
+  } = useFlowStore();
+  const review = useIntentReview("deposit", (intent) => {
+    setAmount(formatUsdc(BigInt(intent.amount), 6));
+  });
 
-  const { writeContractAsync: approve } = useWriteContract()
-  const { writeContractAsync: deposit } = useWriteContract()
+  const { writeContractAsync: approve } = useWriteContract();
+  const { writeContractAsync: deposit } = useWriteContract();
 
-  const parsedAmount = amount ? parseUsdc(amount) : 0n
-  const needsApprove = parsedAmount > 0n && usdcAllowance < parsedAmount
-  const isWrongChain = !!address && chainId !== ARC_CHAIN_ID
+  const parsedAmount = amount ? parseUsdc(amount) : 0n;
+  const needsApprove = parsedAmount > 0n && usdcAllowance < parsedAmount;
+  const isWrongChain = !!address && chainId !== ARC_CHAIN_ID;
   // The treasury enforces the adapter's on-chain minimum; mirror it exactly.
-  const minDeposit = useMinDeposit()
+  const minDeposit = useMinDeposit();
   // Block deposits the vault would accept but mint zero shares for.
-  const { zeroShares, oneShareAssets } = useDepositShares(parsedAmount)
+  const { zeroShares, oneShareAssets } = useDepositShares(parsedAmount);
 
   const validate = (): string | null => {
-    if (!address) return 'Connect wallet'
-    if (minDeposit === undefined) return 'Reading vault minimum. Try again in a moment'
-    if (parsedAmount === 0n) return 'Enter amount'
-    if (parsedAmount > usdcBalance) return 'Insufficient USDC balance'
-    if (parsedAmount < minDeposit) return `Minimum deposit is ${formatUsdcDollar(minDeposit)}`
+    if (!address) return "Connect wallet";
+    if (minDeposit === undefined)
+      return "Reading vault minimum. Try again in a moment";
+    if (parsedAmount === 0n) return "Enter amount";
+    if (parsedAmount > usdcBalance) return "Insufficient USDC balance";
+    if (parsedAmount < minDeposit)
+      return `Minimum deposit is ${formatUsdcDollar(minDeposit)}`;
     if (zeroShares) {
       return oneShareAssets
-        ? `Amount too small for the vault's share price — deposit at least ${formatUsdcDollar(oneShareAssets)}`
-        : 'Amount too small to mint vault shares'
+        ? `Amount too small for the vault's share price — deposit at least ${formatUsdcDollar(
+            oneShareAssets
+          )}`
+        : "Amount too small to mint vault shares";
     }
-    return null
-  }
-  const validationMsg = validate()
+    return null;
+  };
+  const validationMsg = validate();
 
   async function handleDeposit() {
     if (isWrongChain) {
-      switchChain({ chainId: ARC_CHAIN_ID })
-      return
+      switchChain({ chainId: ARC_CHAIN_ID });
+      return;
     }
-    if (validationMsg || !address || !publicClient) return
+    if (validationMsg || !address || !publicClient) return;
 
-    setBusy(true)
-    setSubmittedAmount('')
+    setBusy(true);
+    setSubmittedAmount("");
     try {
       // Step 1: approve if needed, and wait for the receipt before depositing.
       if (needsApprove) {
-        setDeposit({ depositStep: 'approving', approveHash: '', depositHash: '', depositError: '' })
+        setDeposit({
+          depositStep: "approving",
+          approveHash: "",
+          depositHash: "",
+          depositError: "",
+        });
         const approveTx = await approve({
           address: ADDRESSES.usdc,
           abi: ERC20_ABI,
-          functionName: 'approve',
+          functionName: "approve",
           args: [ADDRESSES.treasury, MAX_U256],
           chainId: ARC_CHAIN_ID,
-        })
-        setDeposit({ approveHash: approveTx })
+        });
+        setDeposit({ approveHash: approveTx });
 
-        const approveReceipt = await publicClient.waitForTransactionReceipt({ hash: approveTx })
-        if (approveReceipt.status !== 'success') throw new Error('Approval transaction reverted')
-        toast.success('USDC approved')
+        const approveReceipt = await publicClient.waitForTransactionReceipt({
+          hash: approveTx,
+        });
+        if (approveReceipt.status !== "success")
+          throw new Error("Approval transaction reverted");
+        toast.success("USDC approved");
       }
 
       // Step 2: deposit, and only report success after the receipt confirms.
-      setDeposit({ depositStep: 'pending', depositError: '' })
+      setDeposit({ depositStep: "pending", depositError: "" });
       const depositTx = await deposit({
         address: ADDRESSES.treasury,
         abi: TREASURY_ABI,
-        functionName: 'deposit',
+        functionName: "deposit",
         args: [parsedAmount],
         chainId: ARC_CHAIN_ID,
-      })
-      setDeposit({ depositStep: 'confirming', depositHash: depositTx })
+      });
+      setDeposit({ depositStep: "confirming", depositHash: depositTx });
 
-      const receipt = await publicClient.waitForTransactionReceipt({ hash: depositTx })
-      if (receipt.status !== 'success') throw new Error('Deposit transaction reverted')
+      const receipt = await publicClient.waitForTransactionReceipt({
+        hash: depositTx,
+      });
+      if (receipt.status !== "success")
+        throw new Error("Deposit transaction reverted");
 
-      setSubmittedAmount(amount)
-      setDeposit({ depositStep: 'success' })
-      setAmount('')
+      setSubmittedAmount(amount);
+      setDeposit({ depositStep: "success" });
+      setAmount("");
       if (review.intent && parsedAmount === BigInt(review.intent.amount)) {
         void markHermesIntentSubmitted(review.intent.id, depositTx)
-          .catch((cause) => console.warn('Could not record Hermes draft tx', cause))
-          .finally(() => review.dismiss())
+          .catch((cause) =>
+            console.warn("Could not record Hermes draft tx", cause)
+          )
+          .finally(() => review.dismiss());
       }
-      toast.success('Deposit confirmed', {
+      toast.success("Deposit confirmed", {
         description: `${amount} USDC → treasury`,
         action: {
-          label: 'Explorer',
+          label: "Explorer",
           onClick: () => window.open(`${ARC_EXPLORER}/tx/${depositTx}`),
         },
-      })
-      await queryClient.invalidateQueries()
+      });
+      await queryClient.invalidateQueries();
     } catch (e) {
-      const msg = parseOnchainError(e)
-      setDeposit({ depositStep: 'error', depositError: msg })
-      if (!msg.toLowerCase().includes('cancelled') && !msg.toLowerCase().includes('rejected')) {
-        toast.error(msg)
+      const msg = parseOnchainError(e);
+      setDeposit({ depositStep: "error", depositError: msg });
+      if (
+        !msg.toLowerCase().includes("cancelled") &&
+        !msg.toLowerCase().includes("rejected")
+      ) {
+        toast.error(msg);
       }
     } finally {
-      setBusy(false)
+      setBusy(false);
     }
   }
 
@@ -133,16 +175,16 @@ export function DepositTab() {
       <div className="flex min-h-[40vh] flex-col items-center justify-center gap-3 text-center">
         <p className="text-slate-400">Connect your wallet to deposit.</p>
       </div>
-    )
+    );
   }
 
   return (
     <div className="mx-auto max-w-lg space-y-5">
       {/* Balance row */}
-      <div className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-3">
+      <div className="flex items-center justify-between rounded-xl border bg-slate-900/60 px-4 py-3 border-slate-700">
         <span className="text-sm text-slate-400">Wallet USDC</span>
         <span className="font-mono text-sm tabular-nums text-white">
-          {!usdcBalanceLoaded ? '—' : formatUsdcDollar(usdcBalance)}
+          {!usdcBalanceLoaded ? "—" : formatUsdcDollar(usdcBalance)}
         </span>
       </div>
 
@@ -150,7 +192,7 @@ export function DepositTab() {
         <IntentReviewCard intent={review.intent} onDismiss={review.dismiss} />
       )}
       {review.loading && (
-        <p className="text-center text-xs text-slate-500">Loading the Hermes draft…</p>
+        <p className="text-center text-xs text-slate-500">Loading draft…</p>
       )}
       {review.error && (
         <div className="flex items-start justify-between gap-3 rounded-xl border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-300">
@@ -170,10 +212,10 @@ export function DepositTab() {
           <Info className="mt-0.5 h-4 w-4 shrink-0" />
           <span>
             {IS_ARC_MAINNET ? (
-              'No USDC in this wallet on Arc. Send USDC on Arc mainnet to this address, then refresh.'
+              "No USDC in this wallet on Arc. Send USDC on Arc mainnet to this address, then refresh."
             ) : (
               <>
-                No USDC in wallet.{' '}
+                No USDC in wallet.{" "}
                 <a
                   href="https://faucet.circle.com"
                   target="_blank"
@@ -181,8 +223,8 @@ export function DepositTab() {
                   className="inline-flex items-center gap-1 underline"
                 >
                   Get test USDC <ExternalLink className="h-3 w-3" />
-                </a>
-                {' '}(select Arc Testnet)
+                </a>{" "}
+                (select Arc Testnet)
               </>
             )}
           </span>
@@ -191,7 +233,9 @@ export function DepositTab() {
 
       {/* Amount input */}
       <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-4">
-        <label className="mb-2 block text-xs font-medium uppercase tracking-wider text-slate-500">Amount (USDC)</label>
+        <label className="mb-2 block text-xs font-medium uppercase tracking-wider text-slate-500">
+          Amount (USDC)
+        </label>
         <div className="flex items-center gap-2">
           <input
             type="number"
@@ -210,22 +254,41 @@ export function DepositTab() {
           </button>
         </div>
         <p className="mt-2 text-xs text-slate-600">
-          Min deposit: {minDeposit === undefined ? '...' : formatUsdcDollar(minDeposit)}
+          Min deposit:{" "}
+          {minDeposit === undefined ? "..." : formatUsdcDollar(minDeposit)}
         </p>
       </div>
 
       {/* Progress steps */}
       {needsApprove && parsedAmount > 0n && (
         <div className="flex items-center gap-2 text-xs text-slate-500">
-          <span className={depositStep !== 'idle' && depositStep !== 'approving' ? 'text-emerald-400' : 'text-slate-400'}>
+          <span
+            className={
+              depositStep !== "idle" && depositStep !== "approving"
+                ? "text-emerald-400"
+                : "text-slate-400"
+            }
+          >
             1. Approve
           </span>
           <ArrowRight className="h-3 w-3" />
-          <span className={depositStep === 'pending' || depositStep === 'confirming' || depositStep === 'success' ? 'text-emerald-400' : 'text-slate-400'}>
+          <span
+            className={
+              depositStep === "pending" ||
+              depositStep === "confirming" ||
+              depositStep === "success"
+                ? "text-emerald-400"
+                : "text-slate-400"
+            }
+          >
             2. Deposit
           </span>
           <ArrowRight className="h-3 w-3" />
-          <span className={depositStep === 'success' ? 'text-emerald-400' : 'text-slate-400'}>
+          <span
+            className={
+              depositStep === "success" ? "text-emerald-400" : "text-slate-400"
+            }
+          >
             3. Vault
           </span>
         </div>
@@ -241,11 +304,17 @@ export function DepositTab() {
         </button>
       ) : (
         <button
-          onClick={() => { void handleDeposit() }}
+          onClick={() => {
+            void handleDeposit();
+          }}
           disabled={!!validationMsg || busy}
-          className="w-full rounded-xl bg-emerald-500 py-3.5 text-sm font-semibold text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"
+          className="glimmer-primary-cta w-full"
         >
-          {busy ? 'Processing…' : needsApprove ? 'Approve & Deposit' : 'Deposit USDC'}
+          {busy
+            ? "Processing…"
+            : needsApprove
+            ? "Approve & Deposit"
+            : "Deposit USDC"}
         </button>
       )}
 
@@ -257,11 +326,13 @@ export function DepositTab() {
         step={depositStep}
         hash={depositHash || approveHash}
         error={depositError}
-        labels={{ success: `Deposited ${submittedAmount} USDC — vault shares minted.` }}
+        labels={{
+          success: `Deposited ${submittedAmount} USDC — vault shares minted.`,
+        }}
         onReset={resetDeposit}
       />
 
       <CrossChainDepositCard />
     </div>
-  )
+  );
 }

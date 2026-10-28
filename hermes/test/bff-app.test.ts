@@ -418,7 +418,7 @@ describe("Hermes BFF", () => {
     }
     expect(result?.status).toBe(502);
     const text = await result!.text();
-    expect(text).toContain("Hermes returned an error");
+    expect(text).toContain("The request failed");
     expect(text).not.toContain("private provider detail");
   });
 
@@ -465,7 +465,7 @@ describe("Hermes BFF", () => {
     );
     expect(response.status).toBe(502);
     const text = await response.text();
-    expect(text).toContain("Hermes returned an error");
+    expect(text).toContain("The request failed");
     expect(text).not.toContain("secret upstream body");
   });
 
@@ -480,7 +480,7 @@ describe("Hermes BFF", () => {
       { cookie }
     );
     expect(response.status).toBe(503);
-    expect(await response.text()).toContain("not connected yet");
+    expect(await response.text()).toContain("not available yet");
   });
 
   it("validates activity filters and burn hashes", async () => {

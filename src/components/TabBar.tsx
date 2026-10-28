@@ -3,7 +3,7 @@ import type { TabId } from "../stores/ui";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "overview", label: "Overview" },
-  { id: "hermes", label: "Hermes" },
+  { id: "hermes", label: "Chat" },
   { id: "deposit", label: "Deposit" },
   { id: "yield", label: "Yield" },
   { id: "withdraw", label: "Withdraw" },

@@ -1,6 +1,6 @@
-# Agent Treasury
+# Glimmerlock
 
-**Cross-chain USDC treasury for AI agents, with automated Morpho yield on Arc.**
+**A cross-chain USDC treasury with automated Morpho yield on Arc.**
 
 Built with [Arc Studio](https://studio.arc.io) · Arc Mainnet (chain ID `5042`)
 
@@ -15,7 +15,7 @@ AI agents are becoming economic actors, but they have nowhere safe to keep worki
 3. **Withdraws to any destination chain** by burning USDC on Arc and minting it on the destination domain.
 4. **Enforces per-agent spending limits, pausing, and a two-step owner model** so an agent can operate autonomously without unlimited custody.
 
-The app is a single-page dashboard: Overview, Deposit, Yield, Withdraw, Activity, Settings.
+The app opens with a focused chat workspace, with Overview, Deposit, Yield, Withdraw, Activity, and Settings available from the views menu.
 
 > **Live on Arc mainnet, with guardrails.** The contracts are unaudited, so the launch caps are deliberately
 > small: a 5 USDC vault minimum and a 25 USDC/day, 50 USDC/week spending limit for the owner agent.
@@ -25,11 +25,11 @@ The app is a single-page dashboard: Overview, Deposit, Yield, Withdraw, Activity
 
 ## Live contracts (Arc Mainnet)
 
-| Contract | Address |
-|---|---|
-| AgentTreasury | [`0xf71b5d1a19d72b98675785123fae811698be6f63`](https://explorer.arc.io/address/0xf71b5d1a19d72b98675785123fae811698be6f63) |
+| Contract           | Address                                                                                                                    |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| AgentTreasury      | [`0xf71b5d1a19d72b98675785123fae811698be6f63`](https://explorer.arc.io/address/0xf71b5d1a19d72b98675785123fae811698be6f63) |
 | MorphoVaultAdapter | [`0x5102057330f5bb5f3e4eb0925b7d1eac8a563c23`](https://explorer.arc.io/address/0x5102057330f5bb5f3e4eb0925b7d1eac8a563c23) |
-| CCTPReceiver | [`0x91f1eb97a40fdab05d150c10566cf9aa3546a375`](https://explorer.arc.io/address/0x91f1eb97a40fdab05d150c10566cf9aa3546a375) |
+| CCTPReceiver       | [`0x91f1eb97a40fdab05d150c10566cf9aa3546a375`](https://explorer.arc.io/address/0x91f1eb97a40fdab05d150c10566cf9aa3546a375) |
 
 Vault 1 is **Galaxy USDC** [`0x8E357432CC12ff425c36432F312968aEb16112AF`](https://explorer.arc.io/address/0x8E357432CC12ff425c36432F312968aEb16112AF)
 (`arcUSDC`, 18-dec shares, ~2.65% net APY, 0 fees, ~12.2M USDC instant liquidity). Fallback:
@@ -51,24 +51,24 @@ Deployment blocks: adapter `27153175`, treasury `27153209`. Owner and keeper:
 
 Protocol constants (the CCTP deployments differ between networks):
 
-| Item | Arc Mainnet | Arc Testnet |
-|---|---|---|
-| USDC (ERC-20, 6 decimals) | `0x3600000000000000000000000000000000000000` | same |
-| TokenMessengerV2 | `0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d` | `0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA` |
-| MessageTransmitterV2 | `0x81D40F21F12A8F0E3252Bccb954D722d4c464B64` | `0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275` |
-| CCTP domain | `26` | `26` |
-| RPC / Explorer | `https://rpc.mainnet.arc.io` / `https://explorer.arc.io` | `https://rpc.testnet.arc.io` / `https://explorer.testnet.arc.io` |
+| Item                      | Arc Mainnet                                              | Arc Testnet                                                      |
+| ------------------------- | -------------------------------------------------------- | ---------------------------------------------------------------- |
+| USDC (ERC-20, 6 decimals) | `0x3600000000000000000000000000000000000000`             | same                                                             |
+| TokenMessengerV2          | `0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d`             | `0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA`                     |
+| MessageTransmitterV2      | `0x81D40F21F12A8F0E3252Bccb954D722d4c464B64`             | `0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275`                     |
+| CCTP domain               | `26`                                                     | `26`                                                             |
+| RPC / Explorer            | `https://rpc.mainnet.arc.io` / `https://explorer.arc.io` | `https://rpc.testnet.arc.io` / `https://explorer.testnet.arc.io` |
 
 The app selects network at build time (`VITE_ARC_NETWORK`, default `mainnet`), including the CCTP
 destination map, Iris endpoint, explorer, and RPC list.
 
 ### Testnet deployment (still live)
 
-| Contract | Address |
-|---|---|
-| AgentTreasury | [`0x5e2e3da19533ebf85bc916612eff5cdc7bf4d489`](https://explorer.testnet.arc.io/address/0x5e2e3da19533ebf85bc916612eff5cdc7bf4d489) |
+| Contract           | Address                                                                                                                            |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| AgentTreasury      | [`0x5e2e3da19533ebf85bc916612eff5cdc7bf4d489`](https://explorer.testnet.arc.io/address/0x5e2e3da19533ebf85bc916612eff5cdc7bf4d489) |
 | MorphoVaultAdapter | [`0x333deccbf9091540e849b7af80f2f10b72197b71`](https://explorer.testnet.arc.io/address/0x333deccbf9091540e849b7af80f2f10b72197b71) |
-| CCTPReceiver | [`0x8066bcf8e6b17e2d84082179a89f0972cc6e31c1`](https://explorer.testnet.arc.io/address/0x8066bcf8e6b17e2d84082179a89f0972cc6e31c1) |
+| CCTPReceiver       | [`0x8066bcf8e6b17e2d84082179a89f0972cc6e31c1`](https://explorer.testnet.arc.io/address/0x8066bcf8e6b17e2d84082179a89f0972cc6e31c1) |
 
 Deployment block `68193025`. Full record and E2E proof: `deployments/arc-testnet-fixed.json`.
 Build it with `VITE_ARC_NETWORK=testnet`; it keeps the 1 USDC demo minimum and the ~4.2% APY vault
@@ -80,10 +80,10 @@ The mainnet deployment uses the fixed no-return interface from day one. This is 
 
 ### On-chain proof (Arc Testnet)
 
-| Action | Transaction | Result |
-|---|---|---|
-| Approve 10 USDC | [`0x158ed904…69fe`](https://explorer.testnet.arc.io/tx/0x158ed9048899e22ef6d087bdd2489cf70a215ae6b6ca602e6828e997a2df69fe) | USDC allowance to the new treasury |
-| Deposit 10 USDC | [`0xbab58770…04c4`](https://explorer.testnet.arc.io/tx/0xbab5877074904d17fb21b49aed8c3d2a956ee8d16d3ddc3ec523046d464a04c4) | balance `9,999,999`; 18-dec vault shares `9,989,427,554,595,819,468` |
+| Action                           | Transaction                                                                                                                | Result                                                                                  |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Approve 10 USDC                  | [`0x158ed904…69fe`](https://explorer.testnet.arc.io/tx/0x158ed9048899e22ef6d087bdd2489cf70a215ae6b6ca602e6828e997a2df69fe) | USDC allowance to the new treasury                                                      |
+| Deposit 10 USDC                  | [`0xbab58770…04c4`](https://explorer.testnet.arc.io/tx/0xbab5877074904d17fb21b49aed8c3d2a956ee8d16d3ddc3ec523046d464a04c4) | balance `9,999,999`; 18-dec vault shares `9,989,427,554,595,819,468`                    |
 | CCTP withdraw 1 USDC to domain 0 | [`0x3f0f2568…8a1c`](https://explorer.testnet.arc.io/tx/0x3f0f256843ee4e1498cafceea9978725397904899bb527f684eb98c171e28a1c) | withdrawal id `1`; burned `999,999`; `MessageSent` finality `2000`; balance `9,000,000` |
 
 Circle Iris returned `status: complete` with `finalityThresholdExecuted: 2000` and `mintRecipient` set to the connected wallet. The one-unit difference between the requested `1,000,000` and burned `999,999` is ERC-4626 share rounding; the withdrawal path uses the actual redeemed amount, so no dust is stranded.
@@ -234,19 +234,19 @@ The Activity tab groups activity with **All / In flight / Deposits / Withdrawals
 
 ## What is real vs. scaffolded
 
-| Capability | Status |
-|---|---|
-| Per-agent treasury, spending limits, pause, keeper separation | ✅ implemented + tested |
-| Morpho/Earn Kit vault deposit, redeem, strategy switch | ✅ implemented + tested; live on testnet and on mainnet with Galaxy USDC (5 USDC deposit, 1 USDC local withdrawal) |
-| CCTP v2 outbound burn with hook data | ✅ implemented, unit-tested, and verified live on both networks (mainnet Arc→Base burns ids 1–2, complete Iris attestations, Base mints) |
-| CCTP v2 **inbound deposit** (source burn → mint to Arc wallet → `deposit()`) | ✅ implemented and verified live (Base→Arc 5 USDC burn, Arc mint, Galaxy USDC deposit); requires source USDC + source gas + Arc gas |
-| CCTPReceiver relayer adapter + malformed-data fallback | ✅ unit-tested; ⚠️ not used by the app (CCTP v2 hooks are opaque; a relayer/forwarder is required) |
-| Arc-local fast path (`deposit`, `withdrawLocal`) | ✅ implemented + tested |
-| Dashboard, 6 tabs, event history, CSV export | ✅ built, lint/typecheck clean |
-| Testnet deployment | ✅ deployed, wired, and E2E verified with real testnet USDC |
-| Mainnet deployment | ✅ deployed, wired, and E2E verified: local deposit/withdraw plus a full CCTP round trip (Arc→Base withdrawals, Base→Arc deposit) |
-| Circle Gateway unified balance | ⚠️ contract hook (`gatewayReceiver`) is present; live Gateway balances need a server-side API key and are intentionally not faked in the UI |
-| Automatic Iris attestation + in-app destination mint | ✅ implemented: poll Iris, switch chain, submit `receiveMessage`; destination gas required |
+| Capability                                                                   | Status                                                                                                                                      |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Per-agent treasury, spending limits, pause, keeper separation                | ✅ implemented + tested                                                                                                                     |
+| Morpho/Earn Kit vault deposit, redeem, strategy switch                       | ✅ implemented + tested; live on testnet and on mainnet with Galaxy USDC (5 USDC deposit, 1 USDC local withdrawal)                          |
+| CCTP v2 outbound burn with hook data                                         | ✅ implemented, unit-tested, and verified live on both networks (mainnet Arc→Base burns ids 1–2, complete Iris attestations, Base mints)    |
+| CCTP v2 **inbound deposit** (source burn → mint to Arc wallet → `deposit()`) | ✅ implemented and verified live (Base→Arc 5 USDC burn, Arc mint, Galaxy USDC deposit); requires source USDC + source gas + Arc gas         |
+| CCTPReceiver relayer adapter + malformed-data fallback                       | ✅ unit-tested; ⚠️ not used by the app (CCTP v2 hooks are opaque; a relayer/forwarder is required)                                          |
+| Arc-local fast path (`deposit`, `withdrawLocal`)                             | ✅ implemented + tested                                                                                                                     |
+| Dashboard, 6 tabs, event history, CSV export                                 | ✅ built, lint/typecheck clean                                                                                                              |
+| Testnet deployment                                                           | ✅ deployed, wired, and E2E verified with real testnet USDC                                                                                 |
+| Mainnet deployment                                                           | ✅ deployed, wired, and E2E verified: local deposit/withdraw plus a full CCTP round trip (Arc→Base withdrawals, Base→Arc deposit)           |
+| Circle Gateway unified balance                                               | ⚠️ contract hook (`gatewayReceiver`) is present; live Gateway balances need a server-side API key and are intentionally not faked in the UI |
+| Automatic Iris attestation + in-app destination mint                         | ✅ implemented: poll Iris, switch chain, submit `receiveMessage`; destination gas required                                                  |
 
 ---
 

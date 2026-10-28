@@ -1,34 +1,50 @@
-import { useState } from 'react'
-import { useAccount, usePublicClient, useSwitchChain, useWriteContract } from 'wagmi'
-import { useQueryClient } from '@tanstack/react-query'
-import { toast } from 'sonner'
-import { Copy, Check, ShieldAlert, ShieldOff } from 'lucide-react'
-import { ADDRESSES, TREASURY_ABI, ARC_CHAIN, ARC_CHAIN_ID, IS_ARC_MAINNET, explorerAddr } from '../../lib/contracts'
-import { parseUsdc } from '../../lib/decimals'
-import { parseOnchainError } from '../../lib/errors'
-import { useTreasuryStore } from '../../stores/treasury'
-import { useFlowStore } from '../../stores/flow'
-import { TxStep } from '../TxStep'
-import { OwnershipCard } from '../OwnershipCard'
+import { useState } from "react";
+import {
+  useAccount,
+  usePublicClient,
+  useSwitchChain,
+  useWriteContract,
+} from "wagmi";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { Copy, Check, ShieldAlert, ShieldOff } from "lucide-react";
+import {
+  ADDRESSES,
+  TREASURY_ABI,
+  ARC_CHAIN,
+  ARC_CHAIN_ID,
+  IS_ARC_MAINNET,
+  explorerAddr,
+} from "../../lib/contracts";
+import { parseUsdc } from "../../lib/decimals";
+import { parseOnchainError } from "../../lib/errors";
+import { useTreasuryStore } from "../../stores/treasury";
+import { useFlowStore } from "../../stores/flow";
+import { TxStep } from "../TxStep";
+import { OwnershipCard } from "../OwnershipCard";
 
 function CopyButton({ value }: { value: string }) {
-  const [copied, setCopied] = useState(false)
+  const [copied, setCopied] = useState(false);
   return (
     <button
       onClick={() => {
-        void navigator.clipboard.writeText(value)
-        setCopied(true)
-        setTimeout(() => setCopied(false), 1500)
+        void navigator.clipboard.writeText(value);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
       }}
       className="ml-2 text-slate-600 hover:text-slate-300 transition"
     >
-      {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+      {copied ? (
+        <Check className="h-3.5 w-3.5 text-emerald-400" />
+      ) : (
+        <Copy className="h-3.5 w-3.5" />
+      )}
     </button>
-  )
+  );
 }
 
 function AddrRow({ label, value }: { label: string; value: string }) {
-  if (!value) return null
+  if (!value) return null;
   return (
     <div className="flex items-center justify-between py-2.5">
       <span className="text-xs text-slate-500">{label}</span>
@@ -44,57 +60,72 @@ function AddrRow({ label, value }: { label: string; value: string }) {
         <CopyButton value={value} />
       </div>
     </div>
-  )
+  );
 }
 
 export function SettingsTab() {
-  const { address, chainId } = useAccount()
-  const { switchChain } = useSwitchChain()
-  const publicClient = usePublicClient({ chainId: ARC_CHAIN_ID })
-  const queryClient = useQueryClient()
-  const [daily, setDaily]   = useState('')
-  const [weekly, setWeekly] = useState('')
-  const [busy, setBusy]     = useState(false)
+  const { address, chainId } = useAccount();
+  const { switchChain } = useSwitchChain();
+  const publicClient = usePublicClient({ chainId: ARC_CHAIN_ID });
+  const queryClient = useQueryClient();
+  const [daily, setDaily] = useState("");
+  const [weekly, setWeekly] = useState("");
+  const [busy, setBusy] = useState(false);
 
-  const { ownerAddr, keeperAddr, isPaused } = useTreasuryStore()
-  const { settingsStep, settingsHash, settingsError, setSettings, resetSettings } = useFlowStore()
+  // const { ownerAddr, keeperAddr, isPaused } = useTreasuryStore();
+  const {
+    settingsStep,
+    settingsHash,
+    settingsError,
+    setSettings,
+    resetSettings,
+  } = useFlowStore();
 
-  const { writeContractAsync: setLimit } = useWriteContract()
+  const { writeContractAsync: setLimit } = useWriteContract();
 
-  const isWrongChain = !!address && chainId !== ARC_CHAIN_ID
+  const isWrongChain = !!address && chainId !== ARC_CHAIN_ID;
 
   async function handleSetLimit() {
-    if (!address || !publicClient) return
-    if (isWrongChain) { switchChain({ chainId: ARC_CHAIN_ID }); return }
-    const d = daily  ? parseUsdc(daily)  : 0n
-    const w = weekly ? parseUsdc(weekly) : 0n
-    setBusy(true)
+    if (!address || !publicClient) return;
+    if (isWrongChain) {
+      switchChain({ chainId: ARC_CHAIN_ID });
+      return;
+    }
+    const d = daily ? parseUsdc(daily) : 0n;
+    const w = weekly ? parseUsdc(weekly) : 0n;
+    setBusy(true);
     try {
-      setSettings({ settingsStep: 'pending', settingsError: '' })
+      setSettings({ settingsStep: "pending", settingsError: "" });
       const tx = await setLimit({
         address: ADDRESSES.treasury,
         abi: TREASURY_ABI,
-        functionName: 'setSpendingLimit',
+        functionName: "setSpendingLimit",
         args: [address, d, w],
         chainId: ARC_CHAIN_ID,
-      })
-      setSettings({ settingsStep: 'confirming', settingsHash: tx })
+      });
+      setSettings({ settingsStep: "confirming", settingsHash: tx });
 
-      const receipt = await publicClient.waitForTransactionReceipt({ hash: tx })
-      if (receipt.status !== 'success') throw new Error('Transaction reverted')
+      const receipt = await publicClient.waitForTransactionReceipt({
+        hash: tx,
+      });
+      if (receipt.status !== "success") throw new Error("Transaction reverted");
 
-      setSettings({ settingsStep: 'success' })
-      toast.success('Spending limits updated')
-      setDaily(''); setWeekly('')
-      await queryClient.invalidateQueries()
+      setSettings({ settingsStep: "success" });
+      toast.success("Spending limits updated");
+      setDaily("");
+      setWeekly("");
+      await queryClient.invalidateQueries();
     } catch (e) {
-      const msg = parseOnchainError(e)
-      setSettings({ settingsStep: 'error', settingsError: msg })
-      if (!msg.toLowerCase().includes('cancelled') && !msg.toLowerCase().includes('rejected')) {
-        toast.error(msg)
+      const msg = parseOnchainError(e);
+      setSettings({ settingsStep: "error", settingsError: msg });
+      if (
+        !msg.toLowerCase().includes("cancelled") &&
+        !msg.toLowerCase().includes("rejected")
+      ) {
+        toast.error(msg);
       }
     } finally {
-      setBusy(false)
+      setBusy(false);
     }
   }
 
@@ -103,34 +134,42 @@ export function SettingsTab() {
       <div className="flex min-h-[40vh] flex-col items-center justify-center text-center">
         <p className="text-slate-400">Connect your wallet to view settings.</p>
       </div>
-    )
+    );
   }
 
   return (
     <div className="mx-auto max-w-lg space-y-6">
-      {IS_ARC_MAINNET && (
+      {/* {IS_ARC_MAINNET && (
         <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-5">
           <div className="flex items-center gap-2">
             <ShieldAlert className="h-4 w-4 text-amber-400" />
-            <h2 className="text-sm font-semibold text-amber-300">Mainnet guardrails</h2>
+            <h2 className="text-sm font-semibold text-amber-300">
+              Mainnet guardrails
+            </h2>
           </div>
           <p className="mt-2 text-xs leading-relaxed text-amber-200/80">
-            Contracts are unaudited. Vault minimum is 5 USDC; the launch spending limit is 25 USDC/day and
-            50 USDC/week. Keep deposits small, and do not custody third-party funds until the external
-            audit is complete.
+            Contracts are unaudited. Vault minimum is 5 USDC; the launch
+            spending limit is 25 USDC/day and 50 USDC/week. Keep deposits small,
+            and do not custody third-party funds until the external audit is
+            complete.
           </p>
         </div>
-      )}
+      )} */}
 
       {/* Spending limits */}
       <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-5">
-        <h2 className="mb-4 text-sm font-semibold text-white">Spending Limits</h2>
+        <h2 className="mb-4 text-sm font-semibold text-white">
+          Spending Limits
+        </h2>
         <p className="mb-4 text-xs text-slate-500">
-          Set 0 for unlimited. Limits are enforced in USDC (6 decimals) by the contract.
+          Set 0 for unlimited. Limits are enforced in USDC (6 decimals) by the
+          contract.
         </p>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="mb-1 block text-xs text-slate-500">Daily limit (USDC)</label>
+            <label className="mb-1 block text-xs text-slate-500">
+              Daily limit (USDC)
+            </label>
             <input
               type="number"
               value={daily}
@@ -140,7 +179,9 @@ export function SettingsTab() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs text-slate-500">Weekly limit (USDC)</label>
+            <label className="mb-1 block text-xs text-slate-500">
+              Weekly limit (USDC)
+            </label>
             <input
               type="number"
               value={weekly}
@@ -160,11 +201,13 @@ export function SettingsTab() {
           </button>
         ) : (
           <button
-            onClick={() => { void handleSetLimit() }}
+            onClick={() => {
+              void handleSetLimit();
+            }}
             disabled={busy}
-            className="mt-4 w-full rounded-xl bg-emerald-500 py-3 text-sm font-semibold text-black transition hover:bg-emerald-400 disabled:opacity-40"
+            className="glimmer-primary-cta mt-4 w-full"
           >
-            {busy ? 'Saving…' : 'Save Limits'}
+            {busy ? "Saving…" : "Save Limits"}
           </button>
         )}
 
@@ -172,46 +215,51 @@ export function SettingsTab() {
           step={settingsStep}
           hash={settingsHash}
           error={settingsError}
-          labels={{ success: 'Spending limits updated.' }}
+          labels={{ success: "Spending limits updated." }}
           onReset={resetSettings}
         />
       </div>
 
-      <OwnershipCard />
+      {/* <OwnershipCard /> */}
 
       {/* Contract info */}
-      <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-5">
+      {/* <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-5">
         <h2 className="mb-3 text-sm font-semibold text-white">Contract Info</h2>
         <div className="divide-y divide-slate-800">
-          <AddrRow label="AgentTreasury"    value={ADDRESSES.treasury} />
+          <AddrRow label="AgentTreasury" value={ADDRESSES.treasury} />
           <AddrRow label="MorphoVaultAdapter" value={ADDRESSES.adapter} />
-          <AddrRow label="CCTPReceiver"     value={ADDRESSES.receiver} />
-          <AddrRow label="USDC (ERC-20)"    value={ADDRESSES.usdc} />
-          <AddrRow label="Owner"            value={ownerAddr} />
-          <AddrRow label="Keeper"           value={keeperAddr} />
+          <AddrRow label="CCTPReceiver" value={ADDRESSES.receiver} />
+          <AddrRow label="USDC (ERC-20)" value={ADDRESSES.usdc} />
+          <AddrRow label="Owner" value={ownerAddr} />
+          <AddrRow label="Keeper" value={keeperAddr} />
         </div>
-      </div>
+      </div> */}
 
       {/* Danger zone */}
-      <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-5">
+      {/* <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-5">
         <div className="flex items-center gap-2">
           <ShieldOff className="h-4 w-4 text-red-400" />
-          <h2 className="text-sm font-semibold text-red-400">Contract Status</h2>
+          <h2 className="text-sm font-semibold text-red-400">
+            Contract Status
+          </h2>
         </div>
         <div className="mt-3 flex items-center justify-between">
           <span className="text-xs text-slate-500">Paused</span>
-          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-            isPaused
-              ? 'bg-red-500/20 text-red-400'
-              : 'bg-emerald-500/20 text-emerald-400'
-          }`}>
-            {isPaused ? 'PAUSED' : 'Active'}
+          <span
+            className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+              isPaused
+                ? "bg-red-500/20 text-red-400"
+                : "bg-emerald-500/20 text-emerald-400"
+            }`}
+          >
+            {isPaused ? "PAUSED" : "Active"}
           </span>
         </div>
         <p className="mt-2 text-xs text-slate-600">
-          Pause state is read-only here. Only the contract owner can pause/unpause.
+          Pause state is read-only here. Only the contract owner can
+          pause/unpause.
         </p>
-      </div>
+      </div> */}
     </div>
-  )
+  );
 }

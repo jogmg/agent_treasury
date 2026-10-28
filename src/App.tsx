@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useAccount, useSwitchChain } from "wagmi";
 import { Header } from "./components/Header";
-import { TabBar } from "./components/TabBar";
+import { Footer } from "./components/Footer";
 import { HermesDock } from "./components/HermesDock";
 import { OverviewTab } from "./components/tabs/OverviewTab";
 import { DepositTab } from "./components/tabs/DepositTab";
@@ -14,6 +14,7 @@ import { useUiStore, type TabId } from "./stores/ui";
 import { useFlowStore } from "./stores/flow";
 import { getCctpDestination } from "./lib/cctp";
 import { ARC_CHAIN, ARC_CHAIN_ID } from "./lib/contracts";
+import { ArcMark } from "./components/ArcMark";
 
 // ── Global data bootstrap ────────────────────────────────────────────────────
 function DataBootstrap() {
@@ -46,7 +47,14 @@ function WrongNetworkBanner() {
           disabled={isPending}
           className="font-semibold underline hover:text-emerald-200"
         >
-          {isPending ? "Switching…" : `Back to ${ARC_CHAIN.name}`}
+          {isPending ? (
+            "Switching…"
+          ) : (
+            <>
+              Back to <ArcMark size={14} className="mx-1 align-[-3px]" />
+              {ARC_CHAIN.name}
+            </>
+          )}
         </button>
       </div>
     );
@@ -60,7 +68,14 @@ function WrongNetworkBanner() {
         disabled={isPending}
         className="font-semibold underline hover:text-amber-200"
       >
-        {isPending ? "Switching…" : `Switch to ${ARC_CHAIN.name}`}
+        {isPending ? (
+          "Switching…"
+        ) : (
+          <>
+            Switch to <ArcMark size={14} className="mx-1 align-[-3px]" />
+            {ARC_CHAIN.name}
+          </>
+        )}
       </button>
     </div>
   );
@@ -111,14 +126,28 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-dvh bg-[#080c18] font-body text-white">
+    <div className="glimmer-page flex min-h-dvh flex-col font-body text-white">
       <DataBootstrap />
       <Header />
       <WrongNetworkBanner />
-      <TabBar active={activeTab} onChange={setTab} />
-      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
-        {TAB_CONTENT[activeTab] ?? <OverviewTab />}
+      <main
+        className={
+          activeTab === "hermes"
+            ? "flex h-[calc(100dvh-124px)] min-h-[22rem] flex-1 items-center justify-center px-3 pb-3 py-6 sm:px-6"
+            : "mx-auto flex w-full max-w-6xl flex-1 px-4 py-6 sm:px-6"
+        }
+      >
+        {activeTab === "hermes" ? (
+          <div className="w-full max-w-[980px] min-h-[18rem]">
+            {TAB_CONTENT[activeTab] ?? <OverviewTab />}
+          </div>
+        ) : (
+          <div className="w-full min-h-[18rem]">
+            {TAB_CONTENT[activeTab] ?? <OverviewTab />}
+          </div>
+        )}
       </main>
+      <Footer />
     </div>
   );
 }

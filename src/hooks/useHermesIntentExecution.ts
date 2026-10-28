@@ -55,9 +55,7 @@ export function assertFreshHermesIntent(
     !Number.isFinite(expiresAt) ||
     expiresAt <= Date.now()
   ) {
-    throw new Error(
-      "This draft is no longer active. Ask Hermes to prepare a new one."
-    );
+    throw new Error("This draft is no longer active. Prepare a new one.");
   }
   if (!intent.simulation.ok || intent.value !== "0") {
     throw new Error(

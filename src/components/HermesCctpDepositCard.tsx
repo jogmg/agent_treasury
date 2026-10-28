@@ -396,7 +396,7 @@ export function HermesCctpDepositCard({
           type="button"
           onClick={() => void completeDeposit()}
           disabled={working || !address}
-          className="mt-4 inline-flex items-center gap-2 bg-emerald-400 px-4 py-2.5 text-xs font-semibold text-slate-950 disabled:opacity-50"
+          className="glimmer-primary-cta mt-4 inline-flex items-center gap-2"
         >
           <Wallet className="h-4 w-4" />
           Continue on Arc
@@ -411,7 +411,7 @@ export function HermesCctpDepositCard({
               : startDeposit())
           }
           disabled={working || !address || isOtherDepositActive}
-          className="mt-4 inline-flex items-center gap-2 bg-emerald-400 px-4 py-2.5 text-xs font-semibold text-slate-950 disabled:opacity-50"
+          className="glimmer-primary-cta mt-4 inline-flex items-center gap-2"
         >
           <Wallet className="h-4 w-4" />
           {status === "error" && activeMatches && bridge.burnHash

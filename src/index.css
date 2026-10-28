@@ -1,8 +1,14 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap");
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer components {
+  .glimmer-primary-cta {
+    @apply rounded-xl bg-emerald-500 px-4 py-3.5 text-sm font-semibold text-white transition hover:bg-emerald-500/90 disabled:cursor-not-allowed disabled:opacity-40;
+  }
+}
 
 * {
   box-sizing: border-box;
@@ -10,13 +16,203 @@
 
 body {
   margin: 0;
-  font-family: 'DM Sans', sans-serif;
+  font-family: "DM Sans", sans-serif;
   min-height: 100dvh;
-  background: #080c18;
+  background: #0a0e11;
   color: #f1f5f9;
 }
 
-/* hide scrollbar on tab bar */
-.scrollbar-none { scrollbar-width: none; }
-.scrollbar-none::-webkit-scrollbar { display: none; }
+#root {
+  min-height: 100dvh;
+}
 
+html,
+body,
+#root {
+  min-height: 100%;
+  height: 100%;
+}
+
+.glimmer-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  background: radial-gradient(
+      ellipse at 2% 5%,
+      rgba(79, 117, 160, 0.34),
+      transparent 37%
+    ),
+    radial-gradient(ellipse at 98% 90%, rgba(8, 61, 119, 0.44), transparent 42%),
+    linear-gradient(132deg, #0a0e11 12%, #111a24 55%, #0a0e11 100%);
+  position: relative;
+}
+
+.glimmer-page::before {
+  position: fixed;
+  z-index: 0;
+  inset: 0;
+  background-image: linear-gradient(
+      rgba(150, 173, 200, 0.025) 1px,
+      transparent 1px
+    ),
+    linear-gradient(90deg, rgba(150, 173, 200, 0.025) 1px, transparent 1px);
+  background-size: 56px 56px;
+  content: "";
+  mask-image: linear-gradient(to bottom, black, transparent 92%);
+  pointer-events: none;
+}
+
+.glimmer-page > * {
+  position: relative;
+  z-index: 1;
+}
+
+.glimmer-page main:not(:has(.glimmer-chat-frame)) {
+  --glimmer-muted: rgba(203, 213, 225, 0.96);
+  --glimmer-subtle: rgba(148, 163, 184, 0.98);
+  --glimmer-strong: rgba(226, 232, 240, 1);
+  --glimmer-accent: rgba(110, 231, 183, 1);
+  --glimmer-warning: rgba(251, 191, 36, 1);
+}
+
+.glimmer-page main:not(:has(.glimmer-chat-frame)) .text-slate-300,
+.glimmer-page main:not(:has(.glimmer-chat-frame)) .text-slate-400,
+.glimmer-page main:not(:has(.glimmer-chat-frame)) .text-slate-500,
+.glimmer-page main:not(:has(.glimmer-chat-frame)) .text-slate-600 {
+  color: var(--glimmer-strong) !important;
+}
+
+.glimmer-page main:not(:has(.glimmer-chat-frame)) .text-slate-300 {
+  color: rgba(240, 247, 255, 0.98) !important;
+}
+
+.glimmer-page main:not(:has(.glimmer-chat-frame)) .text-slate-400 {
+  color: var(--glimmer-muted) !important;
+}
+
+.glimmer-page main:not(:has(.glimmer-chat-frame)) .text-slate-500 {
+  color: var(--glimmer-subtle) !important;
+}
+
+.glimmer-page main:not(:has(.glimmer-chat-frame)) .text-slate-600 {
+  color: rgba(161, 174, 196, 0.98) !important;
+}
+
+.glimmer-page main:not(:has(.glimmer-chat-frame)) .text-emerald-300,
+.glimmer-page main:not(:has(.glimmer-chat-frame)) .text-emerald-400 {
+  color: #96adc8 !important;
+}
+
+.glimmer-page main:not(:has(.glimmer-chat-frame)) .text-amber-300 {
+  color: var(--glimmer-warning) !important;
+}
+
+.glimmer-page main:not(:has(.glimmer-chat-frame)) .text-blue-400 {
+  color: #7cc5ff !important;
+}
+
+.glimmer-page main:not(:has(.glimmer-chat-frame)) .text-purple-400 {
+  color: #d4a8ff !important;
+}
+
+.glimmer-page main:not(:has(.glimmer-chat-frame)) .text-red-400 {
+  color: #fca5a5 !important;
+}
+
+.glimmer-page
+  main:not(:has(.glimmer-chat-frame))
+  :is(.rounded-xl, .rounded-2xl, .rounded-lg):not(button).border {
+  background-color: rgba(10, 14, 17, 0.78) !important;
+}
+
+.glimmer-page main:not(:has(.glimmer-chat-frame)) button:not(.bg-transparent),
+.glimmer-page
+  main:not(:has(.glimmer-chat-frame))
+  [role="button"]:not(.bg-transparent) {
+  border-color: rgba(79, 117, 160, 0.55) !important;
+}
+
+.portfolio-growth-chart :focus {
+  outline: none !important;
+}
+
+.glimmer-page
+  button:not(.glimmer-primary-cta):not(.bg-transparent):is(
+    [class*="hover:border-emerald-"],
+    [class*="hover:text-emerald-"]
+  ),
+.glimmer-page
+  [role="button"]:not(.glimmer-primary-cta):is(
+    [class*="hover:border-emerald-"],
+    [class*="hover:text-emerald-"]
+  ) {
+  color: #dce7f3;
+  transition: background-color 150ms ease, border-color 150ms ease,
+    color 150ms ease;
+}
+
+.glimmer-page
+  button:not(.glimmer-primary-cta):not(.bg-transparent):is(
+    [class*="hover:border-emerald-"],
+    [class*="hover:text-emerald-"]
+  ):hover,
+.glimmer-page
+  [role="button"]:not(.glimmer-primary-cta):is(
+    [class*="hover:border-emerald-"],
+    [class*="hover:text-emerald-"]
+  ):hover {
+  border-color: #4f75a0 !important;
+  background-color: rgb(79 117 160 / 16%);
+  color: #dce7f3 !important;
+}
+
+.glimmer-glass {
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  background: rgba(15, 25, 36, 0.68);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 20px 60px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(24px) saturate(135%);
+}
+
+.glimmer-response {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.glimmer-chat-frame {
+  animation: glimmer-arrive 650ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+.glimmer-wallet button {
+  min-height: 42px;
+}
+
+.glimmer-avatar {
+  background: linear-gradient(135deg, #96adc8 0%, #4f75a0 48%, #083d77 100%);
+}
+
+.textarea-scrollbar-none {
+  scrollbar-width: none;
+}
+
+.textarea-scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+@keyframes glimmer-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(9px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* hide scrollbar on tab bar */
+.scrollbar-none {
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}

@@ -1,15 +1,4 @@
-import { useEffect, useState } from "react";
-import {
-  useAccount,
-  useBalance,
-  usePublicClient,
-  useReadContract,
-  useSwitchChain,
-  useWriteContract,
-} from "wagmi";
 import { useQueryClient } from "@tanstack/react-query";
-import { decodeFunctionData, keccak256, zeroHash } from "viem";
-import { toast } from "sonner";
 import {
   AlertTriangle,
   ArrowRight,
@@ -21,6 +10,19 @@ import {
   Loader2,
   RefreshCw,
 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { decodeFunctionData, keccak256, zeroHash } from "viem";
+import {
+  useAccount,
+  useBalance,
+  usePublicClient,
+  useReadContract,
+  useSwitchChain,
+  useWriteContract,
+} from "wagmi";
+import { useDepositShares } from "../hooks/useDepositShares";
+import { useMinDeposit } from "../hooks/useMinDeposit";
 import {
   ARC_CCTP_DOMAIN,
   CCTP_DESTINATIONS,
@@ -35,8 +37,8 @@ import {
 } from "../lib/cctp";
 import {
   ADDRESSES,
-  ARC_EXPLORER,
   ARC_CHAIN_ID,
+  ARC_EXPLORER,
   CCTP_RECEIVER_ABI,
   ERC20_ABI,
   IS_ARC_MAINNET,
@@ -55,8 +57,7 @@ import {
   BRIDGE_STATUS_LABEL,
   useBridgeDepositStore,
 } from "../stores/bridgeDeposit";
-import { useMinDeposit } from "../hooks/useMinDeposit";
-import { useDepositShares } from "../hooks/useDepositShares";
+import { NetworkLabel } from "./ArcMark";
 
 const ARC_GAS_SYMBOL = "USDC";
 // Keep enough native USDC for the Arc mint, approval, and treasury deposit.
@@ -120,7 +121,7 @@ export function CrossChainDepositCard() {
     recent,
     setBridgeDeposit,
     resetBridgeDeposit,
-    discardBridgeDeposit,
+    // discardBridgeDeposit,
     restoreBridgeDeposit,
     clearBridgeHistory,
   } = useBridgeDepositStore();
@@ -819,11 +820,11 @@ export function CrossChainDepositCard() {
     resetBridgeDeposit();
   }
 
-  function discard() {
-    setEnteredAmount("");
-    discardBridgeDeposit();
-    toast.success("Burn removed from this browser");
-  }
+  // function discard() {
+  //   setEnteredAmount("");
+  //   discardBridgeDeposit();
+  //   toast.success("Burn removed from this browser");
+  // }
 
   async function copyBurnHash() {
     if (!burnHash) return;
@@ -843,14 +844,13 @@ export function CrossChainDepositCard() {
       open={isActivityView && status !== "done" ? true : undefined}
       className="group rounded-xl border border-slate-700 bg-slate-900/60"
     >
-      <summary className="flex cursor-pointer list-none select-none items-center justify-between gap-3 px-5 py-4 hover:bg-slate-900/80 [&::-webkit-details-marker]:hidden">
+      <summary className="flex cursor-pointer list-none select-none items-center justify-between gap-3 px-5 py-4 [&::-webkit-details-marker]:hidden">
         <div>
           <h2 className="text-sm font-semibold text-white">
             Cross-Chain Deposit
           </h2>
           <p className="mt-0.5 text-xs text-slate-500">
-            Bring USDC from Ethereum, Base, Arbitrum, OP, Avalanche, or Polygon
-            via CCTP v2.
+            Bridge USDC from Ethereum, Base, Arbitrum, OP, Avalanche, or Polygon
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -859,7 +859,7 @@ export function CrossChainDepositCard() {
               {BRIDGE_STATUS_LABEL[status]}
             </span>
           )}
-          <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-300">
+          <span className="rounded-full bg-emerald-500/60 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-white">
             CCTP
           </span>
           <ChevronDown className="h-4 w-4 text-slate-500 transition group-open:rotate-180" />
@@ -917,6 +917,12 @@ export function CrossChainDepositCard() {
               </div>
               <div className="mt-1 flex items-center justify-between gap-2 text-[11px] text-slate-500">
                 <span>
+                  <NetworkLabel
+                    name={source.name}
+                    className="text-slate-400"
+                    size={12}
+                    iconOnly
+                  />{" "}
                   {source.name} balance:{" "}
                   <span className="font-mono text-slate-400">
                     {sourceBalance === undefined
@@ -947,12 +953,26 @@ export function CrossChainDepositCard() {
                 <span>
                   {IS_ARC_MAINNET ? (
                     <>
-                      No USDC on {source.name}. Send or bridge USDC to this
-                      wallet on that chain.
+                      No USDC on{" "}
+                      <NetworkLabel
+                        name={source.name}
+                        className="text-amber-200"
+                        size={12}
+                        iconOnly
+                      />{" "}
+                      {source.name}. Send or bridge USDC to this wallet on that
+                      chain.
                     </>
                   ) : (
                     <>
-                      No USDC on {source.name}.{" "}
+                      No USDC on{" "}
+                      <NetworkLabel
+                        name={source.name}
+                        className="text-amber-200"
+                        size={12}
+                        iconOnly
+                      />{" "}
+                      {source.name}.{" "}
                       <a
                         href="https://faucet.circle.com"
                         target="_blank"
@@ -972,8 +992,14 @@ export function CrossChainDepositCard() {
               <div className="flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-300">
                 <Fuel className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 <span>
-                  You need {source.chain.nativeCurrency.symbol} on {source.name}{" "}
-                  for the approve and burn gas.{" "}
+                  You need {source.chain.nativeCurrency.symbol} on{" "}
+                  <NetworkLabel
+                    name={source.name}
+                    className="text-amber-200"
+                    size={12}
+                    iconOnly
+                  />{" "}
+                  {source.name} for the approve and burn gas.{" "}
                   {source.faucet && (
                     <a
                       href={source.faucet}
@@ -991,7 +1017,14 @@ export function CrossChainDepositCard() {
             <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
               <span>1. Approve</span>
               <ArrowRight className="h-3 w-3" />
-              <span>2. Burn on {source.name}</span>
+              <span>
+                2. Burn on{" "}
+                <NetworkLabel
+                  name={source.name}
+                  size={12}
+                  className="text-slate-300"
+                />
+              </span>
               <ArrowRight className="h-3 w-3" />
               <span>3. Circle attestation</span>
               <ArrowRight className="h-3 w-3" />
@@ -1004,14 +1037,14 @@ export function CrossChainDepositCard() {
                 void handleBridge();
               }}
               disabled={!!validation || busy}
-              className="w-full rounded-xl bg-emerald-500 py-3.5 text-sm font-semibold text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"
+              className="glimmer-primary-cta w-full"
             >
               {busy
                 ? "Processing…"
                 : chainId !== source.chain.id
-                ? `Switch to ${source.name} & Bridge`
+                ? `Bridge to Arc`
                 : needsApprove
-                ? "Approve & Bridge to Arc"
+                ? "Approve"
                 : "Bridge to Arc"}
             </button>
 
@@ -1225,13 +1258,13 @@ export function CrossChainDepositCard() {
                     burn is saved in your browser, so a reload restores the
                     pending deposit automatically.
                   </p>
-                  <button
+                  {/* <button
                     type="button"
                     onClick={discard}
                     className="mt-3 rounded-lg border border-slate-700 px-3 py-1.5 text-[11px] font-medium text-slate-300 transition hover:border-red-500/40 hover:text-red-300"
                   >
                     Discard this burn
-                  </button>
+                  </button> */}
                 </div>
               </div>
             )}
@@ -1300,18 +1333,18 @@ export function CrossChainDepositCard() {
                   onClick={() => {
                     void handleCompleteDeposit();
                   }}
-                  className="w-full rounded-xl bg-emerald-500 py-3 text-sm font-semibold text-black transition hover:bg-emerald-400"
+                  className="glimmer-primary-cta w-full"
                 >
                   Credit on Arc
                 </button>
 
-                <button
+                {/* <button
                   type="button"
                   onClick={discard}
                   className="w-full rounded-xl border border-slate-700 py-2.5 text-xs font-medium text-slate-300 transition hover:border-red-500/40 hover:text-red-300"
                 >
                   Discard this burn and start over
-                </button>
+                </button> */}
 
                 {error && (
                   <p className="flex items-start gap-2 text-xs text-red-300">

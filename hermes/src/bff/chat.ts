@@ -69,7 +69,7 @@ export async function requestHermesChat(options: {
     throw new BffHttpError(
       503,
       "chat_unconfigured",
-      "Hermes User is not connected yet. The read-only API is available, but chat needs a User profile."
+      "Chat is not available yet. The read-only treasury tools are still available."
     );
   }
 
@@ -126,22 +126,22 @@ export async function requestHermesChat(options: {
       if (name === "TimeoutError" || name === "AbortError") {
         options.logger.warn(
           { wallet: options.wallet },
-          "Hermes User chat timed out"
+          "Chat request timed out"
         );
         throw new BffHttpError(
           504,
           "chat_timeout",
-          "Hermes took too long to answer. Try again."
+          "The request took too long. Try again."
         );
       }
       options.logger.error(
         { err: error, wallet: options.wallet },
-        "Hermes User chat request failed"
+        "Chat request failed"
       );
       throw new BffHttpError(
         502,
         "chat_upstream_error",
-        "Hermes is unavailable right now."
+        "Chat is unavailable right now."
       );
     }
   }
@@ -149,12 +149,12 @@ export async function requestHermesChat(options: {
   if (!response) {
     options.logger.error(
       { err: lastRouteError, wallet: options.wallet },
-      "Hermes User chat route was not found"
+      "Chat route was not found"
     );
     throw new BffHttpError(
       502,
       "chat_upstream_error",
-      "Hermes is unavailable right now."
+      "Chat is unavailable right now."
     );
   }
 
@@ -166,12 +166,12 @@ export async function requestHermesChat(options: {
         wallet: options.wallet,
         body: text.slice(0, 500),
       },
-      "Hermes User chat returned an error"
+      "Chat request returned an error"
     );
     throw new BffHttpError(
       502,
       "chat_upstream_error",
-      "Hermes returned an error. Try again."
+      "The request failed. Try again."
     );
   }
 
@@ -181,12 +181,12 @@ export async function requestHermesChat(options: {
   } catch {
     options.logger.error(
       { wallet: options.wallet, body: text.slice(0, 500) },
-      "Hermes User chat returned non-JSON"
+      "Chat response was not JSON"
     );
     throw new BffHttpError(
       502,
       "chat_invalid_response",
-      "Hermes returned an unreadable answer."
+      "The response could not be read."
     );
   }
 
@@ -194,12 +194,12 @@ export async function requestHermesChat(options: {
   if (!reply) {
     options.logger.error(
       { wallet: options.wallet, body: text.slice(0, 500) },
-      "Hermes User chat response had no assistant text"
+      "Chat response contained no text"
     );
     throw new BffHttpError(
       502,
       "chat_invalid_response",
-      "Hermes returned an empty answer."
+      "The response was empty."
     );
   }
 
