@@ -34,11 +34,32 @@ import {
 import { parseOnchainError } from "../lib/errors";
 import type { CctpDepositHandoff } from "../lib/hermes";
 import {
+  isBridgeDepositActionCompleted,
   isBridgeDepositInProgress,
   useBridgeDepositStore,
 } from "../stores/bridgeDeposit";
 
 const ARC_GAS_RESERVE = 100_000_000_000_000_000n;
+const PREFLIGHT_TIMEOUT_MS = 20_000;
+const SWITCH_TIMEOUT_MS = 45_000;
+
+async function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  message: string
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(message)), ms);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
 
 export function HermesCctpDepositCard({
   handoff,
@@ -57,6 +78,9 @@ export function HermesCctpDepositCard({
   const { writeContractAsync } = useWriteContract();
   const queryClient = useQueryClient();
   const [working, setWorking] = useState(false);
+  const [workingLabel, setWorkingLabel] = useState(
+    "Waiting for wallet and network confirmation…"
+  );
   const [localError, setLocalError] = useState("");
   const bridge = useBridgeDepositStore();
   const amount = (() => {
@@ -75,8 +99,13 @@ export function HermesCctpDepositCard({
       bridge.chatActionId === actionId
   );
   const status = activeMatches ? bridge.status : "idle";
+  const completedFromHistory = isBridgeDepositActionCompleted(
+    bridge.recent,
+    actionId
+  );
+  const completed = status === "done" || completedFromHistory;
   const isOtherDepositActive =
-    isBridgeDepositInProgress(bridge.status) && !activeMatches;
+    !completed && isBridgeDepositInProgress(bridge.status) && !activeMatches;
 
   useEffect(() => {
     if (
@@ -141,62 +170,70 @@ export function HermesCctpDepositCard({
     }
 
     setWorking(true);
+    setWorkingLabel("Checking balances and network…");
     setLocalError("");
     const setBridgeDeposit = useBridgeDepositStore.getState().setBridgeDeposit;
     try {
-      const [sourceBalance, sourceAllowance, paused, vaultId, arcGas] =
-        await Promise.all([
-          sourceClient.readContract({
-            address: source.usdc,
-            abi: ERC20_ABI,
-            functionName: "balanceOf",
-            args: [address],
-          }),
-          sourceClient.readContract({
-            address: source.usdc,
-            abi: ERC20_ABI,
-            functionName: "allowance",
-            args: [address, TOKEN_MESSENGER_V2],
-          }),
-          arcClient.readContract({
-            address: ADDRESSES.treasury,
-            abi: TREASURY_ABI,
-            functionName: "paused",
-          }),
-          arcClient.readContract({
-            address: ADDRESSES.treasury,
-            abi: TREASURY_ABI,
-            functionName: "defaultVaultId",
-          }),
-          arcClient.getBalance({ address }),
-        ]);
-      if (paused) throw new Error("The treasury is paused.");
-      if (sourceBalance < amount)
-        throw new Error(`Not enough USDC on ${source.name}.`);
-      if (arcGas < ARC_GAS_RESERVE) {
-        throw new Error(
-          "Keep at least 0.1 USDC on Arc for the receiver transaction."
-        );
-      }
-      const vault = await arcClient.readContract({
-        address: ADDRESSES.adapter,
-        abi: ADAPTER_ABI,
-        functionName: "getVaultConfig",
-        args: [vaultId],
-      });
-      if (amount < vault.minDeposit) {
-        throw new Error(
-          `The live vault minimum is ${vault.minDeposit / 1_000_000n} USDC.`
-        );
-      }
-      const shares = await arcClient.readContract({
-        address: ADDRESSES.vault1,
-        abi: VAULT_ABI,
-        functionName: "previewDeposit",
-        args: [amount],
-      });
-      if (shares === 0n)
-        throw new Error("This amount would mint zero vault shares.");
+      const { sourceAllowance } = await withTimeout(
+        (async () => {
+          const [sourceBalance, allowance, paused, vaultId, arcGas] =
+            await Promise.all([
+              sourceClient.readContract({
+                address: source.usdc,
+                abi: ERC20_ABI,
+                functionName: "balanceOf",
+                args: [address],
+              }),
+              sourceClient.readContract({
+                address: source.usdc,
+                abi: ERC20_ABI,
+                functionName: "allowance",
+                args: [address, TOKEN_MESSENGER_V2],
+              }),
+              arcClient.readContract({
+                address: ADDRESSES.treasury,
+                abi: TREASURY_ABI,
+                functionName: "paused",
+              }),
+              arcClient.readContract({
+                address: ADDRESSES.treasury,
+                abi: TREASURY_ABI,
+                functionName: "defaultVaultId",
+              }),
+              arcClient.getBalance({ address }),
+            ]);
+          if (paused) throw new Error("The treasury is paused.");
+          if (sourceBalance < amount)
+            throw new Error(`Not enough USDC on ${source.name}.`);
+          if (arcGas < ARC_GAS_RESERVE) {
+            throw new Error(
+              "Keep at least 0.1 USDC on Arc for the receiver transaction."
+            );
+          }
+          const vault = await arcClient.readContract({
+            address: ADDRESSES.adapter,
+            abi: ADAPTER_ABI,
+            functionName: "getVaultConfig",
+            args: [vaultId],
+          });
+          if (amount < vault.minDeposit) {
+            throw new Error(
+              `The live vault minimum is ${vault.minDeposit / 1_000_000n} USDC.`
+            );
+          }
+          const shares = await arcClient.readContract({
+            address: ADDRESSES.vault1,
+            abi: VAULT_ABI,
+            functionName: "previewDeposit",
+            args: [amount],
+          });
+          if (shares === 0n)
+            throw new Error("This amount would mint zero vault shares.");
+          return { sourceAllowance: allowance };
+        })(),
+        PREFLIGHT_TIMEOUT_MS,
+        "Timed out reading the source and Arc networks. Check your connection and try again."
+      );
 
       setBridgeDeposit({
         status: sourceAllowance < amount ? "approving" : "burning",
@@ -214,8 +251,15 @@ export function HermesCctpDepositCard({
         chatActionId: actionId,
       });
 
-      if (chainId !== source.chain.id)
-        await switchChainAsync({ chainId: source.chain.id });
+      if (chainId !== source.chain.id) {
+        setWorkingLabel("Switching network in your wallet…");
+        await withTimeout(
+          switchChainAsync({ chainId: source.chain.id }),
+          SWITCH_TIMEOUT_MS,
+          "The wallet did not complete the network switch. Open your wallet, confirm the switch, and try again."
+        );
+      }
+      setWorkingLabel("Waiting for wallet and network confirmation…");
       if (sourceAllowance < amount) {
         const approval = await writeContractAsync({
           address: source.usdc,
@@ -244,13 +288,9 @@ export function HermesCctpDepositCard({
         2000,
         addrToBytes32(address),
       ] as const;
-      await sourceClient.simulateContract({
-        account: address,
-        address: TOKEN_MESSENGER_V2,
-        abi: TOKEN_MESSENGER_V2_ABI,
-        functionName: "depositForBurnWithHook",
-        args: burnArgs,
-      });
+      // Do not block the wallet prompt on a separate source-chain simulation.
+      // The wallet performs its own simulation, and a slow public RPC here used
+      // to leave the card waiting without ever opening the wallet.
       const burnHash = await writeContractAsync({
         address: TOKEN_MESSENGER_V2,
         abi: TOKEN_MESSENGER_V2_ABI,
@@ -269,11 +309,13 @@ export function HermesCctpDepositCard({
       await queryClient.invalidateQueries();
     } catch (error) {
       const message = parseOnchainError(error);
-      if (useBridgeDepositStore.getState().owner) {
+      const state = useBridgeDepositStore.getState();
+      if (state.chatActionId === actionId) {
         setBridgeDeposit({ status: "error", error: message });
-      } else {
-        setLocalError(message);
       }
+      // Always show the failure on the card that initiated it. A stale bridge
+      // record from an earlier deposit must not swallow a preflight error.
+      setLocalError(message);
     } finally {
       setWorking(false);
     }
@@ -283,6 +325,7 @@ export function HermesCctpDepositCard({
     if (!address || !arcClient || !bridge.message || !bridge.attestation)
       return;
     setWorking(true);
+    setWorkingLabel("Waiting for wallet and network confirmation…");
     setLocalError("");
     const setBridgeDeposit = useBridgeDepositStore.getState().setBridgeDeposit;
     try {
@@ -351,6 +394,7 @@ export function HermesCctpDepositCard({
   }
 
   function retryAttestation() {
+    setLocalError("");
     useBridgeDepositStore
       .getState()
       .setBridgeDeposit({ status: "waiting", error: "" });
@@ -383,7 +427,7 @@ export function HermesCctpDepositCard({
           Confirm the Arc receiver transaction in your wallet…
         </StatusLine>
       )}
-      {status === "done" && (
+      {completed && (
         <StatusLine complete>Credited to your treasury and vault.</StatusLine>
       )}
       {(localError || (activeMatches && bridge.error)) && (
@@ -406,7 +450,7 @@ export function HermesCctpDepositCard({
           Continue on Arc
         </button>
       )}
-      {(status === "idle" || status === "error") && (
+      {!completed && (status === "idle" || status === "error") && (
         <button
           type="button"
           onClick={() =>
@@ -423,9 +467,17 @@ export function HermesCctpDepositCard({
             : "Continue in wallet"}
         </button>
       )}
-      {working && (
-        <StatusLine>Waiting for wallet and network confirmation…</StatusLine>
+      {completed && (
+        <button
+          type="button"
+          disabled
+          className="glimmer-primary-cta mt-4 inline-flex cursor-default items-center gap-2 opacity-70"
+        >
+          <Check className="h-4 w-4" />
+          Action completed
+        </button>
       )}
+      {working && !completed && <StatusLine>{workingLabel}</StatusLine>}
       {isOtherDepositActive && (
         <p className="mt-3 text-xs text-slate-400">
           Another inbound CCTP deposit is already in progress.

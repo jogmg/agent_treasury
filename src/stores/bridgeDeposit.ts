@@ -73,6 +73,18 @@ export interface BridgeDepositRecord {
   amount: string;
   status: BridgeDepositStatus;
   createdAt: number;
+  /** Hermes chat action that started this burn, when applicable. */
+  chatActionId: string;
+}
+
+export function isBridgeDepositActionCompleted(
+  recent: BridgeDepositRecord[],
+  actionId: string | undefined
+): boolean {
+  if (!actionId) return false;
+  return recent.some(
+    (record) => record.status === "done" && record.chatActionId === actionId
+  );
 }
 
 export interface BridgeDepositState extends BridgeDepositCurrent {
@@ -238,6 +250,7 @@ function normalizeRecord(input: unknown): BridgeDepositRecord | null {
     amount,
     status,
     createdAt: Number.isFinite(createdAt) ? createdAt : Date.now(),
+    chatActionId: asString(raw.chatActionId),
   };
 }
 
@@ -273,6 +286,7 @@ function loadPersisted(): PersistedState {
         amount: current.amount,
         status: current.status,
         createdAt: Date.now(),
+        chatActionId: current.chatActionId,
       });
     }
 
@@ -311,6 +325,7 @@ function upsertRecent(
     amount: current.amount,
     status: current.status,
     createdAt: existing?.createdAt ?? Date.now(),
+    chatActionId: current.chatActionId,
   };
 
   return [
@@ -368,6 +383,7 @@ export const useBridgeDepositStore = create<BridgeDepositState>((setState) => ({
         sourceDomain: record.sourceDomain,
         amount: record.amount,
         burnHash: record.burnHash,
+        chatActionId: record.chatActionId,
       };
       const recent = upsertRecent(state.recent, current);
       persist(current, recent);

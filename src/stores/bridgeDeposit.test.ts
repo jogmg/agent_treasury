@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  isBridgeDepositActionCompleted,
   isBridgeDepositInProgress,
   useBridgeDepositStore,
 } from "./bridgeDeposit";
@@ -70,6 +71,35 @@ describe("cross-chain deposit flow", () => {
     expect(useBridgeDepositStore.getState().chatActionId).toBe(
       "session-1:action-1"
     );
+  });
+
+  it("keeps a completed Hermes action completed after newer deposits", () => {
+    const { setBridgeDeposit } = useBridgeDepositStore.getState();
+    setBridgeDeposit({
+      status: "done",
+      owner: "0xabc",
+      sourceDomain: 6,
+      amount: "10000000",
+      burnHash: HASH,
+      chatActionId: "session-1:action-1",
+    });
+    setBridgeDeposit({
+      status: "waiting",
+      owner: "0xabc",
+      sourceDomain: 6,
+      amount: "20000000",
+      burnHash: OTHER_HASH,
+      chatActionId: "session-1:action-2",
+    });
+
+    const recent = useBridgeDepositStore.getState().recent;
+    expect(
+      isBridgeDepositActionCompleted(recent, "session-1:action-1")
+    ).toBe(true);
+    expect(
+      isBridgeDepositActionCompleted(recent, "session-1:action-2")
+    ).toBe(false);
+    expect(isBridgeDepositActionCompleted(recent, undefined)).toBe(false);
   });
 
   it("resets the active flow but keeps the source burn in recent history", () => {
