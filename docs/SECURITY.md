@@ -23,13 +23,15 @@ Deployed and independently verified on Arc mainnet (`5042`):
 | ------------------ | -------------------------------------------- |
 | AgentTreasury      | `0xf71b5d1a19d72b98675785123fae811698be6f63` |
 | MorphoVaultAdapter | `0x5102057330f5bb5f3e4eb0925b7d1eac8a563c23` |
-| CCTPReceiver       | `0x91f1eb97a40fdab05d150c10566cf9aa3546a375` |
+| CCTPReceiverV2     | `0x847F55221F30675791d2fAaf84f93B1fa86399E2` |
+| CCTPReceiver (legacy) | `0x91f1eb97a40fdab05d150c10566cf9aa3546a375` |
 
 Verified: bytecode, owner/keeper, adapter/receiver links, mainnet CCTP and domain `26`, default vault
 `1`, unpaused, vault asset USDC, active with `minDeposit = 5 USDC`, APY `2.65%`, and positive previews.
 
-Launch guardrails: **5 USDC minimum**, **25 USDC/day and 50 USDC/week** spending limit, owner EOA as
-keeper. A live **5 USDC deposit → 1 USDC local withdrawal** passed on mainnet on October 21, 2026
+Launch guardrails: **5 USDC minimum**, **25 USDC/day and 50 USDC/week** spending limit, and a
+dedicated keeper EOA (`0x72Cbd56507699F5002A10aCdDC5D20b4C2207a75`, rotated 2026-10-25). A live
+**5 USDC deposit → 1 USDC local withdrawal** passed on mainnet on October 21, 2026
 (evidence below). The exact deploy sequence passed on a mainnet fork first. Full record:
 `deployments/arc-mainnet.json`.
 
@@ -60,6 +62,7 @@ Real USDC on Arc mainnet, signed by the owner wallet through the app:
 
 - Arc→Base withdrawal 1: burn [`0xbfcdbe…5ccd`](https://explorer.arc.io/tx/0xbfcdbe75479246d4b6e3ad51d076618e5450d98899c5aa76ee0ce12dddff5ccd) for `1,999,999`; production Iris attestation `complete`; Base mint [`0x58c3eb…59fa`](https://basescan.org/tx/0x58c3eb306e7e03bf77b1e38637df4b9ef39f5b159276d842fd2c97d77edd59fa).
 - Arc→Base withdrawal 2: burn [`0x971d10…ad76`](https://explorer.arc.io/tx/0x971d1064e78b4e30154174e618c37735d9cf326d2e8d60da9d546942d92aad76) for `4,999,999`; Iris `complete`; Base mint [`0x68045f…7609`](https://basescan.org/tx/0x68045fe2f25c2c03b0dd84ba871e6adc35ca8abfbe7552f9378988b648017609).
+- Arc→Base withdrawal 3: burn [`0x79006a…2b13`](https://explorer.arc.io/tx/0x79006af075136d77abb5724fc1124e7ee2b61c8a58ceea3cd943e50423042b13) for `4,999,999`; Iris `complete`; Base mint [`0x875d82…8a94`](https://basescan.org/tx/0x875d8220284648e79920f3f3603d111cdc4628b43c747cf0f126039cf2118a94).
 - Both Base mints were submitted by relayer `0xecfe41…c717`, not the owner wallet, so relay is permissionless as designed.
 - Base→Arc deposit: Base burn [`0xadf19a…b280`](https://basescan.org/tx/0xadf19a348fcb122f1052e717870290db6cc351b13a5338f72c6ac288cf61b280) for 5 USDC; Arc `receiveMessage` [`0xb2a7ba…246c`](https://explorer.arc.io/tx/0xb2a7ba0096aefaed2dfd959162a66bca2c6f781909a3cd80a132581420ab246c); treasury `deposit` [`0xb1e34e…026b`](https://explorer.arc.io/tx/0xb1e34e0a075037523a8eb0bb48b9813d8e247f78da37b4cb7402fb2aa9ed026b) → `4,996,555,771,054,222,485` shares.
 - Post-state: principal `9.000003`, shares `8,993,822,921,076,662,356`, total `9.000028` USDC. Nonces are marked used on both Base and Arc.
@@ -95,8 +98,8 @@ destination Sepolia mint for the remaining 1 USDC transfer is pending gas; see
 6. **APY is an owner-set cache.** `vaultAPY(1)` is a display value (mainnet `2.65%`, testnet `4.2%`), not an on-chain oracle. The UI labels projections as estimates.
 7. **Event history is bounded.** The activity scanner starts at the configured deployment block and reads 9,000-block chunks; it skips RPC-limited chunks, so very old history is not indexed.
 8. **CSV export is not sanitized for spreadsheet formula injection.** Only export events you trust; args are JSON-encoded.
-9. **No formal verification or fuzzing of the full state machine.** Foundry unit/invariant tests cover the main paths (81 tests, including a mainnet fork rehearsal) but not all adversarial sequences.
-10. **Frontend has no backend and no secrets.** All writes are user-signed. A compromised RPC can lie about reads; verify critical transactions on the explorer.
+9. **No formal verification or fuzzing of the full state machine.** Foundry unit/invariant tests cover the main paths (104 tests, including a mainnet fork rehearsal) but not all adversarial sequences.
+10. **The core treasury frontend has no backend and no secrets.** All treasury writes are user-signed. The optional Hermes workspace adds a private BFF and Postgres for chat/intent state, but no wallet signing key. A compromised RPC can lie about reads; verify critical transactions on the explorer.
 
 ## Post-mainnet hardening checklist
 
@@ -104,11 +107,11 @@ destination Sepolia mint for the remaining 1 USDC transfer is pending gas; see
 - [x] Mainnet fork rehearsal of the exact deploy sequence.
 - [x] Zero-share guard in the mainnet adapter.
 - [x] Live mainnet deposit / local withdrawal proof (5 USDC in, 1 USDC out, October 21, 2026).
-- [x] Live mainnet CCTP proof: Arc→Base withdrawals 1–2 attested and minted, Base→Arc 5 USDC mint/deposit.
-- [ ] Clear completed withdrawal bookkeeping (`executeWithdrawal(1)`, `(2)`) and add an app action for it.
-- [ ] Independent review / audit of `AgentTreasury`, `MorphoVaultAdapter`, `CCTPReceiver`.
+- [x] Live mainnet CCTP proof: Arc→Base withdrawals 1–3 attested and minted, Base→Arc 5 USDC mint/deposit.
+- [x] Clear completed withdrawal bookkeeping (`executeWithdrawal(1..3)`) on 2026-10-25; the app still has no execute action.
+- [ ] Independent review / audit of `AgentTreasury`, `MorphoVaultAdapter`, and `CCTPReceiverV2`.
 - [ ] Owner-bounded spending limits.
-- [ ] Multisig/timelock owner and a dedicated keeper key.
+- [ ] Multisig/timelock owner. A dedicated keeper EOA is in place.
 - [ ] Live CCTP message decoding tests against mainnet messages.
 - [ ] Iris relay service (or documented manual runbook).
 - [ ] Gateway integration with a server-side key, or remove the hook from the UI copy.

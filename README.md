@@ -8,7 +8,7 @@ Built with [Arc Studio](https://studio.arc.io) · Arc Mainnet (chain ID `5042`)
 
 ## What it is
 
-AI agents are becoming economic actors, but they have nowhere safe to keep working capital. Agent Treasury gives each agent a non-custodial USDC account on Arc that:
+AI agents are becoming economic actors, but they have nowhere safe to keep working capital. Glimmerlock gives each agent a non-custodial USDC account on Arc that:
 
 1. **Receives USDC from any CCTP-supported chain** via CCTP v2.
 2. **Automatically deploys idle USDC into a Morpho vault** through Circle's Earn Kit rails, earning ~2.65% net APY on Arc mainnet.
@@ -29,24 +29,27 @@ The app opens with a focused chat workspace, with Overview, Deposit, Yield, With
 | ------------------ | -------------------------------------------------------------------------------------------------------------------------- |
 | AgentTreasury      | [`0xf71b5d1a19d72b98675785123fae811698be6f63`](https://explorer.arc.io/address/0xf71b5d1a19d72b98675785123fae811698be6f63) |
 | MorphoVaultAdapter | [`0x5102057330f5bb5f3e4eb0925b7d1eac8a563c23`](https://explorer.arc.io/address/0x5102057330f5bb5f3e4eb0925b7d1eac8a563c23) |
-| CCTPReceiver       | [`0x91f1eb97a40fdab05d150c10566cf9aa3546a375`](https://explorer.arc.io/address/0x91f1eb97a40fdab05d150c10566cf9aa3546a375) |
+| **CCTPReceiverV2** | [`0x847F55221F30675791d2fAaf84f93B1fa86399E2`](https://explorer.arc.io/address/0x847F55221F30675791d2fAaf84f93B1fa86399E2) |
+| CCTPReceiver (legacy) | [`0x91f1eb97a40fdab05d150c10566cf9aa3546a375`](https://explorer.arc.io/address/0x91f1eb97a40fdab05d150c10566cf9aa3546a375) |
 
 Vault 1 is **Galaxy USDC** [`0x8E357432CC12ff425c36432F312968aEb16112AF`](https://explorer.arc.io/address/0x8E357432CC12ff425c36432F312968aEb16112AF)
 (`arcUSDC`, 18-dec shares, ~2.65% net APY, 0 fees, ~12.2M USDC instant liquidity). Fallback:
 Steakhouse Prime `0xbeef0016cb2Fd5C352ea7CA08a9f54739DFa7298` (~1.97% APY).
 
-Deployment blocks: adapter `27153175`, treasury `27153209`. Owner and keeper:
-`0xD00fD0B006c01342522cAf4FA04D5f8910aB268c`. Full record: `deployments/arc-mainnet.json`.
+Deployment blocks: adapter `27153175`, treasury `27153209`. Owner:
+`0xD00fD0B006c01342522cAf4FA04D5f8910aB268c`. Keeper:
+`0x72Cbd56507699F5002A10aCdDC5D20b4C2207a75` (dedicated EOA, rotated 2026-10-25).
+Full record: `deployments/arc-mainnet.json`.
 
 **Launch guardrails (unaudited):**
 
 - Vault minimum **5 USDC** (enforced on-chain; derived from share price and gas-versus-yield economics).
 - Spending limit **25 USDC/day, 50 USDC/week** for the owner agent.
-- Keeper is the owner EOA for launch; rotate to a dedicated key before scaling.
+- Keeper is a dedicated EOA, separate from the owner; keep that key isolated and do not reuse it for agent operations.
 - External audit before raising caps or onboarding third-party agents.
 - A live mainnet **5 USDC deposit + 1 USDC local withdrawal** passed on October 21, 2026 (deposit
   `0xf48c28…0225`, withdraw `0x5caf81…76b0`).
-- Mainnet **CCTP round trip** also passed: two Arc→Base withdrawals were attested and minted, then
+- Mainnet **CCTP round trip** also passed: three Arc→Base withdrawals were attested and minted, then
   5 USDC was burned on Base, minted on Arc, and deposited into Galaxy USDC.
 
 Protocol constants (the CCTP deployments differ between networks):
@@ -68,7 +71,8 @@ destination map, Iris endpoint, explorer, and RPC list.
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
 | AgentTreasury      | [`0x5e2e3da19533ebf85bc916612eff5cdc7bf4d489`](https://explorer.testnet.arc.io/address/0x5e2e3da19533ebf85bc916612eff5cdc7bf4d489) |
 | MorphoVaultAdapter | [`0x333deccbf9091540e849b7af80f2f10b72197b71`](https://explorer.testnet.arc.io/address/0x333deccbf9091540e849b7af80f2f10b72197b71) |
-| CCTPReceiver       | [`0x8066bcf8e6b17e2d84082179a89f0972cc6e31c1`](https://explorer.testnet.arc.io/address/0x8066bcf8e6b17e2d84082179a89f0972cc6e31c1) |
+| **CCTPReceiverV2** | [`0x344466B00BED1BD5bdFa3E21392E776144323f4c`](https://explorer.testnet.arc.io/address/0x344466B00BED1BD5bdFa3E21392E776144323f4c) |
+| CCTPReceiver (legacy) | [`0x8066bcf8e6b17e2d84082179a89f0972cc6e31c1`](https://explorer.testnet.arc.io/address/0x8066bcf8e6b17e2d84082179a89f0972cc6e31c1) |
 
 Deployment block `68193025`. Full record and E2E proof: `deployments/arc-testnet-fixed.json`.
 Build it with `VITE_ARC_NETWORK=testnet`; it keeps the 1 USDC demo minimum and the ~4.2% APY vault
@@ -124,8 +128,8 @@ User / agent ── approve ──┐
                                                    TokenMessengerV2
                                                           │ mint
                                                           ▼
-                                                   user's Arc wallet
-                                                          │ approve + deposit()
+                                                   CCTPReceiverV2
+                                                          │ receiveAndProcess()
                                                           ▼
    ┌──────────────────────────────────────────── AgentTreasury ────────────────────────────────────────────┐
    │  per-agent accounting: principal, deployedPrincipal, vaultShares, chainDeposits, spending windows     │
@@ -138,16 +142,17 @@ User / agent ── approve ──┐
 
 > CCTP v2 `hookData` is **opaque metadata**. The core MessageTransmitter does not
 > execute arbitrary receiver logic; it calls the destination TokenMessenger,
-> which mints to `mintRecipient`. The app therefore uses the direct path above:
-> mint to the connected Arc wallet, then call `deposit()`. `CCTPReceiver` remains
-> a relayer adapter for source-domain accounting, but the app does not depend on
-> automatic hook execution.
+> which mints to `mintRecipient`. For inbound deposits the app points
+> `mintRecipient` at `CCTPReceiverV2` and calls `receiveAndProcess` on Arc, which
+> mints and credits the real source domain atomically. Legacy burns that minted to
+> the connected wallet still fall back to `approve` + `deposit()`. The original
+> `CCTPReceiver` remains a relayer adapter and is not on the current app path.
 
 ### Contracts
 
 - **`AgentTreasury.sol`** — per-agent accounts. Holds principal, deployed principal, vault shares, per-domain deposits, daily/weekly spending windows, pending CCTP withdrawals, keeper role, pause, two-step ownership. `getTotalBalance()` is non-reverting: it falls back to principal if the vault preview fails.
 - **`MorphoVaultAdapter.sol`** — allowlisted ERC-4626 vault registry with per-vault min deposits, APY cache, `previewRedeem`, and a `ZeroShares` guard. Only the treasury (or owner) can move funds.
-- **`CCTPReceiver.sol`** — relayer adapter for inbound CCTP. It decodes the agent from `hookData`, routes malformed hook data to a default beneficiary instead of reverting, and forwards USDC into the treasury. It is unit-tested but **not used by the current app**, because CCTP v2 hooks are opaque and require an integrator-run relayer. The direct app path mints to the user's Arc wallet and calls `deposit()`.
+- **`CCTPReceiverV2.sol`** — current inbound CCTP path. It validates the attested message, mints to itself, transfers the USDC into the treasury, and calls `recordDeposit` with the real source domain in one transaction. `CCTPReceiver.sol` is the earlier relayer adapter, retained for history and unused by the current app path.
 - **`libraries/CCTPMessageLib.sol`** — hook data encode/decode.
 - **`libraries/Errors.sol`** — custom errors.
 
@@ -155,7 +160,7 @@ User / agent ── approve ──┐
 
 - React 18 + Vite + TypeScript + Tailwind, wagmi v2 + viem + ConnectKit.
 - TanStack Query owns on-chain freshness (10s polling); Zustand owns cross-component state and wizard flow, with a documented Query→Zustand bridge.
-- No backend and no server-held keys. Reads go directly to the Arc RPC; writes are signed by the user's wallet.
+- The core treasury app is client-side and holds no server keys. Reads go directly to the Arc RPC; writes are signed by the user's wallet. The optional Hermes workspace adds a private BFF and Postgres for chat/intent state, but never holds a wallet signing key.
 - Activity is reconstructed from treasury event logs in 9,000-block chunks.
 
 ---
@@ -166,7 +171,7 @@ User / agent ── approve ──┐
 bun install
 bun run dev          # http://localhost:5173 — Arc mainnet by default
 bun run build        # production build (mainnet)
-bun run test         # Vitest (52 tests)
+bun run test         # Vitest (80 tests)
 bun run check        # lint + typecheck
 
 VITE_ARC_NETWORK=testnet bun run dev   # testnet demo build
@@ -179,7 +184,7 @@ cd contracts
 forge install foundry-rs/forge-std --no-commit
 forge install OpenZeppelin/openzeppelin-contracts@v5.1.0 --no-commit
 forge build
-forge test           # 81 tests
+forge test           # 104 tests
 ```
 
 The app selects its whole chain surface at build time. Optional overrides:
@@ -224,7 +229,7 @@ See `docs/RUNBOOK.md` for the exact env vars and smoke tests.
 5. **Activity**: decoded `DepositRecorded`, `WithdrawalToWallet`, `YieldStrategyChanged`, etc., with explorer links and CSV export.
 6. **Settings**: set daily/weekly spending limits; inspect owner/keeper/pause.
 
-Cross-chain **inbound** deposits are in the Deposit tab. Pick a source chain, approve and burn USDC with CCTP v2, then the app polls Iris, switches to Arc, mints to the connected wallet, approves the treasury, and calls `deposit()`. Standard CCTP takes 15–30 minutes and needs a little Arc gas for the final transactions. On mainnet the source list is Ethereum, Avalanche, Optimism, Arbitrum, Base, and Polygon, and Iris is Circle's production API.
+Cross-chain **inbound** deposits are in the Deposit tab. Pick a source chain, approve and burn USDC with CCTP v2, then the app polls Iris, switches to Arc, and calls `CCTPReceiverV2.receiveAndProcess`, which mints and credits the real source domain in one transaction. Legacy burns that minted to the connected wallet fall back to approve + `deposit()`. Standard CCTP takes 15–30 minutes and needs a little Arc gas for the final transaction. On mainnet the source list is Ethereum, Avalanche, Optimism, Arbitrum, Base, and Polygon, and Iris is Circle's production API.
 
 Cross-chain **outbound** (`requestWithdrawal`) is available in the Withdraw tab (Advanced: Cross-Chain Withdrawal). Destination is picked by **chain name in a dropdown** (mainnet: Ethereum, Avalanche, Optimism, Arbitrum, Base, Polygon; testnet: the Sepolia/Fuji/Amoy equivalents). It burns via CCTP v2 and then the app fetches the Circle attestation automatically. When the attestation is ready, the app switches to the destination chain and asks for one wallet confirmation to submit `receiveMessage`; the final mint needs destination-chain gas. There is no request list in this section (transfers live in the Activity tab); pasting an Arc burn tx hash resumes an older transfer. `scripts/complete-cctp.ts` is the headless fallback.
 
@@ -238,9 +243,9 @@ The Activity tab groups activity with **All / In flight / Deposits / Withdrawals
 | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | Per-agent treasury, spending limits, pause, keeper separation                | ✅ implemented + tested                                                                                                                     |
 | Morpho/Earn Kit vault deposit, redeem, strategy switch                       | ✅ implemented + tested; live on testnet and on mainnet with Galaxy USDC (5 USDC deposit, 1 USDC local withdrawal)                          |
-| CCTP v2 outbound burn with hook data                                         | ✅ implemented, unit-tested, and verified live on both networks (mainnet Arc→Base burns ids 1–2, complete Iris attestations, Base mints)    |
-| CCTP v2 **inbound deposit** (source burn → mint to Arc wallet → `deposit()`) | ✅ implemented and verified live (Base→Arc 5 USDC burn, Arc mint, Galaxy USDC deposit); requires source USDC + source gas + Arc gas         |
-| CCTPReceiver relayer adapter + malformed-data fallback                       | ✅ unit-tested; ⚠️ not used by the app (CCTP v2 hooks are opaque; a relayer/forwarder is required)                                          |
+| CCTP v2 outbound burn with hook data                                         | ✅ implemented, unit-tested, and verified live on both networks (mainnet Arc→Base burns ids 1–3, complete Iris attestations, Base mints)    |
+| CCTP v2 **inbound deposit** (source burn → `CCTPReceiverV2` → `recordDeposit`) | ✅ implemented and verified live (Base→Arc 5 USDC burn, real source domain 6, Galaxy USDC deposit); legacy wallet-mint fallback remains      |
+| Legacy `CCTPReceiver` relayer adapter + malformed-data fallback              | ✅ unit-tested; not used by the current app path (CCTP v2 hooks are opaque; a relayer/forwarder is required)                                |
 | Arc-local fast path (`deposit`, `withdrawLocal`)                             | ✅ implemented + tested                                                                                                                     |
 | Dashboard, 6 tabs, event history, CSV export                                 | ✅ built, lint/typecheck clean                                                                                                              |
 | Testnet deployment                                                           | ✅ deployed, wired, and E2E verified with real testnet USDC                                                                                 |
@@ -271,6 +276,8 @@ A full mainnet **CCTP round trip** followed:
   Base mint `0x58c3eb…59fa`.
 - **Arc→Base withdrawal 2:** burn `0x971d10…ad76`, 4.999999 USDC, complete Iris attestation,
   Base mint `0x68045f…7609`.
+- **Arc→Base withdrawal 3:** burn `0x79006a…2b13`, 4.999999 USDC, complete Iris attestation,
+  Base mint `0x875d82…8a94`.
 - **Base→Arc deposit:** burn `0xadf19a…b280` for 5 USDC; Arc `receiveMessage` `0xb2a7ba…246c`
   minted it, then `deposit()` `0xb1e34e…026b` added `4,996,555,771,054,222,485` Galaxy USDC shares.
 
@@ -279,9 +286,10 @@ USDC. All hashes, nonces, and timestamps are in `deployments/arc-mainnet.json` (
 The exact 10-transaction deploy sequence was rehearsed first on a live Arc mainnet fork
 (`contracts/test/fork/MainnetDeploy.t.sol`).
 
-One bookkeeping follow-up: the two completed withdrawal requests are still `executed=false`
-on-chain. The app has no execute action yet; a keeper call to `executeWithdrawal(1)` and
-`executeWithdrawal(2)` clears them (funds are unaffected).
+Withdrawal bookkeeping is complete: mainnet withdrawal IDs 1–3 were verified delivered and marked
+`executed=true` on 2026-10-25. Those owner-signed calls only update bookkeeping and move no funds.
+The app continues to derive user-facing completion from Iris and destination delivery, not the
+`executed` flag.
 
 **Audit plan:** the contracts are unaudited, so mainnet runs with deliberately low caps and only the
 owner's funds. Before raising the limits or onboarding third-party agents: external review of
@@ -299,7 +307,7 @@ and a dedicated keeper key.
 - Spending limits are enforced on the resolved withdrawal amount, including `type(uint256).max`.
 - `getTotalBalance()` never reverts; a failing vault preview falls back to principal.
 - Hook data is decoded tolerantly; malformed payloads route to the default beneficiary instead of bricking the mint.
-- Frontend has no backend and no secrets. Never commit a private key; the live deploy was signed in MetaMask.
+- The core treasury frontend holds no secrets or signing keys. The optional Hermes workspace uses a private BFF and Postgres for session/intent state, but every treasury write is still signed in the user's wallet. Never commit a private key.
 
 See `docs/SECURITY.md` for the full threat model and known gaps.
 
@@ -311,7 +319,7 @@ See `docs/SECURITY.md` for the full threat model and known gaps.
 .
 ├── contracts/
 │   ├── src/                 # AgentTreasury, MorphoVaultAdapter, CCTPReceiver, interfaces, libraries
-│   ├── test/                # 81 Foundry tests + mocks + mainnet fork rehearsal
+│   ├── test/                # 104 Foundry tests + mocks + mainnet fork rehearsal
 │   └── script/              # ArcConfig, DeployMainnet, testnet scripts
 ├── src/
 │   ├── components/          # Header, StatCard, TxStep, EventRow, 6 tab panels

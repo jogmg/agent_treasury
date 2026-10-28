@@ -1,6 +1,6 @@
 # Hermes VPS setup and project connectivity
 
-This guide takes a fresh Ubuntu 24.04 VPS to the Phase 1 Hermes stack:
+This guide takes a fresh Ubuntu 24.04 VPS to the Phase 1 Hermes stack, with the Phase 2 web/BFF path added later in the guide:
 
 - private Discord **Hermes Ops** bot;
 - read-only Arc/CCTP MCP server;
@@ -13,9 +13,9 @@ later phases.
 
 > **2026-10-26 provider update:** the live stack now uses Gemini free-tier models, not NVIDIA.
 > Ops is `gemini-3.8-flash`; User is `gemini-3.5-flash-lite` with a fast fallback chain and a
-> private API server. NVIDIA environment values are retained only as a rollback path. The NVIDIA
-> setup sections below are historical. See `AGENTS.md` and `docs/HERMES.md` for the active model
-> configuration and the UI 502 fix.
+> private API server. NVIDIA environment values are retained only as a rollback path and are
+> commented out in the active setup blocks. See `AGENTS.md` and `docs/HERMES.md` for the active
+> model configuration and the UI 502 fix.
 
 ---
 
@@ -25,8 +25,8 @@ later phases.
   but 4 GB is comfortable).
 - Ubuntu 24.04, SSH access, and a non-root sudo user.
 - A Discord server you control, plus permission to create a bot.
-- An NVIDIA Build API key from <https://build.nvidia.com> (free endpoints; the
-  Ops profile uses a ranked fallback chain).
+- A Google Gemini API key from Google AI Studio (free tier; the Ops profile uses
+  a ranked Gemini fallback chain). An NVIDIA key is needed only for the rollback path.
 - This repository on the VPS: `git clone https://github.com/jogmg/agent_treasury.git`.
 
 No inbound ports are needed except SSH. Discord is an outbound connection.
@@ -206,38 +206,37 @@ DISCORD_ALLOWED_USERS=YOUR_DISCORD_USER_ID
 DISCORD_ALLOWED_CHANNELS=YOUR_OPS_CHANNEL_ID
 DISCORD_REQUIRE_MENTION=true
 ARC_MCP_TOKEN_OPS=THE_SAME_VALUE_AS_HERMES_.ENV
-NVIDIA_API_KEY=nvapi-...
-NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
+GEMINI_API_KEY=...
+# GEMINI_BASE_URL=https://generativelanguage.googleapis.com/v1beta
 API_SERVER_ENABLED=false
+# Rollback only; the active model.provider is gemini.
+# NVIDIA_API_KEY=
+# NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
 ```
 
-The Ops profile uses `model.provider: nvidia` with a ranked
+The Ops profile uses `model.provider: gemini` with a ranked
 `fallback_providers` chain in `hermes/profiles/ops/config.yaml` (copied to
-`data/profiles/ops/config.yaml` by `bootstrap.sh`). As of 2026-10-23 the chain
-starts with `minimaxai/minimax-m3.1-flash`,
-`nvidia/nemotron-3.5-lightning-30b-a3b`, and `meta/muse-glimmer-30b`;
-`z-ai/glm-5.3` and `deepseek-ai/deepseek-v4.1-flash` are later because they
-were over quota or timing out during setup. NVIDIA's catalog changes often, so
-verify IDs against <https://integrate.api.nvidia.com/v1/models> and reorder as
-needed. The provider key is `NVIDIA_API_KEY`; `NVIDIA_BASE_URL` is optional and
-defaults to the same URL.
+`data/profiles/ops/config.yaml` by `bootstrap.sh`). The primary is
+`gemini-3.8-flash`; fallbacks are `gemini-3.6-flash`, `gemini-3.5-flash-lite`,
+and `gemini-3.1-flash-lite`. All stay on the Google free tier. The provider key is
+`GEMINI_API_KEY` (or `GOOGLE_API_KEY`); `GEMINI_BASE_URL` is optional and defaults
+to the native Gemini API. NVIDIA values are retained only for rollback.
 
-#### Switching NVIDIA free models
+#### Switching Gemini free models
 
 - **Automatic:** `fallback_providers` is tried in order on HTTP 429/5xx,
-  timeouts, auth/not-found errors, and invalid responses. `agent.api_max_retries:
-1` and `providers.nvidia.request_timeout_seconds: 45` keep failover quick.
+  timeouts, auth/not-found errors, and invalid responses.
+  `agent.api_max_retries: 1` and `providers.gemini.request_timeout_seconds: 45`
+  keep failover quick.
 - **For one chat:** use an alias in Discord or the CLI:
-  `/model nvidia-minimax`, `/model nvidia-lightning`, `/model nvidia-muse`,
-  `/model nvidia-glm`, `/model nvidia-deepseek`, or `/model nvidia-fast`.
+  `/model gemini-flash`, `/model gemini-3.6`, or `/model gemini-flash-lite`.
 - **Persistently:** edit `model.default` in
   `/data/hermes-data/profiles/ops/config.yaml` (or run `hermes -p ops config edit`
   inside the Hermes container), then restart the gateway.
 - **Interactive manager:** `hermes -p ops fallback` edits the fallback chain;
   `hermes -p ops model` picks the primary.
-- **List current IDs:** with `NVIDIA_API_KEY` loaded in the profile shell,
-  `curl -s https://integrate.api.nvidia.com/v1/models -H "Authorization: Bearer
-$NVIDIA_API_KEY"` (or use the Build catalog UI).
+- **List current IDs:** use Google AI Studio or the Gemini API model list. Do
+  not paste provider keys into shell history or deployment logs.
 
 The Compose service runs `hermes -p ops gateway run`. Hermes' default
 multiplexing expects the default profile to own the host gateway, so the Ops
@@ -319,7 +318,7 @@ cp profiles/user/config.yaml profiles/user/SOUL.md \
 if [ ! -f profiles/user/.env ]; then
   install -m 600 profiles/user/.env.example profiles/user/.env
 fi
-# Fill profiles/user/.env: NVIDIA_API_KEY (from NVIDIA Build),
+# Fill profiles/user/.env: GEMINI_API_KEY (from Google AI Studio),
 # ARC_MCP_TOKEN_USER and API_SERVER_KEY (each: openssl rand -hex 32).
 # Fill hermes/.env: BFF_PUBLIC_ORIGIN=https://your-app.example (the BFF's
 # public HTTPS origin and the SIWE domain; prefer the same origin as the app),
@@ -353,7 +352,7 @@ the browser stays same-origin:
 cd /opt/agent-treasury/hermes
 export HERMES_DATA_DIR="${HERMES_DATA_DIR:-./data}"
 docker compose --profile web up -d --build
-instabox port publish agent-browser-lq29 8080 --name 'Agent Treasury frontend'
+instabox port publish agent-browser-lq29 8080 --name 'Glimmerlock frontend'
 instabox port ls agent-browser-lq29
 ```
 

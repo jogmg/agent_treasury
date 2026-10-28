@@ -2,7 +2,7 @@
 
 ## System shape
 
-Agent Treasury is a **single-tenant-per-agent** treasury primitive plus a client-side dashboard. There is no backend, no database, and no server-held key. The chain is the source of truth; the app reconstructs state from contract reads and event logs.
+Glimmerlock (the product built on the Agent Treasury contracts) is a **single-tenant-per-agent** treasury primitive plus a client-side dashboard. The core treasury path has no backend, no database, and no server-held signing key. The chain is the source of truth; the app reconstructs treasury state from contract reads and event logs. The optional Hermes workspace adds a private BFF and Postgres for chat/intent state, but it never becomes a treasury authority or holds a wallet key.
 
 ```
 ┌─────────────────────────────┐        ┌──────────────────────────────────────────┐
@@ -19,7 +19,7 @@ Agent Treasury is a **single-tenant-per-agent** treasury primitive plus a client
 └─────────────────────────────┘        └──────────────────────────────────────────┘
 ```
 
-## Hermes control plane (Phase 1 implemented)
+## Hermes control plane (Phase 1 deployed; Phase 2 BFF deployed)
 
 The SPA remains the transaction surface and works without a backend. The Hermes Agent control
 plane adds ops monitoring and user assistance without becoming a treasury authority:
@@ -27,12 +27,14 @@ plane adds ops monitoring and user assistance without becoming a treasury author
 - Hermes runtime (gateway, Discord, cron, MCP, sessions) in a container
 - Arc MCP server for read-only chain/CCTP tools
 - deterministic monitor + Postgres for snapshots, transfer state, alerts, and audit
-- a thin SIWE BFF before any public chat or typed intent flow
+- a thin SIWE BFF and private Postgres for public chat, conversation state, and typed intent drafts
 - no owner key in the cloud; user transactions are always signed in the user's EIP-1193 wallet
   (MetaMask, Rabby, Coinbase Wallet, Brave, Frame, or similar)
 
-Phase 1 is ops-only and read-only. Full plan: [`docs/HERMES.md`](./HERMES.md). VPS setup and
-connectivity: [`docs/HERMES_VPS.md`](./HERMES_VPS.md).
+Phase 1 is ops-only and read-only. Phase 2 adds the deployed public chat and unsigned intent draft
+path; the browser still performs every treasury write. Full plan:
+[`docs/HERMES.md`](./HERMES.md). VPS setup and connectivity:
+[`docs/HERMES_VPS.md`](./HERMES_VPS.md).
 
 ## Contracts
 

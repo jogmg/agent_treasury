@@ -1,8 +1,19 @@
-# Agent Treasury
+# Glimmerlock (Agent Treasury)
 
 > Built with Arc Studio - money-powered apps in minutes
 
 This is the **project memory** - what Arc Studio remembers about building this app. It helps future agents (or humans) understand and extend the project.
+
+---
+
+## Current repository state (2026-10-28)
+
+- Product name is **Glimmerlock**. Contract names (`AgentTreasury`, `MorphoVaultAdapter`, `CCTPReceiverV2`) and the Arc Studio app name remain unchanged.
+- The latest verified service deploy is `552192b` (2026-10-28), and the working tree is clean. A docs-only commit may advance the deploy marker without recreating containers.
+- Latest service-deploy Actions run [40762578054](https://github.com/jogmg/agent_treasury/actions/runs/40762578054) passed **Verify** and **Deploy**. The public origin returns `200` with `<title>Glimmerlock</title>`; `/health`, `/api/session`, and the Glimmerlock logo assets return `200`.
+- Deployed since the CI/CD checkpoint (`3deb1ea`): async chat jobs, User model selection, undo edit-from-here, inbound CCTP deposits from Hermes chat, conversation-scoped activity, the Glimmerlock rebrand, the `public/` web-image fix, and the chat-scroll fix.
+- Frontend **80** and Hermes **92** tests were verified locally on 2026-10-28. Foundry remains at **104 passing** (mainnet fork skipped) from the last contract run. CI verify also passed at `552192b`.
+- Still pending: authenticated reads and signed-draft execution with a funded user wallet, external audit, Arc mainnet source verification, Circle Gateway reconciliation, a stable branded hostname, and keeper automation (blocked pending custody/call-restriction review).
 
 ---
 
@@ -32,7 +43,7 @@ This project originated in Arc Studio and is being submitted to the Arc Microgra
 - Existing Arc Studio app: `https://studio.arc.io/app/459b639e-b500-4f59-b057-aa17f5446888` (`Agent Treasury Contract Builder`). Current contracts/frontend, Hermes services and tests, migrations, profiles without env files, docs, deployment evidence, and safe build/deployment support files were synchronized and verified in this same app. Do not create a replacement app.
 - Arc Studio CLI usage after project sync and keeper-maintenance record update: **28%** of the reported rolling window (2026-10-25). Studio-reported checks during source sync: Foundry 104 passing, root Vitest 69 passing, Hermes Vitest 82 passing. Treat these as Studio-reported; run local checks for subsequent changes.
 - `arc-studio deployments --app ...` still lists six historical Arc Testnet deployments. Mainnet contracts are already live and documented in `deployments/arc-mainnet.json`, but were deployed through the user's external MetaMask flow, not registered by the Arc Studio CLI. Never fabricate Studio deployment records or redeploy the treasury to make the panel look current.
-- Live frontend: `https://8080-agqvtg5gwokf3k7e5easq4hd5e.instabox.tech` via InstaBox public port 8080. Only nginx is public; BFF/Hermes/MCP/monitor/Postgres remain private. Public `/health` and unauthenticated `/api/session` were verified 2026-10-25. Authenticated SIWE/chat/intent E2E must be repeated after the origin changed from the expired Cloudflare Quick Tunnel.
+- Live frontend: `https://8080-agqvtg5gwokf3k7e5easq4hd5e.instabox.tech` via InstaBox public port 8080. Only nginx is public; BFF/Hermes/MCP/monitor/Postgres remain private. On 2026-10-28 the public page returned `200` with the Glimmerlock title, and `/health`, `/api/session`, and the Glimmerlock logo assets returned `200`. Authenticated SIWE/chat/intent E2E with a funded wallet is still pending.
 - Secret/env files, generated output, caches, vendor dependencies, and the supplied `agent_treasury.json` OpenCode export were intentionally excluded from Studio sync. The license is present as `LICENSE.txt` because the app's canonical `LICENSE` destination was ambiguous.
 
 ## What This App Does
@@ -118,18 +129,18 @@ recorded domain 26. The corrected mainnet receiver path passed live on 2026-10-2
 - Full record: `deployments/arc-mainnet.json`. Audit: not done (owner chose "ship with guardrails":
   low caps, small live test, external audit before raising limits).
 
-## Hermes Agent (Phase 1 deployed on InstaBox; standalone Ops gateway running)
+## Hermes Agent (Phase 1 + Phase 2 BFF deployed on InstaBox; standalone Ops gateway running)
 
 Full plan: `docs/HERMES.md`. User execution contract: `docs/HERMES_USER_EXECUTION.md`. VPS
 runbook: `docs/HERMES_VPS.md`.
 
 - Phase 1 code is in `hermes/`: shared CCTP parser, read-only Arc/CCTP MCP server, Postgres
   migrations, deterministic monitor, Discord webhook alerts, Ops profile, and Docker Compose.
-  Hermes tests: 86 passing on Vitest 5 (including MCP tool registration/scope enforcement,
+  Hermes tests: 92 passing on Vitest 5 (including MCP tool registration/scope enforcement,
   migration SQL, alert dedupe/throttle persistence, distinct read-warning alerts, JSON
   timestamp conversion, managed-Postgres TLS config, BFF SIWE/session/CORS/chat tests,
   intent receipt/transaction reconciliation and expiry, and fail-closed MCP token validation).
-  `npm audit` is clean after the zod 4.6.7 / MCP SDK 1.32.2 upgrade. Root Vitest is 73 passing.
+  `npm audit` is clean after the zod 4.6.7 / MCP SDK 1.32.2 upgrade. Root Vitest is 80 passing.
 - Live read-only MCP smoke passed against Arc mainnet: `arc_get_config`, `arc_get_treasury_state`,
   bounded `arc_list_activity`, and `arc_get_cctp_status` for burn `0x79006a…2b13` returned `done`
   with `delivered: true`. Mint tx links are best-effort and may be absent for manual mints.
@@ -146,7 +157,7 @@ runbook: `docs/HERMES_VPS.md`.
   `https://generativelanguage.googleapis.com/v1beta`; `GEMINI_BASE_URL` is an optional override
   and is unset. NVIDIA env values remain rollback-only. Managed Postgres can opt into TLS with
   `DATABASE_SSL=true`.
-- **Phase 2 BFF foundation (local, 2026-10-24; not deployed).** `hermes/src/bff/` now implements
+- **Phase 2 BFF foundation (implemented 2026-10-24; deployed 2026-10-25).** `hermes/src/bff/` implements
   SIWE nonce/verify with viem, a one-time nonce store, an HMAC-signed HttpOnly wallet cookie,
   origin allowlisting/CSRF checks, wallet/IP rate limits, session-gated read endpoints
   (`/api/config`, `/api/treasury`, `/api/activity`, `/api/cctp/:burnTx`,
@@ -157,7 +168,7 @@ runbook: `docs/HERMES_VPS.md`.
   `/p/user/v1/chat/completions` then `/v1/chat/completions` on a route 404. A fake-upstream local
   smoke verified the forwarded bearer key, wallet-derived session key, idempotency header, and
   browser-field stripping.
-- **Deterministic draft intents (local, 2026-10-24).** `hermes/migrations/002_intents.sql` adds a
+- **Deterministic draft intents (implemented 2026-10-24; deployed 2026-10-25).** `hermes/migrations/002_intents.sql` adds a
   wallet-bound `intents` table with expiry, idempotency, unique tx hash, simulation JSON, and
   `draft/submitted/expired` lifecycle. `POST /api/intents/deposit|withdraw-local|cctp-withdraw`
   validates paused/minimum/balance, CCTP domain allowlist and recipient checksum, derives
@@ -193,8 +204,8 @@ runbook: `docs/HERMES_VPS.md`.
   its receipt, re-simulates, then requests the deposit signature. Hermes never signs or broadcasts.
   The tx hash is PATCHed to the BFF as soon as the wallet returns it, before receipt waiting. CCTP
   actions initialize the existing transfer completion flow after Arc confirmation. Regression
-  tests cover draft wallet/target/network/expiry/calldata checks. Verified locally: 73 root Vitest
-  tests, `npm run check`, and `npm run build` pass. The frontend and BFF images were rebuilt and
+  tests cover draft wallet/target/network/expiry/calldata checks. Verified at implementation: 73
+  root Vitest tests (current suite: 80), `npm run check`, and `npm run build` pass. The frontend and BFF images were rebuilt and
   only those two containers were recreated; public `/health` and `/api/session` returned 200,
   both containers are healthy, and the live Hermes tab was visually verified. Authenticated
   SIWE/chat/intent execution was not exercised; do so with a user wallet before treating that
@@ -216,28 +227,36 @@ runbook: `docs/HERMES_VPS.md`.
   reconciled every profile in the shared `HERMES_DATA_DIR` and started duplicate gateways; an
   `isolation-empty` volume now hides the User profile from the Ops container and the Ops profile
   from the User container. Config/compose backups are on the server.
-- **Public chat ingress timeout diagnosis (2026-10-26; local fix, not deployed).** A benign SIWE
+- **Public chat ingress timeout diagnosis (2026-10-26; deployed).** A benign SIWE
   chat request through the public HTTPS port returned plain-text 502 after ~20.5s, while the same
   Gemini User request from inside the BFF completed with HTTP 200 in ~39s. This indicates the
   public synchronous request deadline can expire before model fallback completes; BFF and Hermes
   connectivity are working. `/api/chat` now creates a wallet-scoped async job and returns 202
   immediately; the browser polls the authenticated job route for its result. The poll preserves
   BFF validation, idempotency, and safe errors. Regression coverage includes pending/completed
-  jobs, wallet isolation, and sanitized upstream errors. Verified locally: frontend check + 78
-  tests, Hermes typecheck + 89 tests + build. This async change still needs the normal CI deploy
-  before it can fix the live service.
-- **CI/CD (2026-10-26).** `.github/workflows/ci-deploy.yml` verifies the frontend and Hermes on
-  pull requests and deploys pushes to `main` to InstaBox. A deploy extracts the exact commit to
-  `/data/hermes-data/deploy/releases/<sha>`, symlinks the server-only env files, compares changed
-  paths with `/data/hermes-data/deploy/state/last-deployed-sha`, and rebuilds/recreates only the
-  affected services. Hermes image changes run the Compose migration service; profile sync
-  preserves live `_config_version` and the Discord `platforms` block; health checks gate the
-  marker. Manual dispatch supports `dry_run`, `force_all`, and a `target_sha` rollback. The
-  workflow uses the existing `INSTABOX_API_KEY` secret, never prints env values, and does not
-  deploy contracts. Runbook: `docs/CI_CD.md`; the live checkout is never reset or cleaned.
-  Verified 2026-10-26: the manual full deploy of `16f5ef6` recreated only the app containers
-  (Postgres stayed up); pushes `c8256bf` and `28c54cb` passed verify+deploy and advanced the
-  marker as no-ops.
+  jobs, wallet isolation, and sanitized upstream errors. Verified locally: frontend check + 80
+  tests, Hermes typecheck + 92 tests + build. Deployed via `61cd365`; the public chat path now uses
+  the async job/poll route instead of holding the HTTP request open.
+- **CI/CD (2026-10-26; updated 2026-10-28).** `.github/workflows/ci-deploy.yml` verifies the
+  frontend and Hermes on pull requests and deploys pushes to `main` to InstaBox. A deploy extracts
+  the exact commit to `/data/hermes-data/deploy/releases/<sha>`, symlinks the server-only env
+  files, compares changed paths with `/data/hermes-data/deploy/state/last-deployed-sha`, and
+  rebuilds/recreates only the affected services. Hermes image changes run the Compose migration
+  service; profile sync preserves live `_config_version` and the Discord `platforms` block; health
+  checks gate the marker. Manual dispatch supports `dry_run`, `force_all`, and a `target_sha`
+  rollback. The workflow uses the existing `INSTABOX_API_KEY` secret, never prints env values, and
+  does not deploy contracts. Runbook: `docs/CI_CD.md`; the live checkout is never reset or cleaned.
+  Initial verification (2026-10-26): the manual full deploy of `16f5ef6` recreated only the app
+  containers (Postgres stayed up); pushes `c8256bf` and `28c54cb` passed verify+deploy and advanced
+  the marker as no-ops. Real source-change deploys then succeeded: `675dc36` (rebrand), `100793b`
+  (web image assets), and `552192b` (chat scroll). Latest run
+  [40762578054](https://github.com/jogmg/agent_treasury/actions/runs/40762578054) passed both jobs,
+  and the latest service deploy is `552192b`.
+- **Glimmerlock rebrand (2026-10-28).** The product/UI is now Glimmerlock; contract names remain
+  `AgentTreasury` and friends. `675dc36` rebranded the frontend, BFF copy, package metadata, and
+  assets. `100793b` added `public/` to the web Docker image so the new assets ship, and `552192b`
+  fixed chat scrolling in longer conversations. The public page and logo assets were verified
+  live on 2026-10-28.
 - Transfer refresh runs four at a time. Delivery comes from destination `usedNonces` plus Iris; the
   mint tx link is only a forwarder-tx receipt when Iris supplies one, so manual mints may have no
   link. Two fresh monitor runs indexed 11 + 1 catch-up activity events and resolved withdrawal ids
@@ -371,7 +390,10 @@ runbook: `docs/HERMES_VPS.md`.
 - CCTPReceiverV2.t.sol (23 tests)
 - Invariants.t.sol (9 tests)
 
-### Test results (vitest / frontend) — latest pass
+### Test results (vitest / frontend) — historical pass
+
+Current frontend suite: **80 passing** (verified 2026-10-28). The 63-test breakdown below is the
+older Stage 2 pass retained for history:
 
 63 tests PASS, 0 fail across:
 
@@ -667,11 +689,12 @@ where `vaultShareDecimals` is read live from `vault.decimals()`. USDC amounts re
     backfill with owner-signed `recordDeposit`**: it is additive and would double-credit
     `principal`/`totalDeposited` and try to deploy the same USDC again.
 11. ✅ BFF deployed behind InstaBox HTTPS at `https://8080-agqvtg5gwokf3k7e5easq4hd5e.instabox.tech`;
-    only nginx is public. Repeat authenticated SIWE, chat, and intent verification after the latest
-    origin change. Never publish `hermes-user`, MCP, monitor, or Postgres.
+    only nginx is public. Public app, `/health`, `/api/session`, and the Glimmerlock assets were
+    verified 2026-10-28. Authenticated SIWE/chat/draft execution with a funded wallet remains to be
+    tested. Never publish `hermes-user`, MCP, monitor, or Postgres.
 12. ✅ Deterministic `/api/intents/*` draft endpoints, simulation, review cards, and the expiry/receipt
-    sweep are implemented and tested. Repeat live deployment verification of the sweep against a
-    real receipt after the latest deployment/origin change.
+    sweep are implemented and tested. Live sweep verification against a real receipt and the
+    authenticated wallet flow remain pending.
 13. ✅ Re-run the frontend/BFF/mainnet builds after deployment and confirm completed CCTP Activity rows
     still show no **Resume**.
 

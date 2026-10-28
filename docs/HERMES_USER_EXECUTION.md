@@ -4,12 +4,12 @@
 > InstaBox.** The public frontend is
 > [https://8080-agqvtg5gwokf3k7e5easq4hd5e.instabox.tech](https://8080-agqvtg5gwokf3k7e5easq4hd5e.instabox.tech);
 > only nginx is public, while the BFF and Hermes services remain private. On
-> 2026-10-25, public `/health` and same-origin `/api/session` were verified. The
-> earlier authenticated SIWE/chat smoke used the retired Quick Tunnel, so repeat
-> authenticated SIWE, chat, and intent verification on this hostname before
-> treating the updated origin as fully E2E verified. Phase 1 remains the deployed
-> ops/read-only proving ground. The product surface is the in-app Hermes User
-> agent, not the private Discord Ops bot.
+> 2026-10-28, the public app, `/health`, `/api/session`, and the Glimmerlock
+> assets were verified. The earlier authenticated SIWE/chat smoke used the
+> retired Quick Tunnel, so repeat authenticated SIWE, chat, and intent
+> verification on this hostname before treating the updated origin as fully E2E
+> verified. Phase 1 remains the deployed ops/read-only proving ground. The
+> product surface is the in-app Hermes User agent, not the private Discord Ops bot.
 >
 > The full Hermes workspace and wallet-confirmed intent execution were deployed
 > to the InstaBox frontend on 2026-10-25. The corresponding runtime files match
@@ -20,15 +20,15 @@
 > This document is the execution contract for that surface. It is intentionally
 > separate from the ops runbook so the user path cannot be lost again.
 
-> **2026-10-26 implementation status:** all four user actions are available from Hermes chat in
-> the local application: vault deposit, local withdrawal, CCTP withdrawal, and inbound CCTP
-> deposit. The first three use BFF-created unsigned treasury intents. Inbound CCTP deposit uses a
-> validated chat handoff to a chat-owned action card rather than an Arc treasury intent: it signs
-> the source-chain approval/burn, waits for Circle attestation, then asks the user to sign the Arc
+> **2026-10-28 deployment status:** all four user actions are available from Hermes chat in the
+> live application: vault deposit, local withdrawal, CCTP withdrawal, and inbound CCTP deposit.
+> The first three use BFF-created unsigned treasury intents. Inbound CCTP deposit uses a validated
+> chat handoff to a chat-owned action card rather than an Arc treasury intent: it signs the
+> source-chain approval/burn, waits for Circle attestation, then asks the user to sign the Arc
 > receiver transaction. Each conversation has independent busy/error state, and CCTP progress is
 > associated with the action that started it. Frontend checks and 80 tests pass; Hermes typecheck
-> and 92 tests pass. These changes are local and are not yet verified on the current public
-> deployment; the authenticated live wallet flow remains to be tested after deployment.
+> and 92 tests pass. These changes are deployed at `552192b`; the authenticated live wallet flow,
+> including a funded signed draft/broadcast, remains to be tested.
 
 ## 1. Product intent
 
@@ -435,20 +435,20 @@ or keeper key because none exists in Hermes.
 ## 9. Implementation order
 
 1. **BFF foundation:** SIWE nonce/verify, HttpOnly session, wallet-bound rate
-   limits, read endpoints, Hermes User API proxy. **Implemented locally.**
-2. **Read-only chat:** persistent dock, streamed answers, tx/block links, no
-   action tools. **Implemented locally without streaming; live verification
-   pending deployment.**
+   limits, read endpoints, Hermes User API proxy. **Implemented and deployed.**
+2. **Read-only chat:** persistent dock, async job answers, tx/block links, no
+   action tools. **Implemented and deployed; authenticated wallet smoke remains.**
 3. **Deposit/local-withdraw/CCTP-withdraw actions:** deterministic intent creation, simulation,
    review card, deep link, tx-hash patch, background receipt/transaction
-   reconciliation and expiry cleanup. **Implemented locally; live deployment verification remains.**
+   reconciliation and expiry cleanup. **Implemented and deployed; live wallet
+   verification remains.**
 4. **Inbound CCTP deposit:** source-chain approval/burn, Circle attestation,
-   Arc receiver credit from the Hermes action card. **Implemented locally; live
-   wallet-flow verification remains.**
+   Arc receiver credit from the Hermes action card. **Implemented and deployed;
+   live wallet-flow verification remains.**
 5. **Hardening:** idempotency, expiry, receipt/transaction reconciliation, cost
    caps, audit events, prompt-injection tests, and a mainnet launch gate.
    **Idempotency, expiry, receipt/transaction reconciliation, rate limits, and
-   action-envelope tests are in; deployment/audit verification remains.**
+   action-envelope tests are in; funded-wallet and audit verification remain.**
 
 The existing ops gateway is not the user-facing product. It remains the Phase 1
 proving ground for the same read tools, monitor, and security posture.

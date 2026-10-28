@@ -26,7 +26,7 @@ VITE_TREASURY_DEPLOY_BLOCK=27153175
 # VITE_ARC_NETWORK=testnet
 # VITE_TREASURY_ADDRESS=0x5e2e3da19533ebf85bc916612eff5cdc7bf4d489
 # VITE_ADAPTER_ADDRESS=0x333deccbf9091540e849b7af80f2f10b72197b71
-# VITE_RECEIVER_ADDRESS=0x8066bcf8e6b17e2d84082179a89f0972cc6e31c1
+# VITE_RECEIVER_ADDRESS=0x344466B00BED1BD5bdFa3E21392E776144323f4c
 # VITE_VAULT_ADDRESS=0xAabbeF1D3971c710276ed41eC791BbE14CdB8E88
 # VITE_TREASURY_DEPLOY_BLOCK=68193025
 ```
@@ -101,7 +101,9 @@ forge script script/DeployFixedTestnet.s.sol \
 
 The script deploys fresh `MorphoVaultAdapter`, `CCTPReceiver`, and
 `AgentTreasury` contracts, wires them, registers vault 1, sets keeper to the
-final owner, and starts the Ownable2Step handoff. The final owner accepts via
+final owner, and starts the Ownable2Step handoff. The current live testnet stack
+also uses the corrected `CCTPReceiverV2` at `0x344466B00BED1BD5bdFa3E21392E776144323f4c`,
+wired separately with `scripts/receiver-deploy/`. The final owner accepts via
 **Settings → Accept Contract Ownership** in the app.
 
 The earlier `DeployTestnet.s.sol` + `ConfigureTestnet.s.sol` pair remains as a
@@ -115,7 +117,7 @@ historical two-step example; do not use it for a CCTP-hotfix deployment.
 RPC=https://rpc.mainnet.arc.io
 T=0xf71b5d1a19d72b98675785123fae811698be6f63
 A=0x5102057330f5bb5f3e4eb0925b7d1eac8a563c23
-R=0x91f1eb97a40fdab05d150c10566cf9aa3546a375
+R=0x847F55221F30675791d2fAaf84f93B1fa86399E2
 V=0x8E357432CC12ff425c36432F312968aEb16112AF
 OWNER=0xD00fD0B006c01342522cAf4FA04D5f8910aB268c
 
@@ -144,15 +146,17 @@ USDC, `previewDeposit(5 USDC) > 0`, `previewMint(1) >= 1`.
 RPC=https://rpc.testnet.arc.io
 T=0x5e2e3da19533ebf85bc916612eff5cdc7bf4d489
 A=0x333deccbf9091540e849b7af80f2f10b72197b71
+R=0x344466B00BED1BD5bdFa3E21392E776144323f4c
 cast call $T "getTotalBalance(address)(uint256)" $DEPLOYER_ADDRESS --rpc-url $RPC
+cast call $T "gatewayReceiver()(address)" --rpc-url $RPC
 cast call $T "morphoAdapter()(address)" --rpc-url $RPC
 cast call $T "paused()(bool)" --rpc-url $RPC
 cast call $A "getVaultConfig(uint256)((uint256,address,string,string,uint256,bool))" 1 --rpc-url $RPC
 cast call $A "vaultAPY(uint256)(uint256)" 1 --rpc-url $RPC
 ```
 
-Expected after wiring: adapter/receiver non-zero, paused `false`, vault active, APY
-`42000000000000000` (4.2e16 = 4.20%), testnet `minDeposit = 1000000`.
+Expected after wiring: adapter `0x333d…7b71`, corrected receiver `0x3444…3f4c`, paused `false`,
+vault active, APY `42000000000000000` (4.2e16 = 4.20%), testnet `minDeposit = 1000000`.
 
 Observed E2E on the hotfix stack (Oct 2026):
 
@@ -296,7 +300,8 @@ that used the legacy stack and call `withdrawLocal(type(uint256).max)` on
 | ------------------ | -------------------------------------------- |
 | AgentTreasury      | `0xf71b5d1a19d72b98675785123fae811698be6f63` |
 | MorphoVaultAdapter | `0x5102057330f5bb5f3e4eb0925b7d1eac8a563c23` |
-| CCTPReceiver       | `0x91f1eb97a40fdab05d150c10566cf9aa3546a375` |
+| CCTPReceiverV2     | `0x847F55221F30675791d2fAaf84f93B1fa86399E2` |
+| CCTPReceiver (legacy) | `0x91f1eb97a40fdab05d150c10566cf9aa3546a375` |
 
 Galaxy USDC vault `0x8E357432CC12ff425c36432F312968aEb16112AF`, APY `2.65%`, minimum `5 USDC`,
 spending limit `25 USDC/day / 50 USDC/week`, owner
@@ -311,7 +316,7 @@ Post-deploy policy:
   and retain owner control for recovery.
 - Do not raise caps, accept third-party deposits, or add vaults without an audit.
 - Live E2E passed October 21, 2026: 5 USDC deposit → 1 USDC `withdrawLocal`, then a full CCTP round
-  trip (two Arc→Base withdrawals attested and minted; Base→Arc 5 USDC minted and deposited). Hashes,
+  trip (three Arc→Base withdrawals attested and minted; Base→Arc 5 USDC minted and deposited). Hashes,
   nonces, and state are in `deployments/arc-mainnet.json` (`liveE2E`, `liveCctpE2E`).
 - Withdrawal bookkeeping follow-up completed October 25, 2026: IDs 1–3 are `executed=true` and
   `cancelled=false`. This only updates treasury bookkeeping; it moves no funds. Transaction hashes

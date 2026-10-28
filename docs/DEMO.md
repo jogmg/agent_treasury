@@ -10,7 +10,7 @@
 
 ## 0:00 — Hook
 
-> "AI agents can hold money, but they have no treasury. Agent Treasury gives an agent a USDC account on Arc that earns yield automatically and can move across chains with CCTP."
+> "AI agents can hold money, but they have no treasury. Glimmerlock gives an agent a USDC account on Arc that earns yield automatically and can move across chains with CCTP."
 
 Show the Overview tab: total value, principal, yield, APY, vault shares.
 
@@ -40,7 +40,7 @@ On-chain proof if asked: deposit `0xbab58770…04c4`, CCTP withdraw `0x3f0f2568�
 1. Open **Withdraw**.
 2. Click **25%**, then **Withdraw**.
 3. Show the wallet balance increase and shares decrease.
-4. Open the advanced CCTP section; explain the chain-name destination dropdown, bytes32 recipient, and the automatic Iris relay.
+4. Open the advanced CCTP section; explain the chain-name destination dropdown, bytes32 recipient, automatic Iris attestation polling, and the in-app destination mint step.
 
 5. Submit the burn; explain Activity → **In flight** with the burn tx hash, then Completion Card.
 
@@ -67,7 +67,7 @@ On-chain proof if asked: deposit `0xbab58770…04c4`, CCTP withdraw `0x3f0f2568�
 
 ## 2:30 — Close
 
-> "Three Circle products: CCTP v2 for cross-chain USDC, Earn Kit/Morpho for yield, and a Gateway-ready hook. Built end-to-end in Arc Studio, 81 Foundry tests and 52 frontend tests green. Testnet: verified deposit plus a live CCTP burn from yield to domain 0 and a finalized Circle attestation. Mainnet: the same stack is live with guardrails, and real USDC has completed the full loop — local deposit/withdraw, two Arc→Base CCTP withdrawals with production Iris attestations and Base mints, and a Base→Arc 5 USDC burn that minted and deposited into Galaxy USDC."
+> "Three Circle products: CCTP v2 for cross-chain USDC, Earn Kit/Morpho for yield, and a Gateway-ready hook. Built end-to-end in Arc Studio, 104 Foundry tests, 80 frontend tests, and 92 Hermes tests green. Testnet: verified deposit plus a live CCTP burn from yield to domain 0 and a finalized Circle attestation. Mainnet: the same stack is live with guardrails, and real USDC has completed the full loop — local deposit/withdraw, three Arc→Base CCTP withdrawals with production Iris attestations and Base mints, and a Base→Arc 5 USDC burn that minted and deposited into Galaxy USDC."
 
 ## Fallbacks
 

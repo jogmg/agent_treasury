@@ -5,12 +5,16 @@ Only source changes that affect a running service trigger a build or restart.
 Server-only `.env` files are never copied into git, a release, or a workflow
 log.
 
-**Verified 2026-10-26.** A manual full deploy of `16f5ef6` rebuilt/recreated the
-frontend, BFF, MCP, monitor, and both Hermes profiles while leaving Postgres
-running. Subsequent pushes (`c8256bf`, `28c54cb`) completed the Actions verify
-and deploy jobs, no-op'd because only CI/docs paths changed, and advanced the
-marker. A real application change will exercise the build/recreate path through
-Actions; the same helper already did so manually.
+**Verified 2026-10-26; updated 2026-10-28.** The initial manual full deploy of
+`16f5ef6` rebuilt/recreated the frontend, BFF, MCP, monitor, and both Hermes
+profiles while leaving Postgres running. The first pushes (`c8256bf`,
+`28c54cb`) exercised the no-op path because only CI/docs changed. Real
+application changes have since exercised the targeted path through Actions:
+`675dc36` (Glimmerlock rebrand), `100793b` (web image public assets), and
+`552192b` (chat scroll fix) all completed Verify + Deploy. The latest run,
+[40762578054](https://github.com/jogmg/agent_treasury/actions/runs/40762578054),
+passed both jobs, and the latest service deploy is `552192b`. A docs-only push
+still advances the marker without recreating containers per the change map.
 
 ## Triggers
 

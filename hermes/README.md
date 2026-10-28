@@ -1,6 +1,6 @@
 # Hermes Phase 1 - read-only Arc treasury control plane
 
-This directory is the cloud-hosted Hermes stack for the Agent Treasury:
+This directory is the cloud-hosted Hermes stack for Glimmerlock (Agent Treasury):
 
 ```
 Discord (private Ops)

@@ -36,14 +36,20 @@
 > execution was not exercised during deployment. No smart contracts were deployed. See
 > [`HERMES_USER_EXECUTION.md`](HERMES_USER_EXECUTION.md) for the transaction safety boundary.
 
-> **2026-10-26 chat actions and conversation isolation (implemented locally):** Hermes chat now
+> **2026-10-26 chat actions and conversation isolation (deployed 2026-10-28):** Hermes chat
 > supports local deposit, local withdrawal, CCTP withdrawal, and inbound CCTP deposit actions.
 > Inbound CCTP deposit runs in its chat card: the user signs the source-chain approval/burn, the
 > card tracks Circle attestation, and the user signs the Arc receiver transaction after attestation.
 > Chat busy/error state is scoped per conversation, and CCTP progress is tied to the originating
-> action card. Frontend checks and 80 tests pass; Hermes typecheck and 92 tests pass. These local
-> changes have not been deployed, and authenticated live wallet execution remains unverified.
+> action card. Frontend checks and 80 tests pass; Hermes typecheck and 92 tests pass. These changes
+> are deployed at `552192b`. Authenticated live wallet execution remains unverified.
 
+> **2026-10-28 current deployment:** `552192b` is live on InstaBox with the Glimmerlock rebrand,
+> async chat jobs, per-conversation state, User model selection, undo edit-from-here, inbound CCTP
+> from chat, the `public/` web-image fix, and the chat-scroll fix. Public `/health`,
+> `/api/session`, and the Glimmerlock assets returned `200`; the authenticated funded-wallet flow
+> is still the remaining live gate.
+>
 > **Mainnet keeper maintenance completed (2026-10-25):** the owner confirmed completed Base deliveries
 > and signed `executeWithdrawal(1..3)`; all three receipts succeeded and on-chain state now reports
 > `executed=true`, `cancelled=false`. The keeper was then changed on both AgentTreasury and
@@ -76,7 +82,7 @@
 > transfers, 3 bookkeeping rows, and the `keeper-is-owner` alert before the keeper rotation. The
 > real Hermes runtime registered the
 > Ops profile and `hermes -p ops mcp test arc-treasury` connected with seven tools. The standalone
-> Ops gateway is running with NVIDIA MiniMax primary and verified MCP tool calls; the Discord bot
+> Ops gateway is running on Gemini (`gemini-3.8-flash`) with verified MCP tool calls; the Discord bot
 > has access to `#treasury-ops`. InstaBox auto-pauses after 30 minutes idle. The primary keepalive
 > is the Cloudflare Worker in
 > `hermes/infra/cloudflare-keepalive/`, whose `*/10 * * * *` Cron Trigger calls the InstaBox
@@ -548,10 +554,10 @@ same review.
   persistent volumes, private networking, and managed Postgres.
 - Create a private Discord server/channel and a bot application.
 - Create Postgres (Fly Postgres, Neon, or Supabase).
-- Choose an LLM provider/model. This deployment uses NVIDIA Build free
-  OpenAI-compatible endpoints, with a ranked fallback chain and no Anthropic/OpenAI
-  dependency. Use a fast model for the user chat and ops summaries; escalate only
-  for incident analysis.
+- Choose an LLM provider/model. The live deployment uses Google Gemini on the free tier, with a
+  ranked fallback chain and no paid Anthropic/OpenAI dependency. Use a fast model for the user chat
+  and ops summaries; escalate only for incident analysis. NVIDIA values are retained for rollback
+  only.
 - Confirm the Arc RPC and Iris endpoints. The app already has working fallbacks.
 - Phase 1 is ops-only; Phase 2 adds the public web chat as the product path.
 
@@ -890,7 +896,7 @@ Defaults are chosen so Phase 1 can start immediately:
 | Cloud            | Fly.io                                                   |
 | Postgres         | Fly Postgres or Neon                                     |
 | Phase 1 scope    | Ops-only, read-only                                      |
-| LLM provider     | NVIDIA Build free endpoints with a ranked fallback chain |
+| LLM provider     | Google Gemini free tier with a ranked fallback chain; NVIDIA is rollback-only |
 | Discord          | Private server, allowlisted user IDs                     |
 | Public web chat  | Phase 2 — required product path, not optional            |
 | Keeper           | Phase 3, after rotation                                  |
@@ -905,7 +911,12 @@ authoritative** (`profiles/ops/config.yaml`, `.env.example`, `profiles/ops/.env.
 `docker-compose.yml`). The snippets below are kept as design context; where they differ, use the
 files and `docs/HERMES_VPS.md`.
 
-### Ops profile
+> **Current provider (2026-10-28):** both live profiles use Google Gemini free-tier models.
+> Ops is `gemini-3.8-flash`; User is `gemini-3.5-flash-lite`. The NVIDIA snippets below are
+> historical rollback material, not the active configuration. The authoritative live models are
+> in `hermes/profiles/*/config.yaml`.
+
+### Ops profile — historical NVIDIA shape (rollback only)
 
 ```yaml
 # hermes/profiles/ops/config.yaml
@@ -989,7 +1000,7 @@ NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
 
 Do not add `DISCORD_REQUIRE_MENTION=false` for Ops. Keep mention-only behavior.
 
-### User profile (Phase 2)
+### User profile (Phase 2) — historical NVIDIA shape (rollback only)
 
 ```yaml
 # hermes/profiles/user/config.yaml
@@ -1181,8 +1192,9 @@ The actual split is:
   (`BFF_PUBLIC_ORIGIN`, `BFF_SESSION_SECRET`, `BFF_INTENT_*`,
   `HERMES_USER_URL`, `HERMES_USER_API_KEY`).
 - `data/profiles/ops/.env` (Hermes profile): `DISCORD_BOT_TOKEN`, `DISCORD_ALLOWED_USERS`,
-  `DISCORD_ALLOWED_CHANNELS` (recommended), `ARC_MCP_TOKEN_OPS`, `NVIDIA_API_KEY`,
-  `NVIDIA_BASE_URL` (optional), and `API_SERVER_ENABLED=false`.
+  `DISCORD_ALLOWED_CHANNELS` (recommended), `ARC_MCP_TOKEN_OPS`, `GEMINI_API_KEY`,
+  optional `GEMINI_BASE_URL`, and `API_SERVER_ENABLED=false`. `NVIDIA_API_KEY` and
+  `NVIDIA_BASE_URL` are retained for rollback only.
 
 See `.env.example` and `profiles/ops/.env.example` for the current list.
 MCP tokens must be at least 32 characters; known placeholders and short values
