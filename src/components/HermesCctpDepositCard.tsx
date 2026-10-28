@@ -33,7 +33,10 @@ import {
 } from "../lib/cctp";
 import { parseOnchainError } from "../lib/errors";
 import type { CctpDepositHandoff } from "../lib/hermes";
-import { useBridgeDepositStore } from "../stores/bridgeDeposit";
+import {
+  isBridgeDepositInProgress,
+  useBridgeDepositStore,
+} from "../stores/bridgeDeposit";
 
 const ARC_GAS_RESERVE = 100_000_000_000_000_000n;
 
@@ -72,7 +75,8 @@ export function HermesCctpDepositCard({
       bridge.chatActionId === actionId
   );
   const status = activeMatches ? bridge.status : "idle";
-  const isOtherDepositActive = bridge.status !== "idle" && !activeMatches;
+  const isOtherDepositActive =
+    isBridgeDepositInProgress(bridge.status) && !activeMatches;
 
   useEffect(() => {
     if (

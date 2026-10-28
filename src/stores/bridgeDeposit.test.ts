@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { useBridgeDepositStore } from "./bridgeDeposit";
+import {
+  isBridgeDepositInProgress,
+  useBridgeDepositStore,
+} from "./bridgeDeposit";
 
 const HASH = `0x${"11".repeat(32)}`;
 const OTHER_HASH = `0x${"22".repeat(32)}`;
@@ -14,6 +17,15 @@ afterEach(() => {
 });
 
 describe("cross-chain deposit flow", () => {
+  it("only treats non-terminal flow stages as in progress", () => {
+    expect(isBridgeDepositInProgress("waiting")).toBe(true);
+    expect(isBridgeDepositInProgress("ready")).toBe(true);
+    expect(isBridgeDepositInProgress("burning")).toBe(true);
+    expect(isBridgeDepositInProgress("done")).toBe(false);
+    expect(isBridgeDepositInProgress("error")).toBe(false);
+    expect(isBridgeDepositInProgress("idle")).toBe(false);
+  });
+
   it("tracks the source burn and destination mint separately", () => {
     const { setBridgeDeposit } = useBridgeDepositStore.getState();
     setBridgeDeposit({

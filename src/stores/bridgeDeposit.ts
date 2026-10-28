@@ -36,6 +36,20 @@ export const BRIDGE_STATUS_LABEL: Record<BridgeDepositStatus, string> = {
   error: "Needs attention",
 };
 
+export function isBridgeDepositInProgress(
+  status: BridgeDepositStatus
+): boolean {
+  return (
+    status === "approving" ||
+    status === "burning" ||
+    status === "waiting" ||
+    status === "ready" ||
+    status === "minting" ||
+    status === "arc-approving" ||
+    status === "depositing"
+  );
+}
+
 export interface BridgeDepositCurrent {
   status: BridgeDepositStatus;
   owner: string;
