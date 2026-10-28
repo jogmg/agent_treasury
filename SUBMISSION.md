@@ -25,7 +25,9 @@ The project originated in Arc Studio, where the core treasury contracts, tests, 
 
 The browser app is Vite + React + wagmi. The optional Hermes User path uses a backend-for-frontend for SIWE sessions, read-only chat, and unsigned intent drafts. It has no user transaction signer or owner private key; users review and sign in their own EVM wallet.
 
-On October 25, 2026, the current contract/frontend sources, Hermes service, tests, deployment evidence, and project documentation were synchronized into the existing Arc Studio app above. The Studio deployment registry still shows six historical Arc Testnet deployments; the Arc mainnet deployment evidence is included in `deployments/arc-mainnet.json`, but those mainnet deployments were signed through the user's external MetaMask flow and are not Arc Studio CLI deployment records. Keep that provenance explicit in the walkthrough and submission; do not imply those mainnet deployments were performed by the Studio CLI.
+On October 25, 2026, the current contract/frontend sources, Hermes service, tests, deployment evidence, and project documentation were synchronized into the existing Arc Studio app above. Arc Studio builds and deploys to Arc testnet by design; its documentation states that it does not deploy to mainnet on the builder's behalf. The Studio deployment registry therefore shows six historical Arc Testnet deployments. The Arc mainnet deployment evidence is in `deployments/arc-mainnet.json`; those deployments were signed through the user's external MetaMask flow, not by the Studio CLI. Keep that provenance explicit in the walkthrough and submission; do not imply those mainnet deployments were performed by Studio.
+
+The Studio preview is used for source/contract inspection. The production app is the public InstaBox URL, where the Hermes chat/BFF and wallet-signed transactions are available. The preview detects the Studio host and opens on Overview with a link to the live app instead of issuing unavailable BFF calls.
 
 ## Circle products
 
@@ -88,7 +90,7 @@ On October 25, 2026, the current contract/frontend sources, Hermes service, test
   `0x72Cbd56507699F5002A10aCdDC5D20b4C2207a75`; Sepolia tx
   `0x843c07455e2c44dffaf174af6cc850810c9fc71ffb197a5f8033175b3f32e50f`. The earlier 1 USDC
   transfer is still awaiting Sepolia gas (`scripts/complete-cctp.ts`).
-- **Tests:** 104 Foundry tests (unit + invariants + mainnet fork rehearsal), 80 frontend Vitest
+- **Tests:** 104 Foundry tests (unit + invariants + mainnet fork rehearsal), 85 frontend Vitest
   tests, and 92 Hermes tests; frontend lint/typecheck/build clean.
 - **App:** 6 tabs, live reads, approve/deposit, collapsible cross-chain CCTP deposits, local
   withdraw, CCTP outbound form with chain-name destination dropdown, labeled event history

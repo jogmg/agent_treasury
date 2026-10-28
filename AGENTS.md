@@ -12,7 +12,8 @@ This is the **project memory** - what Arc Studio remembers about building this a
 - The latest verified service deploy is `552192b` (2026-10-28), and the working tree is clean. A docs-only commit may advance the deploy marker without recreating containers.
 - Latest service-deploy Actions run [40762578054](https://github.com/jogmg/glimmerlock/actions/runs/40762578054) passed **Verify** and **Deploy**. The public origin returns `200` with `<title>Glimmerlock</title>`; `/health`, `/api/session`, and the Glimmerlock logo assets return `200`.
 - Deployed since the CI/CD checkpoint (`3deb1ea`): async chat jobs, User model selection, undo edit-from-here, inbound CCTP deposits from Hermes chat, conversation-scoped activity, the Glimmerlock rebrand, the `public/` web-image fix, and the chat-scroll fix.
-- Frontend **80** and Hermes **92** tests were verified locally on 2026-10-28. Foundry remains at **104 passing** (mainnet fork skipped) from the last contract run. CI verify also passed at `552192b`.
+- Frontend **85** and Hermes **92** tests were verified locally on 2026-10-28. Foundry remains at **104 passing** (mainnet fork skipped) from the last contract run. CI verify also passed at `552192b`.
+- **Arc Studio preview fallback (local, 2026-10-28).** `src/lib/studioPreview.ts` detects the Studio host, an iframe with a Studio referrer, `VITE_STUDIO_PREVIEW=1`, or `?studioPreview=1`. In preview the app opens Overview, hides Chat, avoids BFF calls on initial render, and shows a live-app banner; the InstaBox flow is unchanged. `docs/STUDIO_SYNC.md` is the sync/submission checklist. This frontend change is not yet synced to Studio or deployed.
 - Still pending: authenticated reads and signed-draft execution with a funded user wallet, external audit, Arc mainnet source verification, Circle Gateway reconciliation, a stable branded hostname, and keeper automation (blocked pending custody/call-restriction review).
 
 ---
@@ -140,7 +141,7 @@ runbook: `docs/HERMES_VPS.md`.
   migration SQL, alert dedupe/throttle persistence, distinct read-warning alerts, JSON
   timestamp conversion, managed-Postgres TLS config, BFF SIWE/session/CORS/chat tests,
   intent receipt/transaction reconciliation and expiry, and fail-closed MCP token validation).
-  `npm audit` is clean after the zod 4.6.7 / MCP SDK 1.32.2 upgrade. Root Vitest is 80 passing.
+  `npm audit` is clean after the zod 4.6.7 / MCP SDK 1.32.2 upgrade. Root Vitest is 85 passing.
 - Live read-only MCP smoke passed against Arc mainnet: `arc_get_config`, `arc_get_treasury_state`,
   bounded `arc_list_activity`, and `arc_get_cctp_status` for burn `0x79006a…2b13` returned `done`
   with `delivered: true`. Mint tx links are best-effort and may be absent for manual mints.
@@ -205,7 +206,7 @@ runbook: `docs/HERMES_VPS.md`.
   The tx hash is PATCHed to the BFF as soon as the wallet returns it, before receipt waiting. CCTP
   actions initialize the existing transfer completion flow after Arc confirmation. Regression
   tests cover draft wallet/target/network/expiry/calldata checks. Verified at implementation: 73
-  root Vitest tests (current suite: 80), `npm run check`, and `npm run build` pass. The frontend and BFF images were rebuilt and
+  root Vitest tests (current suite: 85), `npm run check`, and `npm run build` pass. The frontend and BFF images were rebuilt and
   only those two containers were recreated; public `/health` and `/api/session` returned 200,
   both containers are healthy, and the live Hermes tab was visually verified. Authenticated
   SIWE/chat/intent execution was not exercised; do so with a user wallet before treating that
@@ -392,7 +393,7 @@ runbook: `docs/HERMES_VPS.md`.
 
 ### Test results (vitest / frontend) — historical pass
 
-Current frontend suite: **80 passing** (verified 2026-10-28). The 63-test breakdown below is the
+Current frontend suite: **85 passing** (verified 2026-10-28). The 63-test breakdown below is the
 older Stage 2 pass retained for history:
 
 63 tests PASS, 0 fail across:

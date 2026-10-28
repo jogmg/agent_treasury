@@ -22,6 +22,7 @@ import { useUiStore, type TabId } from "../stores/ui";
 import { useTreasuryStore } from "../stores/treasury";
 import { ARC_CHAIN_ID } from "../lib/contracts";
 import { formatUsdcDollar } from "../lib/decimals";
+import { STUDIO_PREVIEW } from "../lib/studioPreview";
 import { config } from "../config";
 import { ArcMark, NetworkMark } from "./ArcMark";
 import { GlimmerlockLogo } from "./GlimmerlockLogo";
@@ -70,7 +71,7 @@ export function Header() {
       <header className="relative z-40 flex h-[76px] items-center justify-between px-5 sm:px-10">
         <button
           type="button"
-          onClick={() => setTab("hermes")}
+          onClick={() => setTab(STUDIO_PREVIEW ? "overview" : "hermes")}
           aria-label="Glimmerlock home"
           className="flex shrink-0 items-center"
         >
@@ -308,24 +309,26 @@ export function Header() {
                 </button>
               </div>
               <nav aria-label="App views" className="space-y-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setTab("hermes");
-                    setMenuOpen(false);
-                  }}
-                  className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition ${
-                    activeTab === "hermes"
-                      ? "bg-[#4F75A0]/25 text-white"
-                      : "text-white/70 hover:bg-white/[0.07] hover:text-white"
-                  }`}
-                >
-                  <Sparkles className="h-[18px] w-[18px] text-[#96ADC8]" />
-                  <span className="flex-1 text-sm font-medium">Chat</span>
-                  {activeTab === "hermes" && (
-                    <ChevronRight className="h-4 w-4" />
-                  )}
-                </button>
+                {!STUDIO_PREVIEW && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTab("hermes");
+                      setMenuOpen(false);
+                    }}
+                    className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition ${
+                      activeTab === "hermes"
+                        ? "bg-[#4F75A0]/25 text-white"
+                        : "text-white/70 hover:bg-white/[0.07] hover:text-white"
+                    }`}
+                  >
+                    <Sparkles className="h-[18px] w-[18px] text-[#96ADC8]" />
+                    <span className="flex-1 text-sm font-medium">Chat</span>
+                    {activeTab === "hermes" && (
+                      <ChevronRight className="h-4 w-4" />
+                    )}
+                  </button>
+                )}
                 {VIEWS.map(({ id, label, icon: Icon }) => (
                   <button
                     key={id}

@@ -171,7 +171,7 @@ User / agent ── approve ──┐
 bun install
 bun run dev          # http://localhost:5173 — Arc mainnet by default
 bun run build        # production build (mainnet)
-bun run test         # Vitest (80 tests)
+bun run test         # Vitest (85 tests)
 bun run check        # lint + typecheck
 
 VITE_ARC_NETWORK=testnet bun run dev   # testnet demo build

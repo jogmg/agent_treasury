@@ -14,6 +14,7 @@ import { useUiStore, type TabId } from "./stores/ui";
 import { useFlowStore } from "./stores/flow";
 import { getCctpDestination } from "./lib/cctp";
 import { ARC_CHAIN, ARC_CHAIN_ID } from "./lib/contracts";
+import { LIVE_APP_URL, STUDIO_PREVIEW } from "./lib/studioPreview";
 import { ArcMark } from "./components/ArcMark";
 
 // ── Global data bootstrap ────────────────────────────────────────────────────
@@ -81,6 +82,26 @@ function WrongNetworkBanner() {
   );
 }
 
+function StudioPreviewBanner() {
+  if (!STUDIO_PREVIEW) return null;
+
+  return (
+    <div className="border-b border-sky-400/30 bg-sky-500/10 px-4 py-2 text-center text-xs text-sky-200">
+      <span className="font-semibold">Arc Studio preview.</span> Treasury reads
+      work here; chat and Hermes-authenticated actions run in the live app.{" "}
+      <a
+        href={LIVE_APP_URL}
+        target="_blank"
+        rel="noreferrer"
+        className="font-semibold underline hover:text-sky-100"
+      >
+        Open the live app
+      </a>
+      .
+    </div>
+  );
+}
+
 const TAB_IDS = new Set<TabId>([
   "overview",
   "hermes",
@@ -94,11 +115,16 @@ const INTENT_ID_RE = /^int_[a-f0-9]{32}$/;
 
 function applyLocationLink(
   setTab: (tab: TabId) => void,
-  setReviewIntent: (id: string | null) => void
+  setReviewIntent: (id: string | null) => void,
+  studioPreview: boolean
 ) {
   const params = new URLSearchParams(window.location.search);
   const tab = params.get("tab");
-  if (tab && TAB_IDS.has(tab as TabId)) setTab(tab as TabId);
+  if (tab && TAB_IDS.has(tab as TabId)) {
+    const next = tab as TabId;
+    // Chat needs the BFF and is intentionally unavailable in Studio preview.
+    if (!(studioPreview && next === "hermes")) setTab(next);
+  }
 
   const intent = params.get("intent");
   setReviewIntent(intent && INTENT_ID_RE.test(intent) ? intent : null);
@@ -107,13 +133,22 @@ function applyLocationLink(
 // ── Main App ─────────────────────────────────────────────────────────────────
 export default function App() {
   const { activeTab, setTab, setReviewIntent } = useUiStore();
+  const studioPreview = STUDIO_PREVIEW;
 
   useEffect(() => {
-    const sync = () => applyLocationLink(setTab, setReviewIntent);
+    const sync = () =>
+      applyLocationLink(setTab, setReviewIntent, studioPreview);
     sync();
     window.addEventListener("popstate", sync);
     return () => window.removeEventListener("popstate", sync);
-  }, [setReviewIntent, setTab]);
+  }, [setReviewIntent, setTab, studioPreview]);
+
+  useEffect(() => {
+    if (studioPreview && activeTab === "hermes") setTab("overview");
+  }, [activeTab, setTab, studioPreview]);
+
+  const displayTab =
+    studioPreview && activeTab === "hermes" ? "overview" : activeTab;
 
   const TAB_CONTENT: Record<string, JSX.Element> = {
     overview: <OverviewTab />,
@@ -129,21 +164,22 @@ export default function App() {
     <div className="glimmer-page flex min-h-dvh flex-col font-body text-white">
       <DataBootstrap />
       <Header />
+      <StudioPreviewBanner />
       <WrongNetworkBanner />
       <main
         className={
-          activeTab === "hermes"
+          displayTab === "hermes"
             ? "flex h-[calc(100dvh-124px)] min-h-[22rem] flex-1 items-center justify-center px-3 pb-3 py-6 sm:px-6"
             : "mx-auto flex w-full max-w-6xl flex-1 px-4 py-6 sm:px-6"
         }
       >
-        {activeTab === "hermes" ? (
+        {displayTab === "hermes" ? (
           <div className="w-full max-w-[980px] min-h-[18rem]">
-            {TAB_CONTENT[activeTab] ?? <OverviewTab />}
+            {TAB_CONTENT[displayTab] ?? <OverviewTab />}
           </div>
         ) : (
           <div className="w-full min-h-[18rem]">
-            {TAB_CONTENT[activeTab] ?? <OverviewTab />}
+            {TAB_CONTENT[displayTab] ?? <OverviewTab />}
           </div>
         )}
       </main>

@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { ActivityEvent, ActivityEventType } from "../lib/activity";
+import { STUDIO_PREVIEW } from "../lib/studioPreview";
 
 export type TabId =
   | "overview"
@@ -112,7 +113,9 @@ function clearLegacyHistory() {
 clearLegacyHistory();
 
 export const useUiStore = create<UiState>((setState) => ({
-  activeTab: "hermes",
+  // The Studio sandbox has no Hermes BFF. Start on Overview there instead of
+  // mounting the chat dock and issuing failing `/api` requests.
+  activeTab: STUDIO_PREVIEW ? "overview" : "hermes",
   activityEvents: [],
   activityFilter: "all",
   activityLoading: false,
