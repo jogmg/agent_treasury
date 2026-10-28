@@ -7,16 +7,16 @@ production security.
 ## Current sync status (2026-10-28)
 
 - Source synchronized: `85f66b1`
-- **Local source ahead:** `df6d691` and `8064b3f`; re-sync pending before
-  submission
+- **Local source ahead:** `df6d691`, `8064b3f`, and `7cec554`; re-sync pending
+  before submission
 - Studio app: `https://studio.arc.io/app/459b639e-b500-4f59-b057-aa17f5446888`
 - Studio checks at the last sync: typecheck 0 errors, **85 frontend tests
   passing**, build success (local suite is now **87 passing**)
 - Preview host: `ijwomt0218q2klpx2zr03.preview.studio.arc.io`
   (403 without an authenticated Studio session)
 - Studio source matched the repository ignoring CRLF at `85f66b1`
-- Production deploy: `8064b3f`, Actions run
-  [40778308934](https://github.com/jogmg/glimmerlock/actions/runs/40778308934);
+- Production deploy: `7cec554`, Actions run
+  [40780421467](https://github.com/jogmg/glimmerlock/actions/runs/40780421467);
   only the frontend was recreated
 - Studio deployment panel: six historical Arc Testnet deployments only; no
   fabricated mainnet records
