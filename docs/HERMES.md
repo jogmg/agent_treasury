@@ -44,11 +44,22 @@
 > action card. Frontend checks and 80 tests pass; Hermes typecheck and 92 tests pass. These changes
 > are deployed at `552192b`. Authenticated live wallet execution remains unverified.
 
-> **2026-10-28 current deployment:** `85f66b1` is live on InstaBox with the Glimmerlock rebrand,
+> **2026-10-28 current deployment:** `8064b3f` is live on InstaBox with the Glimmerlock rebrand,
 > async chat jobs, per-conversation state, User model selection, undo edit-from-here, inbound CCTP
-> from chat, the `public/` web-image fix, the chat-scroll fix, and the Arc Studio preview fallback.
-> Public `/health`, `/api/session`, and the Glimmerlock assets returned `200`; the authenticated
-> funded-wallet flow is still the remaining live gate. The deploy recreated only the frontend.
+> from chat, the `public/` web-image fix, the chat-scroll fix, the Arc Studio preview fallback, and
+> the Hermes CCTP deposit UX fixes. Public `/health`, `/api/session`, and the Glimmerlock assets
+> returned `200`; the authenticated funded-wallet flow is still the remaining live gate. The deploy
+> recreated only the frontend.
+>
+> **Hermes CCTP deposit fix (2026-10-28):** after `df6d691` allowed a new deposit following a
+> terminal bridge state, `8064b3f` fixed the follow-on silent failure. Preflight errors (mainnet
+> minimum, source balance, Arc gas, RPC timeout) are now shown on the card that initiated the
+> deposit even when a stale bridge owner exists. The card adds a 20s read timeout, a 45s
+> network-switch timeout, and no longer blocks the wallet prompt on a separate source-chain
+> simulation. Completed CCTP chat actions and confirmed local intents render a disabled **Action
+> completed** state. The connected owner wallet currently holds about 2 USDC on Base, below the
+> 5 USDC mainnet vault minimum; the card now reports that minimum instead of doing nothing. Fund
+> at least 5 USDC on Base to exercise the wallet prompt. Local frontend suite: 87 passing.
 >
 > **Mainnet keeper maintenance completed (2026-10-25):** the owner confirmed completed Base deliveries
 > and signed `executeWithdrawal(1..3)`; all three receipts succeeded and on-chain state now reports

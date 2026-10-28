@@ -90,7 +90,7 @@ The Studio preview is used for source/contract inspection. The production app is
   `0x72Cbd56507699F5002A10aCdDC5D20b4C2207a75`; Sepolia tx
   `0x843c07455e2c44dffaf174af6cc850810c9fc71ffb197a5f8033175b3f32e50f`. The earlier 1 USDC
   transfer is still awaiting Sepolia gas (`scripts/complete-cctp.ts`).
-- **Tests:** 104 Foundry tests (unit + invariants + mainnet fork rehearsal), 85 frontend Vitest
+- **Tests:** 104 Foundry tests (unit + invariants + mainnet fork rehearsal), 87 frontend Vitest
   tests, and 92 Hermes tests; frontend lint/typecheck/build clean.
 - **App:** 6 tabs, live reads, approve/deposit, collapsible cross-chain CCTP deposits, local
   withdraw, CCTP outbound form with chain-name destination dropdown, labeled event history

@@ -11,13 +11,14 @@ profiles while leaving Postgres running. The first pushes (`c8256bf`,
 `28c54cb`) exercised the no-op path because only CI/docs changed. Real
 application changes have since exercised the targeted path through Actions:
 `675dc36` (Glimmerlock rebrand), `100793b` (web image public assets),
-`552192b` (chat scroll fix), and `85f66b1` (Arc Studio preview fallback) all
-completed Verify + Deploy. The latest service-changing run,
-[40773695986](https://github.com/jogmg/glimmerlock/actions/runs/40773695986),
-passed both jobs, and the latest service deploy is `85f66b1`. That deploy
-recreated only the frontend; the BFF remained up 10 hours and the other
-services 2 days. A docs-only push still advances the marker without recreating
-containers per the change map.
+`552192b` (chat scroll fix), `85f66b1` (Arc Studio preview fallback), and
+`df6d691` (terminal inbound CCTP gating) all completed Verify + Deploy. The
+latest service-changing run,
+[40778308934](https://github.com/jogmg/glimmerlock/actions/runs/40778308934),
+passed both jobs, and the latest service deploy is `8064b3f` (Hermes CCTP
+preflight and completed-action fix). That deploy recreated only the frontend;
+the BFF and other services stayed up. A docs-only push still advances the
+marker without recreating containers per the change map.
 
 ## Triggers
 
