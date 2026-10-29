@@ -73,15 +73,16 @@
 > These bookkeeping writes move no funds. The keeper can rebalance, claim yield, and update cached
 > APY; it cannot withdraw agent funds.
 
-> **Arc Studio sync (2026-10-28):** the source at `85f66b1` is synchronized into the existing
+> **Arc Studio sync (2026-10-29):** the source at `e72dec7` is synchronized into the existing
 > Studio project `459b639e-b500-4f59-b057-aa17f5446888` using a single git archive that excludes
-> real `.env` files. Studio checks: typecheck 0 errors, 85 frontend tests passing, production build
+> real `.env` files. Studio checks: typecheck 0 errors, 87 frontend tests passing, production build
 > successful. The preview host is `ijwomt0218q2klpx2zr03.preview.studio.arc.io`; the app opens on
-> Overview, hides Chat, and links to the live app. The Studio deployment registry still contains
-> six historical Arc Testnet deployments; Arc mainnet deployment evidence is in
+> Overview, hides Chat, and links to the live app. Primary CTA backgrounds are literal `#083D77`,
+> so the preview cannot fall back to stock emerald green. The Studio deployment registry still
+> contains six historical Arc Testnet deployments; Arc mainnet deployment evidence is in
 > `deployments/arc-mainnet.json` and was originally signed outside the Studio CLI. Do not claim or
-> fabricate Studio mainnet deployment records. Studio usage after the sync: 32% of the reported
-> window (2026-10-28).
+> fabricate Studio mainnet deployment records. Studio usage after the sync: 33% of the reported
+> window (2026-10-29).
 >
 > Phase 1 implementation: shared CCTP parser, Arc/CCTP MCP server, Postgres schema, deterministic
 > monitor, Discord alerts, Ops profile, Docker Compose, and read-only smoke test. The MCP smoke

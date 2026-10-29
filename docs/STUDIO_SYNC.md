@@ -4,26 +4,25 @@ This checklist keeps the existing Arc Studio project credible for the
 Arc Microgrants submission without redeploying contracts or weakening
 production security.
 
-## Current sync status (2026-10-28)
+## Current sync status (2026-10-29)
 
-- Source synchronized: `85f66b1`
-- **Local source ahead:** `df6d691`, `8064b3f`, `7cec554`, and `700a1ad`;
-  re-sync pending before submission
+- Source synchronized: `e72dec7`
+- Application source and Studio source match ignoring CRLF; any later local
+  commit is docs-only deploy bookkeeping and does not affect the app
 - Studio app: `https://studio.arc.io/app/459b639e-b500-4f59-b057-aa17f5446888`
-- Studio checks at the last sync: typecheck 0 errors, **85 frontend tests
-  passing**, build success (local suite is now **87 passing**)
+- Studio checks at this sync: typecheck 0 errors, **87 frontend tests
+  passing**, build success
 - Preview host: `ijwomt0218q2klpx2zr03.preview.studio.arc.io`
   (403 without an authenticated Studio session)
-- Studio source matched the repository ignoring CRLF at `85f66b1`
 - Production deploy: `700a1ad`, Actions run
   [40954986857](https://github.com/jogmg/glimmerlock/actions/runs/40954986857);
   only the frontend was recreated
-- Studio preview color note: primary CTA backgrounds now use literal
-  `#083D77` instead of `bg-emerald-500`, so a preview build that ignores the
-  local Tailwind config cannot fall back to stock emerald green
+- Studio preview color note: primary CTA backgrounds use literal `#083D77`
+  instead of `bg-emerald-500`, so a preview build that ignores the local
+  Tailwind config cannot fall back to stock emerald green
 - Studio deployment panel: six historical Arc Testnet deployments only; no
-  fabricated mainnet records
-- Studio usage after the sync: **32%** of the reported rolling window
+  fabricated mainnet records, and the sync added none
+- Studio usage after the sync: **33%** of the reported rolling window
 
 ## Why the Studio UI looks different
 
