@@ -4,16 +4,14 @@ export default {
   theme: {
     extend: {
       colors: {
+        // Accent alias for border/text utilities. Primary backgrounds use the
+        // literal brand blue so previews that ignore this config still match.
         emerald: {
           100: "#dce7f3",
           200: "#c4d5e8",
           300: "#96ADC8",
           400: "#4F75A0",
           500: "#083D77",
-          600: "#062f5c",
-          700: "#052546",
-          800: "#0A0E11",
-          900: "#070b0e",
         },
       },
       fontFamily: {

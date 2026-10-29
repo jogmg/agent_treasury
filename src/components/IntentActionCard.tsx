@@ -25,7 +25,7 @@ export function IntentActionCard({
     intent.kind === "deposit" ? "Review deposit" : "Review withdrawal";
 
   return (
-    <div className="mt-2 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3">
+    <div className="mt-2 rounded-xl border border-emerald-500/30 bg-[#083D77]/5 p-3">
       <div className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-200">
         <Sparkles className="h-3 w-3" />
         Unsigned draft

@@ -40,7 +40,7 @@ function WrongNetworkBanner() {
 
   if (isCompletingMint) {
     return (
-      <div className="border-b border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-center text-xs text-emerald-300">
+      <div className="border-b border-emerald-500/30 bg-[#083D77]/10 px-4 py-2 text-center text-xs text-emerald-300">
         Completing the CCTP mint on{" "}
         {destination?.name ?? "the destination chain"}.{" "}
         <button

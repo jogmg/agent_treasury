@@ -37,7 +37,7 @@ const KIND_CLASS: Record<PendingCctpItem['direction'], string> = {
 }
 
 /** Completed status badge: keeps the kind badge but flips it to a done tone. */
-const COMPLETED_CLASS = 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20'
+const COMPLETED_CLASS = 'bg-[#083D77]/15 text-emerald-400 border-emerald-500/20'
 
 /**
  * Build the shared-shape row for a pending transfer. `onResume` receives the

@@ -27,7 +27,7 @@ export const TYPE_COLORS: BadgeClass = {
   WithdrawalCancelled: "bg-red-500/15 text-red-300 border-red-500/25",
   YieldStrategyChanged: "bg-purple-500/15 text-purple-300 border-purple-500/25",
   Rebalanced: "bg-slate-500/15 text-slate-200 border-slate-500/25",
-  YieldClaimed: "bg-emerald-500/15 text-emerald-300 border-emerald-500/25",
+  YieldClaimed: "bg-[#083D77]/15 text-emerald-300 border-emerald-500/25",
   SpendingLimitSet: "bg-slate-500/15 text-slate-200 border-slate-500/25",
 };
 

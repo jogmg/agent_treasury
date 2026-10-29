@@ -401,7 +401,7 @@ export function HermesCctpDepositCard({
   }
 
   return (
-    <div className="mt-3 border border-emerald-500/30 bg-emerald-500/[0.04] p-4 text-left">
+    <div className="mt-3 border border-emerald-500/30 bg-[#083D77]/[0.04] p-4 text-left">
       <p className="text-xs font-semibold uppercase tracking-wide text-emerald-200">
         CCTP deposit
       </p>

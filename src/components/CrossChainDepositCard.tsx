@@ -859,7 +859,7 @@ export function CrossChainDepositCard() {
               {BRIDGE_STATUS_LABEL[status]}
             </span>
           )}
-          <span className="rounded-full bg-emerald-500/60 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-white">
+          <span className="rounded-full bg-[#083D77]/60 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-white">
             CCTP
           </span>
           <ChevronDown className="h-4 w-4 text-slate-500 transition group-open:rotate-180" />
@@ -1084,7 +1084,7 @@ export function CrossChainDepositCard() {
                       void handleResume();
                     }}
                     disabled={resuming || !resumeTx.trim()}
-                    className="shrink-0 rounded-lg border border-emerald-500/40 px-3 py-2 text-xs font-medium text-emerald-400 transition hover:bg-emerald-500/10 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="shrink-0 rounded-lg border border-emerald-500/40 px-3 py-2 text-xs font-medium text-emerald-400 transition hover:bg-[#083D77]/10 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     {resuming ? "Checking…" : "Track"}
                   </button>

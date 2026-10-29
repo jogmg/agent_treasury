@@ -97,7 +97,7 @@ export function OverviewTab() {
             </h2>
             <button
               onClick={() => setTab("activity")}
-              className="rounded-full px-3 py-1.5 font-medium tracking-wide text-white text-xs bg-emerald-500 hover:bg-emerald-500/80 transition"
+              className="rounded-full px-3 py-1.5 font-medium tracking-wide text-white text-xs bg-[#083D77] hover:bg-[#083D77]/80 transition"
             >
               View all
             </button>

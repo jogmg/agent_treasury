@@ -29,10 +29,10 @@ export function IntentReviewCard({
       : getCctpDestination(intent.destinationDomain);
 
   return (
-    <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4">
+    <div className="rounded-xl border border-emerald-500/30 bg-[#083D77]/5 p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-2">
-          <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-500/15 ring-1 ring-emerald-500/30">
+          <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#083D77]/15 ring-1 ring-emerald-500/30">
             <Sparkles className="h-3.5 w-3.5 text-emerald-300" />
           </div>
           <div>
@@ -49,7 +49,7 @@ export function IntentReviewCard({
             type="button"
             onClick={onDismiss}
             aria-label="Dismiss draft"
-            className="rounded-lg p-1 text-emerald-300/60 transition hover:bg-emerald-500/10 hover:text-emerald-200"
+            className="rounded-lg p-1 text-emerald-300/60 transition hover:bg-[#083D77]/10 hover:text-emerald-200"
           >
             <X className="h-4 w-4" />
           </button>

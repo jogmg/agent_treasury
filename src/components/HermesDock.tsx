@@ -558,7 +558,7 @@ export function HermesDock() {
               if (undoRevert()) setInput("");
             }}
             disabled={busy}
-            className="inline-flex shrink-0 items-center gap-1.5 px-2 py-1 text-xs font-medium text-emerald-200 transition hover:bg-emerald-500/10 disabled:opacity-40"
+            className="inline-flex shrink-0 items-center gap-1.5 px-2 py-1 text-xs font-medium text-emerald-200 transition hover:bg-[#083D77]/10 disabled:opacity-40"
           >
             <Undo2 className="h-3.5 w-3.5" />
             Restore conversation

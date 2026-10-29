@@ -172,7 +172,7 @@ export function YieldTab() {
               onClick={() => setProjDays(d)}
               className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
                 projDays === d
-                  ? "bg-emerald-500 text-white"
+                  ? "bg-[#083D77] text-white"
                   : "border border-slate-700 text-slate-400 hover:text-slate-200"
               }`}
             >
@@ -252,7 +252,7 @@ export function YieldTab() {
                 onClick={() => setGrowthRangeIdx(i)}
                 className={`rounded-lg px-2.5 py-1 text-xs font-medium transition ${
                   growthRangeIdx === i
-                    ? "bg-emerald-500 text-white"
+                    ? "bg-[#083D77] text-white"
                     : "border border-slate-700 text-slate-400 hover:text-slate-200"
                 }`}
               >

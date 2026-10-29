@@ -395,7 +395,7 @@ export function ActivityTab() {
       {showBridge && filter !== "inflight" && (
         <div
           role="status"
-          className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4"
+          className="rounded-xl border border-emerald-500/20 bg-[#083D77]/5 p-4"
         >
           <div className="flex items-start gap-3">
             <Clock className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
@@ -404,7 +404,7 @@ export function ActivityTab() {
                 <p className="text-sm font-medium text-white">
                   Cross-chain deposit in progress
                 </p>
-                <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-300">
+                <span className="rounded-full border border-emerald-500/30 bg-[#083D77]/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-300">
                   {BRIDGE_STATUS_LABEL[bridge.status]}
                 </span>
               </div>
@@ -447,7 +447,7 @@ export function ActivityTab() {
               onClick={() => setFilter(opt.value)}
               className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium transition ${
                 filter === opt.value
-                  ? "bg-emerald-500 text-white"
+                  ? "bg-[#083D77] text-white"
                   : "border border-slate-700 text-slate-400 hover:text-slate-200"
               }`}
             >

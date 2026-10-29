@@ -6,7 +6,7 @@
 
 @layer components {
   .glimmer-primary-cta {
-    @apply rounded-xl bg-emerald-500 px-4 py-3.5 text-sm font-semibold text-white transition hover:bg-emerald-500/90 disabled:cursor-not-allowed disabled:opacity-40;
+    @apply rounded-xl bg-[#083D77] px-4 py-3.5 text-sm font-semibold text-white transition hover:bg-[#083D77]/90 disabled:cursor-not-allowed disabled:opacity-40;
   }
 }
 

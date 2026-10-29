@@ -249,7 +249,7 @@ export function SettingsTab() {
             className={`rounded-full px-2 py-0.5 text-xs font-medium ${
               isPaused
                 ? "bg-red-500/20 text-red-400"
-                : "bg-emerald-500/20 text-emerald-400"
+                : "bg-[#083D77]/20 text-emerald-400"
             }`}
           >
             {isPaused ? "PAUSED" : "Active"}

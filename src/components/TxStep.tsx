@@ -29,7 +29,7 @@ export function TxStep({ step, hash, error, labels, onReset }: Props) {
     <div className={clsx(
       'mt-4 flex items-start gap-3 rounded-xl border p-4 text-sm',
       isLoading && 'border-slate-700 bg-slate-800/50 text-slate-300',
-      isSuccess && 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
+      isSuccess && 'border-emerald-500/30 bg-[#083D77]/10 text-emerald-300',
       isError   && 'border-red-500/30 bg-red-500/10 text-red-300',
     )}>
       <span className="mt-0.5 shrink-0">
