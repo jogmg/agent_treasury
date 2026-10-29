@@ -7,17 +7,20 @@ production security.
 ## Current sync status (2026-10-28)
 
 - Source synchronized: `85f66b1`
-- **Local source ahead:** `df6d691`, `8064b3f`, and `7cec554`; re-sync pending
-  before submission
+- **Local source ahead:** `df6d691`, `8064b3f`, `7cec554`, and `700a1ad`;
+  re-sync pending before submission
 - Studio app: `https://studio.arc.io/app/459b639e-b500-4f59-b057-aa17f5446888`
 - Studio checks at the last sync: typecheck 0 errors, **85 frontend tests
   passing**, build success (local suite is now **87 passing**)
 - Preview host: `ijwomt0218q2klpx2zr03.preview.studio.arc.io`
   (403 without an authenticated Studio session)
 - Studio source matched the repository ignoring CRLF at `85f66b1`
-- Production deploy: `7cec554`, Actions run
-  [40780421467](https://github.com/jogmg/glimmerlock/actions/runs/40780421467);
+- Production deploy: `700a1ad`, Actions run
+  [40954986857](https://github.com/jogmg/glimmerlock/actions/runs/40954986857);
   only the frontend was recreated
+- Studio preview color note: primary CTA backgrounds now use literal
+  `#083D77` instead of `bg-emerald-500`, so a preview build that ignores the
+  local Tailwind config cannot fall back to stock emerald green
 - Studio deployment panel: six historical Arc Testnet deployments only; no
   fabricated mainnet records
 - Studio usage after the sync: **32%** of the reported rolling window

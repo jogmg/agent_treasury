@@ -13,10 +13,11 @@ application changes have since exercised the targeted path through Actions:
 `675dc36` (Glimmerlock rebrand), `100793b` (web image public assets),
 `552192b` (chat scroll fix), `85f66b1` (Arc Studio preview fallback),
 `df6d691` (terminal inbound CCTP gating), `8064b3f` (Hermes CCTP preflight
-fix), and `7cec554` (remove separate completed-action buttons) all completed
-Verify + Deploy. The latest service-changing run,
-[40780421467](https://github.com/jogmg/glimmerlock/actions/runs/40780421467),
-passed both jobs, and the latest service deploy is `7cec554`. That deploy
+fix), `7cec554` (remove separate completed-action buttons), and `700a1ad`
+(literal brand-blue CTAs) all completed Verify + Deploy. The latest
+service-changing run,
+[40954986857](https://github.com/jogmg/glimmerlock/actions/runs/40954986857),
+passed both jobs, and the latest service deploy is `700a1ad`. That deploy
 recreated only the frontend; the BFF and other services stayed up. A docs-only
 push still advances the marker without recreating containers per the change
 map.

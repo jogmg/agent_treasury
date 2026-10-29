@@ -44,12 +44,13 @@
 > action card. Frontend checks and 80 tests pass; Hermes typecheck and 92 tests pass. These changes
 > are deployed at `552192b`. Authenticated live wallet execution remains unverified.
 
-> **2026-10-28 current deployment:** `7cec554` is live on InstaBox with the Glimmerlock rebrand,
+> **2026-10-29 current deployment:** `700a1ad` is live on InstaBox with the Glimmerlock rebrand,
 > async chat jobs, per-conversation state, User model selection, undo edit-from-here, inbound CCTP
 > from chat, the `public/` web-image fix, the chat-scroll fix, the Arc Studio preview fallback, the
-> Hermes CCTP deposit UX fixes, and the removal of the separate completed-action buttons. Public
-> `/health`, `/api/session`, and the Glimmerlock assets returned `200`; the authenticated
-> funded-wallet flow is still the remaining live gate. The deploy recreated only the frontend.
+> Hermes CCTP deposit UX fixes, the removal of the separate completed-action buttons, and literal
+> brand-blue CTAs (`#083D77`). Public `/health`, `/api/session`, and the Glimmerlock assets returned
+> `200`; the authenticated funded-wallet flow is still the remaining live gate. The deploy recreated
+> only the frontend.
 >
 > **Hermes CCTP deposit fix (2026-10-28):** after `df6d691` allowed a new deposit following a
 > terminal bridge state, `8064b3f` fixed the follow-on silent failure. Preflight errors (mainnet
